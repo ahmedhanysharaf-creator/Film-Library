@@ -1,6 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { auth, googleProvider, isFirebaseConfigured } from "../services/firebase";
-import { signInWithPopup, signOut as firebaseSignOut, onAuthStateChanged } from "firebase/auth";
+import { 
+  signInWithPopup, 
+  signInWithRedirect, 
+  getRedirectResult, 
+  signOut as firebaseSignOut, 
+  onAuthStateChanged 
+} from "firebase/auth";
 import { fetchAllowedUsers, addAllowedUser } from "../services/storage";
 import { useToast } from "./ToastContext";
 
@@ -36,6 +42,28 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     if (isFirebaseConfigured() && auth) {
+      // Process redirect result if page reloaded after signInWithRedirect
+      getRedirectResult(auth)
+        .then(async (result) => {
+          if (result && result.user) {
+            const user = result.user;
+            const allowed = await checkWhitelist(user);
+            if (allowed) {
+              setCurrentUser({
+                uid: user.uid,
+                email: user.email,
+                displayName: user.displayName || user.email.split("@")[0],
+                photoURL: user.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${user.email}`
+              });
+              setIsWhitelisted(true);
+              addToast(`Welcome, ${user.displayName || 'User'}!`, "success");
+            }
+          }
+        })
+        .catch((err) => {
+          console.error("Redirect auth result error:", err);
+        });
+
       const unsubscribe = onAuthStateChanged(auth, async (user) => {
         if (user) {
           const allowed = await checkWhitelist(user);
@@ -77,6 +105,7 @@ export const AuthProvider = ({ children }) => {
   const loginWithGoogle = async () => {
     if (isFirebaseConfigured() && auth && googleProvider) {
       try {
+        // Try Popup first
         const result = await signInWithPopup(auth, googleProvider);
         const user = result.user;
         const allowed = await checkWhitelist(user);
@@ -91,19 +120,41 @@ export const AuthProvider = ({ children }) => {
         addToast(`Welcome back, ${user.displayName || 'User'}!`, "success");
         return true;
       } catch (err) {
-        console.error("Google Auth error:", err);
-        if (err.code === "auth/unauthorized-domain") {
-          addToast("Domain Not Authorized! Add 'ahmedhanysharaf-creator.github.io' in Firebase Console -> Authentication -> Settings -> Authorized domains.", "error", 8000);
+        console.error("Google Auth popup error:", err);
+
+        // Fallback to Redirect mode if Popup is blocked or closes instantly
+        if (
+          err.code === "auth/popup-closed-by-user" || 
+          err.code === "auth/popup-blocked" || 
+          err.code === "auth/cancelled-popup-request"
+        ) {
+          addToast("Popup blocked or closed. Switching to Direct Google Redirect...", "info");
+          try {
+            await signInWithRedirect(auth, googleProvider);
+            return true;
+          } catch (redErr) {
+            console.error("Redirect login error:", redErr);
+            addToast(`Redirect error: ${redErr.message}`, "error");
+          }
+        } else if (err.code === "auth/unauthorized-domain") {
+          addToast("Domain Not Authorized! In Firebase Console -> Authentication -> Settings -> Authorized domains, add 'ahmedhanysharaf-creator.github.io'", "error", 10000);
         } else if (err.code === "auth/operation-not-allowed") {
-          addToast("Google Sign-In is not enabled! Enable 'Google' provider in Firebase Console -> Authentication -> Sign-in method.", "error", 8000);
+          addToast("Google Sign-In is disabled! Enable 'Google' provider in Firebase Console -> Authentication -> Sign-in method.", "error", 10000);
         } else {
-          addToast(`Auth error (${err.code || 'error'}): ${err.message}`, "error", 6000);
+          // Attempt redirect fallback for all popup errors
+          try {
+            addToast("Redirecting to Google Sign-In...", "info");
+            await signInWithRedirect(auth, googleProvider);
+            return true;
+          } catch (fallbackErr) {
+            addToast(`Auth error (${err.code || 'error'}): ${err.message}`, "error", 6000);
+          }
         }
         return false;
       }
     } else {
       // Demo Mode login fallback
-      addToast("Firebase keys not set yet. Signed in via local mode! Add Firebase Config in Settings for live Google OAuth.", "warning", 5000);
+      addToast("Firebase keys not set. Signed in via local mode!", "warning", 5000);
       return loginAsDemoUser("Alice (Demo User)", "alice@filmlibrary.com");
     }
   };
