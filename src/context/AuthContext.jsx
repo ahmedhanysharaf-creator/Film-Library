@@ -97,6 +97,7 @@ export const AuthProvider = ({ children }) => {
       }
     } else {
       // Demo Mode login fallback
+      addToast("Firebase keys not set yet. Signed in via local mode! Add Firebase Config in Settings for live Google OAuth.", "warning", 5000);
       return loginAsDemoUser("Alice (Demo User)", "alice@filmlibrary.com");
     }
   };
