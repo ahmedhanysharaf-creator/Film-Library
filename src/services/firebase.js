@@ -2,7 +2,7 @@ import { initializeApp, getApps } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
-// Get user configured keys or fallback env vars
+// Get user configured keys, fallback env vars, or default project config
 const getFirebaseConfig = () => {
   const customConfigStr = localStorage.getItem("filmlibrary_firebase_config");
   if (customConfigStr) {
@@ -14,12 +14,12 @@ const getFirebaseConfig = () => {
   }
 
   return {
-    apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "",
-    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "",
-    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "",
-    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "",
-    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
-    appId: import.meta.env.VITE_FIREBASE_APP_ID || ""
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyCXq-RV-fmjejeXGLAbOXVNaZRhJZ_Nfms",
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "film-library-7b94d.firebaseapp.com",
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "film-library-7b94d",
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "film-library-7b94d.firebasestorage.app",
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "253114033974",
+    appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:253114033974:web:bcc14d47fa102a32783597"
   };
 };
 
@@ -40,12 +40,12 @@ if (isFirebaseConfigured()) {
     auth = getAuth(app);
     db = getFirestore(app);
     googleProvider = new GoogleAuthProvider();
-    console.log("[Firebase] Initialized with remote backend.");
+    console.log("[Firebase] Initialized with remote backend:", firebaseConfig.projectId);
   } catch (err) {
     console.error("[Firebase Init Error]:", err);
   }
 } else {
-  console.log("[Firebase] Not fully configured. App will operate in client local-storage mode until credentials are provided.");
+  console.log("[Firebase] Not fully configured. Operating in local storage mode.");
 }
 
 export { app, auth, db, googleProvider };
