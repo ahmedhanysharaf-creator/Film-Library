@@ -92,7 +92,13 @@ export const AuthProvider = ({ children }) => {
         return true;
       } catch (err) {
         console.error("Google Auth error:", err);
-        addToast(`Authentication error: ${err.message}`, "error");
+        if (err.code === "auth/unauthorized-domain") {
+          addToast("Domain Not Authorized! Add 'ahmedhanysharaf-creator.github.io' in Firebase Console -> Authentication -> Settings -> Authorized domains.", "error", 8000);
+        } else if (err.code === "auth/operation-not-allowed") {
+          addToast("Google Sign-In is not enabled! Enable 'Google' provider in Firebase Console -> Authentication -> Sign-in method.", "error", 8000);
+        } else {
+          addToast(`Auth error (${err.code || 'error'}): ${err.message}`, "error", 6000);
+        }
         return false;
       }
     } else {
