@@ -42,7 +42,7 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     if (isFirebaseConfigured() && auth) {
-      // Process redirect result if page reloaded after signInWithRedirect
+      // Handle page return after signInWithRedirect
       getRedirectResult(auth)
         .then(async (result) => {
           if (result && result.user) {
@@ -61,7 +61,12 @@ export const AuthProvider = ({ children }) => {
           }
         })
         .catch((err) => {
-          console.error("Redirect auth result error:", err);
+          console.error("Redirect auth error:", err);
+          if (err.code === "auth/unauthorized-domain") {
+            addToast("Domain Not Authorized! Add 'ahmedhanysharaf-creator.github.io' in Firebase Console -> Authentication -> Settings -> Authorized domains.", "error", 10000);
+          } else if (err.code === "auth/operation-not-allowed") {
+            addToast("Google Sign-In is disabled! Enable 'Google' in Firebase Console -> Authentication -> Sign-in method.", "error", 10000);
+          }
         });
 
       const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -102,62 +107,29 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  const loginWithGoogle = async () => {
+  // Direct Redirect Login Method (Recommended for browser stability)
+  const loginWithGoogleRedirect = async () => {
     if (isFirebaseConfigured() && auth && googleProvider) {
       try {
-        // Try Popup first
-        const result = await signInWithPopup(auth, googleProvider);
-        const user = result.user;
-        const allowed = await checkWhitelist(user);
-
-        if (!allowed) {
-          await firebaseSignOut(auth);
-          setCurrentUser(null);
-          setIsWhitelisted(false);
-          addToast("Access Denied — You are not authorized to use this app.", "error");
-          return false;
-        }
-        addToast(`Welcome back, ${user.displayName || 'User'}!`, "success");
+        addToast("Redirecting to Google Sign-In...", "info");
+        await signInWithRedirect(auth, googleProvider);
         return true;
       } catch (err) {
-        console.error("Google Auth popup error:", err);
-
-        // Fallback to Redirect mode if Popup is blocked or closes instantly
-        if (
-          err.code === "auth/popup-closed-by-user" || 
-          err.code === "auth/popup-blocked" || 
-          err.code === "auth/cancelled-popup-request"
-        ) {
-          addToast("Popup blocked or closed. Switching to Direct Google Redirect...", "info");
-          try {
-            await signInWithRedirect(auth, googleProvider);
-            return true;
-          } catch (redErr) {
-            console.error("Redirect login error:", redErr);
-            addToast(`Redirect error: ${redErr.message}`, "error");
-          }
-        } else if (err.code === "auth/unauthorized-domain") {
-          addToast("Domain Not Authorized! In Firebase Console -> Authentication -> Settings -> Authorized domains, add 'ahmedhanysharaf-creator.github.io'", "error", 10000);
-        } else if (err.code === "auth/operation-not-allowed") {
-          addToast("Google Sign-In is disabled! Enable 'Google' provider in Firebase Console -> Authentication -> Sign-in method.", "error", 10000);
+        console.error("Google Auth Redirect Error:", err);
+        if (err.code === "auth/unauthorized-domain") {
+          addToast("Domain Not Authorized! Add 'ahmedhanysharaf-creator.github.io' in Firebase Console -> Authentication -> Settings -> Authorized domains.", "error", 10000);
         } else {
-          // Attempt redirect fallback for all popup errors
-          try {
-            addToast("Redirecting to Google Sign-In...", "info");
-            await signInWithRedirect(auth, googleProvider);
-            return true;
-          } catch (fallbackErr) {
-            addToast(`Auth error (${err.code || 'error'}): ${err.message}`, "error", 6000);
-          }
+          addToast(`Auth error: ${err.message}`, "error");
         }
         return false;
       }
     } else {
-      // Demo Mode login fallback
       addToast("Firebase keys not set. Signed in via local mode!", "warning", 5000);
       return loginAsDemoUser("Alice (Demo User)", "alice@filmlibrary.com");
     }
   };
+
+  const loginWithGoogle = loginWithGoogleRedirect;
 
   const loginAsDemoUser = (name = "Alice", email = "alice@filmlibrary.com") => {
     const demoUser = {
@@ -190,6 +162,7 @@ export const AuthProvider = ({ children }) => {
         loading,
         isWhitelisted,
         loginWithGoogle,
+        loginWithGoogleRedirect,
         loginAsDemoUser,
         logout
       }}
