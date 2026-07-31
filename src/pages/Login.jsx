@@ -1,14 +1,21 @@
 import React from "react";
-import { Film, ShieldCheck, PlayCircle, Users, Tv } from "lucide-react";
+import { Film, ShieldCheck, PlayCircle, Users, Tv, AlertCircle } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 
 export const Login = ({ onLoginSuccess }) => {
   const { loginWithGoogle, loginAsDemoUser } = useAuth();
+  const { addToast } = useToast();
 
   const handleGoogleSignIn = async () => {
-    const success = await loginWithGoogle();
-    if (success && onLoginSuccess) {
-      onLoginSuccess();
+    try {
+      const success = await loginWithGoogle();
+      if (success && onLoginSuccess) {
+        onLoginSuccess();
+      }
+    } catch (err) {
+      console.error("Google sign-in error in handler:", err);
+      alert(`Firebase Google Auth Error: ${err.message || err}`);
     }
   };
 

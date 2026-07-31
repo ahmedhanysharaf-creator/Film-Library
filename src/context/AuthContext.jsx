@@ -62,11 +62,8 @@ export const AuthProvider = ({ children }) => {
         })
         .catch((err) => {
           console.error("Redirect auth error:", err);
-          if (err.code === "auth/unauthorized-domain") {
-            addToast("Domain Not Authorized! Add 'ahmedhanysharaf-creator.github.io' in Firebase Console -> Authentication -> Settings -> Authorized domains.", "error", 10000);
-          } else if (err.code === "auth/operation-not-allowed") {
-            addToast("Google Sign-In is disabled! Enable 'Google' in Firebase Console -> Authentication -> Sign-in method.", "error", 10000);
-          }
+          const msg = `Firebase Auth Error: ${err.message}`;
+          addToast(msg, "error", 10000);
         });
 
       const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -107,20 +104,35 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  // Direct Redirect Login Method (Recommended for browser stability)
-  const loginWithGoogleRedirect = async () => {
+  const loginWithGoogle = async () => {
     if (isFirebaseConfigured() && auth && googleProvider) {
       try {
-        addToast("Redirecting to Google Sign-In...", "info");
-        await signInWithRedirect(auth, googleProvider);
+        const result = await signInWithPopup(auth, googleProvider);
+        const user = result.user;
+        const allowed = await checkWhitelist(user);
+
+        if (!allowed) {
+          await firebaseSignOut(auth);
+          setCurrentUser(null);
+          setIsWhitelisted(false);
+          addToast("Access Denied — You are not authorized to use this app.", "error");
+          return false;
+        }
+        addToast(`Welcome back, ${user.displayName || 'User'}!`, "success");
         return true;
       } catch (err) {
-        console.error("Google Auth Redirect Error:", err);
+        console.error("Google Auth error:", err);
+        const errMsg = err.code || err.message || "Unknown error";
+        
+        let userInstruction = `Firebase Auth Error (${errMsg}): ${err.message}`;
         if (err.code === "auth/unauthorized-domain") {
-          addToast("Domain Not Authorized! Add 'ahmedhanysharaf-creator.github.io' in Firebase Console -> Authentication -> Settings -> Authorized domains.", "error", 10000);
-        } else {
-          addToast(`Auth error: ${err.message}`, "error");
+          userInstruction = "Domain Not Authorized! Go to Firebase Console -> Authentication -> Settings -> Authorized domains and add 'ahmedhanysharaf-creator.github.io'";
+        } else if (err.code === "auth/operation-not-allowed") {
+          userInstruction = "Google Sign-In Disabled! Go to Firebase Console -> Authentication -> Sign-in method -> Edit Google -> Enable.";
         }
+        
+        alert(userInstruction);
+        addToast(userInstruction, "error", 10000);
         return false;
       }
     } else {
@@ -128,8 +140,6 @@ export const AuthProvider = ({ children }) => {
       return loginAsDemoUser("Alice (Demo User)", "alice@filmlibrary.com");
     }
   };
-
-  const loginWithGoogle = loginWithGoogleRedirect;
 
   const loginAsDemoUser = (name = "Alice", email = "alice@filmlibrary.com") => {
     const demoUser = {
@@ -162,7 +172,6 @@ export const AuthProvider = ({ children }) => {
         loading,
         isWhitelisted,
         loginWithGoogle,
-        loginWithGoogleRedirect,
         loginAsDemoUser,
         logout
       }}
