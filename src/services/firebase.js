@@ -14,12 +14,12 @@ const getFirebaseConfig = () => {
   }
 
   return {
-    apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyCXq-RV-fmjejeXGLAbOXVNaZRhJZ_Nfms",
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyAgQnjBwEEZ8f1LQH3evM8E0P3zszN3rfA",
     authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "film-library-7b94d.firebaseapp.com",
     projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "film-library-7b94d",
     storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "film-library-7b94d.firebasestorage.app",
     messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "253114033974",
-    appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:253114033974:web:bcc14d47fa102a32783597"
+    appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:253114033974:web:d943a87eb3977b0a783597"
   };
 };
 
