@@ -35,7 +35,7 @@ const AppContent = () => {
 
   // Whitelist Guard Enforcement
   if (!currentUser || !isWhitelisted) {
-    return <Login onLoginSuccess={() => setActivePage("home")} />;
+    return <Login onLoginSuccess={() => setActivePage("library")} />;
   }
 
   const handleEdit = (item) => {
