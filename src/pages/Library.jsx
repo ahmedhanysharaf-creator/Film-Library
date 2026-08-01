@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { 
-  Search, Grid, List, Filter, ArrowUpDown, Check, X, Film, Tv, Star, CheckCircle2, Bookmark, User, Globe 
+  Search, Grid, List, Filter, ArrowUpDown, Check, X, Film, Tv, Star, CheckCircle2, Bookmark, User, Globe, History, Edit3, Trash2, Calendar, HardDrive 
 } from "lucide-react";
 import { fetchLibraryItems, deleteMediaEntry } from "../services/storage";
 import { PosterCard } from "../components/PosterCard";
@@ -13,26 +13,32 @@ export const Library = ({ onSelectItem, onEditItem }) => {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Search & Filter state
+  // Scope & Sub-view state
   const [libraryScope, setLibraryScope] = useState("all"); // "all" | "my"
+  const [showHistoryView, setShowHistoryView] = useState(false); // Sub-view under "my" scope
+
+  // Active hover/selection state for card dimming effect
+  const [activeHoverId, setActiveHoverId] = useState(null);
+
+  // Search & Filter state
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState("grid"); // "grid" | "list"
   const [sortBy, setSortBy] = useState("added"); // "added" | "title" | "rating" | "year"
   const [typeFilter, setTypeFilter] = useState("all"); // "all" | "movie" | "series"
   const [selectedGenres, setSelectedGenres] = useState([]);
-  const [genreLogic, setGenreLogic] = useState("OR"); // "AND" | "OR"
-  const [watchFilter, setWatchFilter] = useState("all"); // "all" | "watched" | "unwatched" | "watchlist"
+  const [genreLogic, setGenreLogic] = useState("OR");
+  const [watchFilter, setWatchFilter] = useState("all");
 
-  const loadItems = async () => {
+  const loadItems = useCallback(async () => {
     setLoading(true);
     const data = await fetchLibraryItems();
     setItems(data);
     setLoading(false);
-  };
+  }, []);
 
   useEffect(() => {
     loadItems();
-  }, []);
+  }, [loadItems]);
 
   const handleDeleteItem = async (itemId) => {
     try {
@@ -61,6 +67,13 @@ export const Library = ({ onSelectItem, onEditItem }) => {
     }
   };
 
+  // Upload History items added or linked to currentUser
+  const myUploadHistoryItems = useMemo(() => {
+    return items
+      .filter((i) => (i.user_paths || []).some((up) => up.uid === currentUser?.uid))
+      .sort((a, b) => new Date(b.added_at || 0) - new Date(a.added_at || 0));
+  }, [items, currentUser]);
+
   // Filter & Sort Computation
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
@@ -88,7 +101,7 @@ export const Library = ({ onSelectItem, onEditItem }) => {
       if (watchFilter === "watchlist" && userProgress.status !== "watchlist") return false;
       if (watchFilter === "unwatched" && userProgress.status === "watched") return false;
 
-      // 4. Genre Filter with AND / OR Logic
+      // 4. Genre Filter
       if (selectedGenres.length > 0) {
         const itemGenres = item.genres || [];
         if (genreLogic === "AND") {
@@ -121,7 +134,10 @@ export const Library = ({ onSelectItem, onEditItem }) => {
             <div style={styles.scopeTabs}>
               <button
                 style={{ ...styles.scopeBtn, ...(libraryScope === "all" ? styles.scopeActiveAll : {}) }}
-                onClick={() => setLibraryScope("all")}
+                onClick={() => {
+                  setLibraryScope("all");
+                  setShowHistoryView(false);
+                }}
               >
                 <Globe size={15} /> All Shared Library ({items.length})
               </button>
@@ -129,187 +145,305 @@ export const Library = ({ onSelectItem, onEditItem }) => {
                 style={{ ...styles.scopeBtn, ...(libraryScope === "my" ? styles.scopeActiveMy : {}) }}
                 onClick={() => setLibraryScope("my")}
               >
-                <User size={15} color="var(--accent-green)" /> My Library ({items.filter(i => (i.user_paths || []).some(up => up.uid === currentUser?.uid)).length})
+                <User size={15} color="var(--accent-green)" /> My Library ({myUploadHistoryItems.length})
               </button>
             </div>
+
+            {/* My History & Uploads Activity Button (Visible inside My Library) */}
+            {libraryScope === "my" && (
+              <button
+                style={{
+                  ...styles.historyViewBtn,
+                  ...(showHistoryView ? styles.historyViewBtnActive : {})
+                }}
+                onClick={() => setShowHistoryView(!showHistoryView)}
+              >
+                <History size={16} />
+                {showHistoryView ? "Switch to Grid View" : `My Upload History (${myUploadHistoryItems.length})`}
+              </button>
+            )}
           </div>
 
           <span style={styles.itemCount}>Showing {filteredItems.length} of {items.length} items</span>
         </div>
 
-        <div style={styles.controlsRow}>
-          {/* Real-time Search Input */}
-          <div style={styles.searchBox}>
-            <Search size={18} color="var(--text-muted)" style={styles.searchIcon} />
-            <input
-              type="text"
-              placeholder="Search by title, director, cast..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={styles.searchInput}
-            />
-            {searchQuery && (
-              <button style={styles.clearSearchBtn} onClick={() => setSearchQuery("")}>
-                <X size={16} />
-              </button>
-            )}
-          </div>
+        {!showHistoryView && (
+          <div style={styles.controlsRow}>
+            {/* Real-time Search Input */}
+            <div style={styles.searchBox}>
+              <Search size={18} color="var(--text-muted)" style={styles.searchIcon} />
+              <input
+                type="text"
+                placeholder="Search by title, director, cast..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={styles.searchInput}
+              />
+              {searchQuery && (
+                <button style={styles.clearSearchBtn} onClick={() => setSearchQuery("")}>
+                  <X size={16} />
+                </button>
+              )}
+            </div>
 
-          {/* Type Filter Tabs */}
-          <div style={styles.segmentedGroup}>
-            <button
-              style={{ ...styles.segmentBtn, ...(typeFilter === "all" ? styles.segmentActive : {}) }}
-              onClick={() => setTypeFilter("all")}
-            >
-              All
-            </button>
-            <button
-              style={{ ...styles.segmentBtn, ...(typeFilter === "movie" ? styles.segmentActive : {}) }}
-              onClick={() => setTypeFilter("movie")}
-            >
-              <Film size={14} /> Movies
-            </button>
-            <button
-              style={{ ...styles.segmentBtn, ...(typeFilter === "series" ? styles.segmentActive : {}) }}
-              onClick={() => setTypeFilter("series")}
-            >
-              <Tv size={14} /> Series
-            </button>
-          </div>
-
-          {/* Sort Selector */}
-          <div style={styles.selectWrapper}>
-            <ArrowUpDown size={16} color="var(--text-muted)" />
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              style={styles.select}
-            >
-              <option value="added">Newest Added</option>
-              <option value="title">Alphabetical A-Z</option>
-              <option value="rating">Highest IMDB Rating</option>
-              <option value="year">Release Year</option>
-            </select>
-          </div>
-
-          {/* View Mode Toggle */}
-          <div style={styles.viewToggle}>
-            <button
-              style={{ ...styles.toggleBtn, ...(viewMode === "grid" ? styles.toggleActive : {}) }}
-              onClick={() => setViewMode("grid")}
-              title="Poster Grid View"
-            >
-              <Grid size={18} />
-            </button>
-            <button
-              style={{ ...styles.toggleBtn, ...(viewMode === "list" ? styles.toggleActive : {}) }}
-              onClick={() => setViewMode("list")}
-              title="Compact List View"
-            >
-              <List size={18} />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Watch Status & Genre Filter Bar */}
-      <div style={styles.filterBar}>
-        {/* Watch Status Buttons */}
-        <div style={styles.statusFilterRow}>
-          <span style={styles.filterLabel}>Status:</span>
-          {["all", "watched", "watchlist", "unwatched"].map((st) => (
-            <button
-              key={st}
-              style={{
-                ...styles.statusFilterBtn,
-                ...(watchFilter === st ? styles.statusFilterActive : {})
-              }}
-              onClick={() => setWatchFilter(st)}
-            >
-              {st === "watched" && <CheckCircle2 size={12} color="var(--accent-green)" />}
-              {st === "watchlist" && <Bookmark size={12} color="var(--accent-gold)" />}
-              {st.charAt(0).toUpperCase() + st.slice(1)}
-            </button>
-          ))}
-        </div>
-
-        <div style={styles.dividerVertical} />
-
-        {/* Genre Tags Horizontal List */}
-        <div style={styles.genreSection}>
-          <div style={styles.genreHeader}>
-            <span style={styles.filterLabel}>Genres:</span>
-
-            {/* AND / OR Logic Toggle */}
-            <div style={styles.logicToggle}>
-              <span style={styles.logicLabel}>Logic:</span>
+            {/* Type Filter Tabs */}
+            <div style={styles.segmentedGroup}>
               <button
-                style={{ ...styles.logicBtn, ...(genreLogic === "OR" ? styles.logicActive : {}) }}
-                onClick={() => setGenreLogic("OR")}
+                style={{ ...styles.segmentBtn, ...(typeFilter === "all" ? styles.segmentActive : {}) }}
+                onClick={() => setTypeFilter("all")}
               >
-                OR (Any)
+                All
               </button>
               <button
-                style={{ ...styles.logicBtn, ...(genreLogic === "AND" ? styles.logicActive : {}) }}
-                onClick={() => setGenreLogic("AND")}
+                style={{ ...styles.segmentBtn, ...(typeFilter === "movie" ? styles.segmentActive : {}) }}
+                onClick={() => setTypeFilter("movie")}
               >
-                AND (Strict)
+                <Film size={14} /> Movies
+              </button>
+              <button
+                style={{ ...styles.segmentBtn, ...(typeFilter === "series" ? styles.segmentActive : {}) }}
+                onClick={() => setTypeFilter("series")}
+              >
+                <Tv size={14} /> Series
               </button>
             </div>
 
-            {selectedGenres.length > 0 && (
-              <button style={styles.clearGenresBtn} onClick={() => setSelectedGenres([])}>
-                Clear Filter ({selectedGenres.length})
-              </button>
-            )}
-          </div>
+            {/* Sort Selector */}
+            <div style={styles.selectWrapper}>
+              <ArrowUpDown size={16} color="var(--text-muted)" />
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                style={styles.select}
+              >
+                <option value="added">Newest Added</option>
+                <option value="title">Alphabetical A-Z</option>
+                <option value="rating">Highest IMDB Rating</option>
+                <option value="year">Release Year</option>
+              </select>
+            </div>
 
-          <div style={styles.genrePillScroll}>
-            {allAvailableGenres.map((g) => {
-              const isSelected = selectedGenres.includes(g);
-              return (
-                <button
-                  key={g}
-                  style={{
-                    ...styles.genrePill,
-                    ...(isSelected ? styles.genrePillActive : {})
-                  }}
-                  onClick={() => toggleGenre(g)}
-                >
-                  {g}
-                </button>
-              );
-            })}
+            {/* View Mode Toggle */}
+            <div style={styles.viewToggle}>
+              <button
+                style={{ ...styles.toggleBtn, ...(viewMode === "grid" ? styles.toggleActive : {}) }}
+                onClick={() => setViewMode("grid")}
+                title="Poster Grid View"
+              >
+                <Grid size={18} />
+              </button>
+              <button
+                style={{ ...styles.toggleBtn, ...(viewMode === "list" ? styles.toggleActive : {}) }}
+                onClick={() => setViewMode("list")}
+                title="Compact List View"
+              >
+                <List size={18} />
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Grid or List Display */}
-      {loading ? (
-        <div style={styles.loadingState}>Loading Film Library...</div>
-      ) : filteredItems.length === 0 ? (
-        <div style={styles.emptyState}>
-          <Film size={48} color="var(--text-muted)" />
-          <h3>No media items match your search / filter criteria.</h3>
-          <p>
-            {libraryScope === "my"
-              ? "You haven't added any movies to your personal library yet."
-              : "Try clearing genre filters or changing the search query."}
-          </p>
+      {/* MY UPLOAD HISTORY TIMELINE VIEW */}
+      {showHistoryView ? (
+        <div style={styles.historyCard} className="glass-panel animate-fade">
+          <div style={styles.historyHeader}>
+            <History size={24} color="var(--accent-green)" />
+            <div>
+              <h3 style={styles.historyTitle}>My Personal Upload History & Activity Log</h3>
+              <p style={styles.historySub}>
+                Below is a full chronological record of movies and series you have added or configured paths for. Click **Edit** or **Delete** to manage your media!
+              </p>
+            </div>
+          </div>
+
+          {myUploadHistoryItems.length === 0 ? (
+            <div style={styles.emptyState}>
+              <Film size={44} color="var(--text-muted)" />
+              <p>You haven't uploaded or added any movies to your history yet.</p>
+            </div>
+          ) : (
+            <div style={styles.historyTableWrapper}>
+              <table style={styles.historyTable}>
+                <thead>
+                  <tr style={styles.tableHeaderRow}>
+                    <th style={styles.th}>Media</th>
+                    <th style={styles.th}>Title & Year</th>
+                    <th style={styles.th}>Type</th>
+                    <th style={styles.th}>IMDb</th>
+                    <th style={styles.th}>Local File Location</th>
+                    <th style={styles.th}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {myUploadHistoryItems.map((item) => {
+                    const myPathObj = (item.user_paths || []).find((up) => up.uid === currentUser?.uid);
+                    const myPath = myPathObj?.paths?.default || Object.values(myPathObj?.paths || {})[0] || "Configured";
+
+                    return (
+                      <tr key={item.id} style={styles.tableRow}>
+                        <td style={styles.td}>
+                          <img
+                            src={item.poster_url}
+                            alt={item.title}
+                            style={styles.historyPoster}
+                            loading="lazy"
+                            decoding="async"
+                          />
+                        </td>
+                        <td style={styles.td}>
+                          <div style={styles.historyTitleText}>{item.title}</div>
+                          <div style={styles.historyYearText}>({item.year})</div>
+                        </td>
+                        <td style={styles.td}>
+                          <span className={`badge ${item.type === "series" ? "badge-green" : "badge-red"}`}>
+                            {item.type.toUpperCase()}
+                          </span>
+                        </td>
+                        <td style={styles.td}>
+                          <span style={{ color: "var(--accent-gold)", fontWeight: 700 }}>⭐ {item.imdb_rating}</span>
+                        </td>
+                        <td style={styles.td}>
+                          <div style={styles.historyPathText} title={myPath}>
+                            📁 {myPath}
+                          </div>
+                        </td>
+                        <td style={styles.td}>
+                          <div style={styles.historyActionGroup}>
+                            <button
+                              style={styles.historyEditBtn}
+                              onClick={() => onEditItem(item)}
+                            >
+                              <Edit3 size={14} /> Edit Entry
+                            </button>
+                            <button
+                              style={styles.historyDeleteBtn}
+                              onClick={() => handleDeleteItem(item.id)}
+                            >
+                              <Trash2 size={14} /> Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       ) : (
-        <div style={viewMode === "grid" ? styles.grid : styles.listStack}>
-          {filteredItems.map((item) => (
-            <PosterCard
-              key={item.id}
-              item={item}
-              onClick={() => onSelectItem(item)}
-              onEdit={onEditItem}
-              onDelete={handleDeleteItem}
-              viewMode={viewMode}
-            />
-          ))}
-        </div>
+        <>
+          {/* Watch Status & Genre Filter Bar */}
+          <div style={styles.filterBar}>
+            <div style={styles.statusFilterRow}>
+              <span style={styles.filterLabel}>Status:</span>
+              {["all", "watched", "watchlist", "unwatched"].map((st) => (
+                <button
+                  key={st}
+                  style={{
+                    ...styles.statusFilterBtn,
+                    ...(watchFilter === st ? styles.statusFilterActive : {})
+                  }}
+                  onClick={() => setWatchFilter(st)}
+                >
+                  {st === "watched" && <CheckCircle2 size={12} color="var(--accent-green)" />}
+                  {st === "watchlist" && <Bookmark size={12} color="var(--accent-gold)" />}
+                  {st.charAt(0).toUpperCase() + st.slice(1)}
+                </button>
+              ))}
+            </div>
+
+            <div style={styles.dividerVertical} />
+
+            <div style={styles.genreSection}>
+              <div style={styles.genreHeader}>
+                <span style={styles.filterLabel}>Genres:</span>
+
+                <div style={styles.logicToggle}>
+                  <span style={styles.logicLabel}>Logic:</span>
+                  <button
+                    style={{ ...styles.logicBtn, ...(genreLogic === "OR" ? styles.logicActive : {}) }}
+                    onClick={() => setGenreLogic("OR")}
+                  >
+                    OR (Any)
+                  </button>
+                  <button
+                    style={{ ...styles.logicBtn, ...(genreLogic === "AND" ? styles.logicActive : {}) }}
+                    onClick={() => setGenreLogic("AND")}
+                  >
+                    AND (Strict)
+                  </button>
+                </div>
+
+                {selectedGenres.length > 0 && (
+                  <button style={styles.clearGenresBtn} onClick={() => setSelectedGenres([])}>
+                    Clear Filter ({selectedGenres.length})
+                  </button>
+                )}
+              </div>
+
+              <div style={styles.genrePillScroll}>
+                {allAvailableGenres.map((g) => {
+                  const isSelected = selectedGenres.includes(g);
+                  return (
+                    <button
+                      key={g}
+                      style={{
+                        ...styles.genrePill,
+                        ...(isSelected ? styles.genrePillActive : {})
+                      }}
+                      onClick={() => toggleGenre(g)}
+                    >
+                      {g}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Grid or List Display with Card Focus Highlighting Effect */}
+          {loading ? (
+            <div style={styles.loadingState}>Loading Film Library...</div>
+          ) : filteredItems.length === 0 ? (
+            <div style={styles.emptyState}>
+              <Film size={48} color="var(--text-muted)" />
+              <h3>No media items match your search / filter criteria.</h3>
+              <p>
+                {libraryScope === "my"
+                  ? "You haven't added any movies to your personal library yet."
+                  : "Try clearing genre filters or changing the search query."}
+              </p>
+            </div>
+          ) : (
+            <div style={viewMode === "grid" ? styles.grid : styles.listStack}>
+              {filteredItems.map((item) => {
+                const isHovered = activeHoverId === item.id;
+                const hasAnyHover = activeHoverId !== null;
+                const isDimmed = hasAnyHover && !isHovered;
+
+                return (
+                  <div
+                    key={item.id}
+                    onMouseEnter={() => setActiveHoverId(item.id)}
+                    onMouseLeave={() => setActiveHoverId(null)}
+                  >
+                    <PosterCard
+                      item={item}
+                      onClick={() => onSelectItem(item)}
+                      onEdit={onEditItem}
+                      onDelete={handleDeleteItem}
+                      isSelected={isHovered}
+                      isDimmed={isDimmed}
+                      viewMode={viewMode}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -340,7 +474,8 @@ const styles = {
   titleWithScope: {
     display: "flex",
     alignItems: "center",
-    gap: "20px"
+    gap: "16px",
+    flexWrap: "wrap"
   },
   pageTitle: {
     fontSize: "2rem",
@@ -376,6 +511,24 @@ const styles = {
     backgroundColor: "var(--bg-elevated)",
     color: "var(--accent-green)",
     boxShadow: "0 2px 8px rgba(70,211,105,0.2)"
+  },
+  historyViewBtn: {
+    padding: "8px 16px",
+    backgroundColor: "var(--bg-elevated)",
+    border: "1px solid var(--accent-green)",
+    color: "var(--accent-green)",
+    fontSize: "0.88rem",
+    fontWeight: 700,
+    borderRadius: "8px",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    boxShadow: "0 4px 14px rgba(70,211,105,0.2)"
+  },
+  historyViewBtnActive: {
+    backgroundColor: "var(--accent-green)",
+    color: "#000000"
   },
   itemCount: {
     color: "var(--text-muted)",
@@ -616,5 +769,109 @@ const styles = {
     gap: "16px",
     color: "var(--text-muted)",
     textAlign: "center"
+  },
+  historyCard: {
+    padding: "32px",
+    borderRadius: "14px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "24px"
+  },
+  historyHeader: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: "16px"
+  },
+  historyTitle: {
+    fontSize: "1.3rem",
+    fontWeight: 800,
+    color: "#ffffff",
+    marginBottom: "4px"
+  },
+  historySub: {
+    fontSize: "0.9rem",
+    color: "var(--text-secondary)",
+    lineHeight: "1.5"
+  },
+  historyTableWrapper: {
+    overflowX: "auto"
+  },
+  historyTable: {
+    width: "100%",
+    borderCollapse: "collapse"
+  },
+  tableHeaderRow: {
+    borderBottom: "2px solid var(--border-subtle)"
+  },
+  th: {
+    padding: "12px 14px",
+    textAlign: "left",
+    fontSize: "0.82rem",
+    fontWeight: 700,
+    color: "var(--text-muted)",
+    textTransform: "uppercase"
+  },
+  tableRow: {
+    borderBottom: "1px solid var(--border-subtle)",
+    transition: "background-color 0.2s ease"
+  },
+  td: {
+    padding: "14px",
+    verticalAlign: "middle"
+  },
+  historyPoster: {
+    width: "48px",
+    height: "70px",
+    objectFit: "cover",
+    borderRadius: "6px"
+  },
+  historyTitleText: {
+    fontSize: "1rem",
+    fontWeight: 700,
+    color: "#ffffff"
+  },
+  historyYearText: {
+    fontSize: "0.82rem",
+    color: "var(--text-muted)"
+  },
+  historyPathText: {
+    fontSize: "0.78rem",
+    color: "var(--text-muted)",
+    fontFamily: "monospace",
+    maxWidth: "280px",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis"
+  },
+  historyActionGroup: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px"
+  },
+  historyEditBtn: {
+    padding: "6px 12px",
+    backgroundColor: "var(--bg-elevated)",
+    border: "1px solid var(--border-subtle)",
+    color: "#ffffff",
+    borderRadius: "6px",
+    fontWeight: 600,
+    fontSize: "0.8rem",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px"
+  },
+  historyDeleteBtn: {
+    padding: "6px 12px",
+    backgroundColor: "var(--bg-elevated)",
+    border: "1px solid var(--border-subtle)",
+    color: "var(--accent-red)",
+    borderRadius: "6px",
+    fontWeight: 600,
+    fontSize: "0.8rem",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px"
   }
 };

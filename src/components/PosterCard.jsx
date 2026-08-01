@@ -4,7 +4,7 @@ import { launchInVlc } from "../services/vlcLauncher";
 import { useToast } from "../context/ToastContext";
 import { useAuth } from "../context/AuthContext";
 
-export const PosterCard = ({ item, onClick, onEdit, onDelete, viewMode = "grid" }) => {
+export const PosterCard = ({ item, onClick, onEdit, onDelete, isSelected = false, isDimmed = false, viewMode = "grid" }) => {
   const { addToast } = useToast();
   const { currentUser } = useAuth();
   const [hovered, setHovered] = useState(false);
@@ -44,10 +44,20 @@ export const PosterCard = ({ item, onClick, onEdit, onDelete, viewMode = "grid" 
     if (onDelete) onDelete(item.id);
   };
 
+  const cardStyle = {
+    ...styles.card,
+    ...(isSelected ? styles.cardSelected : {}),
+    ...(isDimmed ? styles.cardDimmed : {})
+  };
+
   if (viewMode === "list") {
     return (
       <div
-        style={styles.listItem}
+        style={{
+          ...styles.listItem,
+          ...(isSelected ? styles.listSelected : {}),
+          ...(isDimmed ? styles.cardDimmed : {})
+        }}
         onClick={onClick}
         className="animate-fade"
       >
@@ -55,6 +65,8 @@ export const PosterCard = ({ item, onClick, onEdit, onDelete, viewMode = "grid" 
           src={item.poster_url || "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500&auto=format&fit=crop&q=60"}
           alt={item.title}
           style={styles.listPoster}
+          loading="lazy"
+          decoding="async"
         />
         <div style={styles.listDetails}>
           <div style={styles.listHeader}>
@@ -102,7 +114,7 @@ export const PosterCard = ({ item, onClick, onEdit, onDelete, viewMode = "grid" 
 
   return (
     <div
-      style={styles.card}
+      style={cardStyle}
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => {
@@ -117,6 +129,8 @@ export const PosterCard = ({ item, onClick, onEdit, onDelete, viewMode = "grid" 
           src={item.poster_url || "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500&auto=format&fit=crop&q=60"}
           alt={item.title}
           style={styles.posterImg}
+          loading="lazy"
+          decoding="async"
         />
 
         {/* Top Badges */}
@@ -209,11 +223,26 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     cursor: "pointer",
-    borderRadius: "8px",
+    borderRadius: "10px",
     overflow: "hidden",
     backgroundColor: "var(--bg-surface)",
     border: "1px solid var(--border-subtle)",
-    transition: "var(--transition)"
+    transition: "transform 0.25s ease, opacity 0.25s ease, filter 0.25s ease, box-shadow 0.25s ease",
+    willChange: "transform, opacity",
+    transform: "translateZ(0)"
+  },
+  cardSelected: {
+    border: "2px solid var(--accent-green)",
+    boxShadow: "0 0 24px rgba(70, 211, 105, 0.7)",
+    transform: "scale(1.05) translateZ(0)",
+    zIndex: 10,
+    opacity: 1,
+    filter: "brightness(1.1)"
+  },
+  cardDimmed: {
+    opacity: 0.35,
+    filter: "brightness(0.4) grayscale(0.2)",
+    transform: "scale(0.98)"
   },
   posterWrapper: {
     position: "relative",
@@ -228,8 +257,7 @@ const styles = {
     left: 0,
     width: "100%",
     height: "100%",
-    objectFit: "cover",
-    transition: "transform 0.4s ease"
+    objectFit: "cover"
   },
   topBadges: {
     position: "absolute",
@@ -248,8 +276,7 @@ const styles = {
     backgroundColor: "rgba(0,0,0,0.8)",
     padding: "6px",
     borderRadius: "50%",
-    zIndex: 2,
-    backdropFilter: "blur(4px)"
+    zIndex: 2
   },
   overlay: {
     position: "absolute",
@@ -263,8 +290,7 @@ const styles = {
     flexDirection: "column",
     justifyContent: "flex-end",
     padding: "14px",
-    transition: "opacity 0.25s ease",
-    backdropFilter: "blur(6px)"
+    transition: "opacity 0.2s ease"
   },
   overlayContent: {
     display: "flex",
@@ -397,6 +423,11 @@ const styles = {
     gap: "16px",
     cursor: "pointer",
     transition: "var(--transition)"
+  },
+  listSelected: {
+    border: "2px solid var(--accent-green)",
+    boxShadow: "0 0 16px rgba(70, 211, 105, 0.5)",
+    backgroundColor: "rgba(70, 211, 105, 0.08)"
   },
   listPoster: {
     width: "48px",

@@ -6,6 +6,10 @@ export const Navbar = ({ activePage, setActivePage, onOpenWhitelist, onOpenSetti
   const { currentUser, logout, loginAsDemoUser } = useAuth();
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
+  // Clean formatted user display name
+  const rawName = currentUser?.displayName || currentUser?.email?.split("@")[0] || "Ahmed Hany";
+  const formattedName = rawName.toLowerCase().includes("ahmed") ? "Ahmed Hany" : rawName;
+
   return (
     <nav style={styles.nav} className="glass-panel">
       <div style={styles.container}>
@@ -63,20 +67,22 @@ export const Navbar = ({ activePage, setActivePage, onOpenWhitelist, onOpenSetti
               >
                 <img
                   src={currentUser.photoURL}
-                  alt={currentUser.displayName}
+                  alt={formattedName}
                   style={styles.avatar}
+                  loading="lazy"
+                  decoding="async"
                   onError={(e) => {
-                    e.target.src = `https://api.dicebear.com/7.x/bottts/svg?seed=${currentUser.email}`;
+                    e.target.src = `https://api.dicebear.com/7.x/bottts/svg?seed=${currentUser.email || 'AhmedHany'}`;
                   }}
                 />
-                <span style={styles.userName}>{currentUser.displayName}</span>
+                <span style={styles.userName}>{formattedName}</span>
                 <ChevronDown size={14} color="#a3a3a3" />
               </button>
 
               {dropdownOpen && (
                 <div style={styles.dropdownMenu} className="animate-pop">
                   <div style={styles.userHeader}>
-                    <div style={styles.userHeaderName}>{currentUser.displayName}</div>
+                    <div style={styles.userHeaderName}>{formattedName}</div>
                     <div style={styles.userHeaderEmail}>{currentUser.email}</div>
                   </div>
                   <div style={styles.divider} />
@@ -105,20 +111,19 @@ export const Navbar = ({ activePage, setActivePage, onOpenWhitelist, onOpenSetti
 
                   <div style={styles.divider} />
                   
-                  {/* Demo User Switcher Option for instant multi-user testing */}
                   <button
                     style={styles.menuItem}
                     onClick={() => {
                       setDropdownOpen(false);
-                      if (currentUser.displayName.includes("Alice")) {
-                        loginAsDemoUser("Bob (User 2)", "bob@filmlibrary.com");
+                      if (currentUser.displayName?.includes("Alice")) {
+                        loginAsDemoUser("Ahmed Hany", "ahmed@filmlibrary.com");
                       } else {
-                        loginAsDemoUser("Alice (User 1)", "alice@filmlibrary.com");
+                        loginAsDemoUser("Alice (User 2)", "alice@filmlibrary.com");
                       }
                     }}
                   >
                     <User size={16} color="var(--accent-green)" />
-                    Switch User (Alice ↔ Bob)
+                    Switch Profile
                   </button>
 
                   <div style={styles.divider} />
@@ -222,21 +227,21 @@ const styles = {
     gap: "10px",
     background: "var(--bg-elevated)",
     border: "1px solid var(--border-subtle)",
-    padding: "6px 12px 6px 6px",
+    padding: "6px 14px 6px 6px",
     borderRadius: "20px",
     cursor: "pointer",
     color: "#ffffff",
-    fontSize: "0.9rem",
-    fontWeight: 600
+    fontSize: "0.92rem",
+    fontWeight: 700
   },
   avatar: {
-    width: "28px",
-    height: "28px",
+    width: "30px",
+    height: "30px",
     borderRadius: "50%",
     objectFit: "cover"
   },
   userName: {
-    maxWidth: "120px",
+    maxWidth: "140px",
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap"
