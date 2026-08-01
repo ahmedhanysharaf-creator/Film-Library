@@ -19,23 +19,61 @@ export const isVideoFilePath = (path) => {
   return VIDEO_EXTENSIONS.includes(ext);
 };
 
-export const extractCleanTitleFromPath = (fullPath) => {
-  if (!fullPath) return "";
+export const extractTitleAndYearFromPath = (fullPath) => {
+  if (!fullPath) return { cleanTitle: "", year: null };
+
   const normalized = fullPath.replace(/\\/g, "/");
   const parts = normalized.split("/").filter(Boolean);
-  if (parts.length === 0) return "";
+  if (parts.length === 0) return { cleanTitle: "", year: null };
   
-  let name = parts[parts.length - 1];
+  let rawName = parts[parts.length - 1];
 
+  // Strip file extensions (.mp4, .mkv, etc.)
   [...VIDEO_EXTENSIONS, ...SUB_EXTENSIONS].forEach((ext) => {
-    if (name.toLowerCase().endsWith(ext)) {
-      name = name.substring(0, name.length - ext.length);
+    if (rawName.toLowerCase().endsWith(ext)) {
+      rawName = rawName.substring(0, rawName.length - ext.length);
     }
   });
 
-  name = name.replace(/\[.*?\]|\(.*?\)/g, " ");
-  name = name.replace(/[._-]/g, " ");
-  return name.trim();
+  // Extract 4-digit Year (e.g. 1998, 2008, 2012, 2024)
+  let extractedYear = null;
+  const yearMatch = rawName.match(/\b(19\d\d|20\d\d)\b/);
+  if (yearMatch) {
+    extractedYear = parseInt(yearMatch[1]);
+  }
+
+  // Strip scene/list prefixes like "M01 - ", "M02 - ", "01 - ", "01. ", "01_", "E01 - ", "[01] "
+  let clean = rawName.replace(/^(?:M|E|S\d+E\d+|\d+)\s*[-_.]\s*/i, "");
+  clean = clean.replace(/^[\[\(]\d+[\]\)]\s*/, "");
+
+  // Strip quality & release group tags
+  const tags = [
+    "1080p", "720p", "4k", "2160p", "bluray", "web-dl", "webrip", "hdrip", "dvdrip",
+    "x264", "x265", "hevc", "aac", "dts", "repack", "remux", "hdr", "dual audio"
+  ];
+  tags.forEach((tag) => {
+    const reg = new RegExp(`\\b${tag}\\b`, "gi");
+    clean = clean.replace(reg, "");
+  });
+
+  // Strip brackets [...] and parentheses (...)
+  clean = clean.replace(/\[.*?\]|\(.*?\)/g, " ");
+
+  // Replace dots, underscores, and dashes with clean spaces
+  clean = clean.replace(/[._-]/g, " ");
+
+  // Final trim
+  clean = clean.replace(/\s+/g, " ").trim();
+
+  return {
+    cleanTitle: clean || rawName.trim(),
+    year: extractedYear
+  };
+};
+
+// Legacy helper compatibility
+export const extractCleanTitleFromPath = (fullPath) => {
+  return extractTitleAndYearFromPath(fullPath).cleanTitle;
 };
 
 export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
@@ -123,13 +161,16 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
     // Only auto-extract if the path points to an actual VIDEO FILE (.mp4, .mkv), NOT a folder!
     const isVideoFile = VIDEO_EXTENSIONS.some((ext) => newPath.toLowerCase().endsWith(ext));
     if (isVideoFile) {
-      const extracted = extractCleanTitleFromPath(newPath);
-      if (extracted && (!title || title === "Untitled")) {
-        setTitle(extracted);
+      const { cleanTitle, year: parsedYear } = extractTitleAndYearFromPath(newPath);
+      if (cleanTitle && (!title || title === "Untitled")) {
+        setTitle(cleanTitle);
+        if (parsedYear) setYear(parsedYear);
         try {
-          const searchResults = await searchTmdb(extracted);
+          const searchResults = await searchTmdb(cleanTitle);
           if (searchResults && searchResults.length > 0) {
-            handleTmdbSelect(searchResults[0]);
+            // Find match with matching year if available
+            const exactMatch = searchResults.find((r) => r.year === parsedYear) || searchResults[0];
+            handleTmdbSelect(exactMatch);
           }
         } catch (e) {}
       }
@@ -253,16 +294,18 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
         ? rawItem
         : `${baseFolder}\\${rawItem}`;
 
-      const cleanTitle = extractCleanTitleFromPath(rawItem);
+      const { cleanTitle, year: extractedYear } = extractTitleAndYearFromPath(rawItem);
       if (!cleanTitle) continue;
 
-      setScanProgress(`Scanning (${i + 1}/${videoItems.length}): Fetching TMDB metadata for "${cleanTitle}"...`);
+      const progressLabel = extractedYear ? `"${cleanTitle}" (${extractedYear})` : `"${cleanTitle}"`;
+      setScanProgress(`Scanning (${i + 1}/${videoItems.length}): Searching TMDB for ${progressLabel}...`);
 
       try {
         const searchResults = await searchTmdb(cleanTitle);
 
         if (searchResults && searchResults.length > 0) {
-          const topMatch = searchResults[0];
+          // Find match with matching year if available
+          const topMatch = (extractedYear && searchResults.find((r) => r.year === extractedYear)) || searchResults[0];
           const details = await getTmdbDetails(topMatch.tmdb_id, topMatch.type);
           
           results.push({
@@ -284,7 +327,7 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
               tmdb_id: Date.now() + Math.floor(Math.random() * 10000),
               type: "movie",
               title: cleanTitle,
-              year: new Date().getFullYear(),
+              year: extractedYear || new Date().getFullYear(),
               poster_url: "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500&auto=format&fit=crop&q=60",
               backdrop_url: "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=1920&auto=format&fit=crop&q=80",
               genres: ["Cinema"],
@@ -443,12 +486,12 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
                   rows={6}
                   value={fileListText}
                   onChange={(e) => setFileListText(e.target.value)}
-                  placeholder="Iron Man (2008).mkv&#10;Thor (2011).mp4&#10;The Avengers (2012).mkv&#10;(Click the green button above to auto-detect all video files in your folder!)"
+                  placeholder="M02 - (1998) - Blade.mp4&#10;M01 - (2008) - Iron Man.mkv&#10;Thor (2011).mp4&#10;(Click the green button above to auto-detect all video files in your folder!)"
                   style={styles.textarea}
                   required
                 />
                 <span style={styles.helpText}>
-                  Subtitles (.srt, .vtt, .ass) and text files (.txt, .nfo) are ignored automatically.
+                  Prefixes like 'M02 - ' are automatically stripped, and years like '1998' are matched with TMDB automatically!
                 </span>
               </div>
 
