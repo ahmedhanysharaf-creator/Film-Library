@@ -363,7 +363,7 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
     }
   };
 
-  // Instant Atomic Batch Save with Real-time Progress Tracking
+  // Instant Batch Save & Immediate Navigation to Home
   const handleConfirmBatchSave = async () => {
     const selectedItems = scannedResults.filter((r) => r.selected);
     if (selectedItems.length === 0) {
@@ -372,7 +372,6 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
     }
 
     setSavingBatch(true);
-
     const mediaDataList = selectedItems.map((item) => item.mediaData);
 
     try {
@@ -384,22 +383,12 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
         }
       );
 
-      // Brief pause at 100% so user sees completion
-      setSaveProgressData({
-        current: selectedItems.length,
-        total: selectedItems.length,
-        title: "All Items Processed!",
-        percentage: 100
-      });
-
-      await new Promise((resolve) => setTimeout(resolve, 600));
-
+      setSavingBatch(false);
       addToast(`Successfully added all ${totalSaved} items to your shared library!`, "success");
       onSaveSuccess();
     } catch (err) {
       console.error("Batch save error:", err);
       addToast(`Error saving batch: ${err.message}`, "error");
-    } finally {
       setSavingBatch(false);
     }
   };

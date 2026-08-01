@@ -34,7 +34,7 @@ const AppContent = () => {
   }
 
   if (!currentUser || !isWhitelisted) {
-    return <Login onLoginSuccess={() => setActivePage("library")} />;
+    return <Login onLoginSuccess={() => setActivePage("home")} />;
   }
 
   const handleEdit = (item) => {
@@ -48,7 +48,7 @@ const AppContent = () => {
       await deleteMediaEntry(itemId);
       addToast("Media entry deleted from library.", "info");
       setSelectedItem(null);
-      setActivePage("library");
+      setActivePage("home");
     } catch (err) {
       addToast(`Failed to delete item: ${err.message}`, "error");
     }
@@ -88,11 +88,11 @@ const AppContent = () => {
             editItem={editItem}
             onSaveSuccess={() => {
               setEditItem(null);
-              setActivePage("library");
+              setActivePage("home");
             }}
             onCancel={() => {
               setEditItem(null);
-              setActivePage("library");
+              setActivePage("home");
             }}
           />
         )}
