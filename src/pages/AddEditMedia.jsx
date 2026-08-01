@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { 
-  Film, Tv, Search, Save, ArrowLeft, HardDrive, Plus, Trash2, Sparkles, CheckCircle2, Wand2 
+  Film, Tv, Save, ArrowLeft, HardDrive, Sparkles, FolderPlus, Loader2, CheckCircle2, AlertCircle 
 } from "lucide-react";
 import { TmdbSearchInput } from "../components/TmdbSearchInput";
 import { getTmdbDetails, searchTmdb } from "../services/tmdb";
@@ -8,16 +8,15 @@ import { saveMediaEntry } from "../services/storage";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 
-// Allowed video file extensions — ignore subtitles (.srt, .vtt, .ass) & text files
 const VIDEO_EXTENSIONS = [".mp4", ".mkv", ".avi", ".mov", ".wmv", ".m4v", ".webm", ".flv", ".ts"];
 const SUB_EXTENSIONS = [".srt", ".ass", ".vtt", ".sub", ".txt", ".nfo"];
 
 export const isVideoFilePath = (path) => {
-  if (!path) return true; // Accept folders or custom inputs
+  if (!path) return true;
   const extIndex = path.lastIndexOf(".");
-  if (extIndex === -1) return true; // Folder path
+  if (extIndex === -1) return true;
   const ext = path.substring(extIndex).toLowerCase();
-  if (SUB_EXTENSIONS.includes(ext)) return false; // Reject subtitles
+  if (SUB_EXTENSIONS.includes(ext)) return false;
   return true;
 };
 
@@ -29,14 +28,12 @@ export const extractCleanTitleFromPath = (fullPath) => {
   
   let name = parts[parts.length - 1];
 
-  // Strip known extensions
   [...VIDEO_EXTENSIONS, ...SUB_EXTENSIONS].forEach((ext) => {
     if (name.toLowerCase().endsWith(ext)) {
       name = name.substring(0, name.length - ext.length);
     }
   });
 
-  // Clean tags like [1080p], (2010), dots, and underscores
   name = name.replace(/\[.*?\]|\(.*?\)/g, " ");
   name = name.replace(/[._-]/g, " ");
   return name.trim();
@@ -46,6 +43,9 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
   const { currentUser } = useAuth();
   const { addToast } = useToast();
 
+  const [mode, setMode] = useState("single"); // "single" | "batch"
+
+  // Single Entry Form State
   const [type, setType] = useState(editItem?.type || "movie");
   const [tmdbId, setTmdbId] = useState(editItem?.tmdb_id || "");
   const [title, setTitle] = useState(editItem?.title || "");
@@ -61,24 +61,24 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
   const [director, setDirector] = useState(editItem?.director || "");
   const [creator, setCreator] = useState(editItem?.creator || "");
   const [studio, setStudio] = useState(editItem?.studio || "");
-  
   const [castStr, setCastStr] = useState(
     (editItem?.cast || []).map((c) => `${c.name} as ${c.character}`).join("\n")
   );
 
-  // Series Specific
   const [seasonCount, setSeasonCount] = useState(editItem?.seasons?.length || 1);
-  const [episodesPerSeason, setEpisodesPerSeason] = useState(
-    editItem?.seasons?.[0]?.episode_count || 10
-  );
+  const [episodesPerSeason, setEpisodesPerSeason] = useState(editItem?.seasons?.[0]?.episode_count || 10);
   const [isOngoing, setIsOngoing] = useState(editItem?.is_ongoing || false);
 
-  // Local Path mapping for current user
   const initialUserPaths = editItem?.user_paths?.find((up) => up.uid === currentUser?.uid)?.paths || {};
   const [defaultPath, setDefaultPath] = useState(initialUserPaths.default || "");
   const [episodePaths, setEpisodePaths] = useState(initialUserPaths || {});
 
-  // Handle TMDB selection
+  // Batch Scanner Form State
+  const [folderPath, setFolderPath] = useState("");
+  const [fileListText, setFileListText] = useState("");
+  const [scanning, setScanning] = useState(false);
+  const [scanProgress, setScanProgress] = useState("");
+
   const handleTmdbSelect = async (selected) => {
     try {
       addToast(`Fetching metadata from TMDB for "${selected.title}"...`, "info");
@@ -114,69 +114,47 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
     }
   };
 
-  // Auto-extract title & search TMDB when file path is pasted/typed
   const handleDefaultPathChange = async (newPath) => {
     setDefaultPath(newPath);
 
-    // Validate video format
     if (!isVideoFilePath(newPath)) {
-      addToast("Note: Path ends with subtitle extension. Non-video files will be ignored during playback.", "warning");
+      addToast("Path ends with subtitle extension. Non-video files will be ignored during playback.", "warning");
     }
 
     const extracted = extractCleanTitleFromPath(newPath);
     if (extracted && (!title || title === "Untitled")) {
       setTitle(extracted);
-      // Auto search TMDB for extracted title
       try {
         const searchResults = await searchTmdb(extracted);
         if (searchResults && searchResults.length > 0) {
           handleTmdbSelect(searchResults[0]);
         }
-      } catch (e) {
-        console.warn("Auto TMDB lookup error:", e);
-      }
+      } catch (e) {}
     }
   };
 
   const handleEpisodePathChange = (code, value) => {
-    setEpisodePaths((prev) => ({
-      ...prev,
-      [code]: value
-    }));
+    setEpisodePaths((prev) => ({ ...prev, [code]: value }));
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmitSingle = async (e) => {
     e.preventDefault();
 
-    // Auto extract title if missing
     let finalTitle = title.trim();
     if (!finalTitle) {
       finalTitle = extractCleanTitleFromPath(defaultPath) || "Untitled Media";
     }
 
-    const parsedGenres = genresStr
-      .split(",")
-      .map((g) => g.trim())
-      .filter(Boolean);
-
+    const parsedGenres = genresStr.split(",").map((g) => g.trim()).filter(Boolean);
     const parsedCast = castStr
       .split("\n")
       .map((line) => {
         const parts = line.split(" as ");
-        return {
-          name: parts[0]?.trim() || "",
-          character: parts[1]?.trim() || ""
-        };
+        return { name: parts[0]?.trim() || "", character: parts[1]?.trim() || "" };
       })
       .filter((c) => c.name);
 
-    // Build user paths map
-    let pathsObj = {};
-    if (type === "movie") {
-      pathsObj = { default: defaultPath };
-    } else {
-      pathsObj = { default: defaultPath, ...episodePaths };
-    }
+    let pathsObj = type === "movie" ? { default: defaultPath } : { default: defaultPath, ...episodePaths };
 
     const seasonsArr = Array.from({ length: parseInt(seasonCount) || 1 }).map((_, idx) => ({
       season_number: idx + 1,
@@ -193,7 +171,7 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
       trailer_url: trailerUrl,
       genres: parsedGenres.length > 0 ? parsedGenres : ["Cinema"],
       imdb_rating: parseFloat(imdbRating) || 8.0,
-      overview: overview || `Local collection file: ${defaultPath}`,
+      overview: overview || `Local file: ${defaultPath}`,
       release_date: releaseDate,
       runtime: parseInt(runtime) || 0,
       director,
@@ -215,259 +193,409 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
     }
   };
 
+  // Batch Folder Scanner Handler
+  const handleBatchScan = async (e) => {
+    e.preventDefault();
+    if (!folderPath && !fileListText) {
+      addToast("Please enter a folder path or list of video files.", "error");
+      return;
+    }
+
+    setScanning(true);
+    const lines = fileListText
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean);
+
+    // If no explicit file lines provided, use folder path as a single collection item
+    const itemsToProcess = lines.length > 0 ? lines : [folderPath];
+
+    let savedCount = 0;
+    const baseFolder = folderPath.trim().replace(/\\$/g, "");
+
+    for (let i = 0; i < itemsToProcess.length; i++) {
+      const rawItem = itemsToProcess[i];
+
+      // Ignore subtitle files (.srt, .vtt, .ass)
+      if (!isVideoFilePath(rawItem)) {
+        console.log(`Skipping non-video subtitle file: ${rawItem}`);
+        continue;
+      }
+
+      const fullItemPath = rawItem.includes(":") || rawItem.startsWith("\\")
+        ? rawItem
+        : `${baseFolder}\\${rawItem}`;
+
+      const cleanTitle = extractCleanTitleFromPath(rawItem);
+      if (!cleanTitle) continue;
+
+      setScanProgress(`Processing ${i + 1}/${itemsToProcess.length}: "${cleanTitle}"...`);
+
+      try {
+        let mediaData = null;
+        // Search TMDB for metadata
+        const searchResults = await searchTmdb(cleanTitle);
+
+        if (searchResults && searchResults.length > 0) {
+          const topMatch = searchResults[0];
+          const details = await getTmdbDetails(topMatch.tmdb_id, topMatch.type);
+          
+          mediaData = {
+            ...details,
+            new_paths: { default: fullItemPath }
+          };
+        } else {
+          // Fallback entry if not found on TMDB
+          mediaData = {
+            tmdb_id: Date.now() + Math.floor(Math.random() * 10000),
+            type: "movie",
+            title: cleanTitle,
+            year: new Date().getFullYear(),
+            poster_url: "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500&auto=format&fit=crop&q=60",
+            backdrop_url: "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=1920&auto=format&fit=crop&q=80",
+            genres: ["Cinema"],
+            imdb_rating: 8.0,
+            overview: `Local video file: ${fullItemPath}`,
+            new_paths: { default: fullItemPath }
+          };
+        }
+
+        await saveMediaEntry(mediaData, currentUser);
+        savedCount++;
+      } catch (err) {
+        console.error(`Error scanning item ${cleanTitle}:`, err);
+      }
+    }
+
+    setScanning(false);
+    addToast(`Batch Scan Complete! Added ${savedCount} movies to your library.`, "success");
+    onSaveSuccess();
+  };
+
   return (
     <div style={styles.container} className="animate-fade">
       <div style={styles.header}>
         <button style={styles.backBtn} onClick={onCancel}>
           <ArrowLeft size={18} /> Back
         </button>
-        <h1 style={styles.title}>{editItem ? "Edit Media Entry" : "Add New Film or TV Series"}</h1>
+        <h1 style={styles.title}>{editItem ? "Edit Media Entry" : "Add New Films or TV Series"}</h1>
       </div>
 
-      <form onSubmit={handleSubmit} style={styles.formGrid}>
-        {/* Left Form Block — TMDB Search & Metadata */}
-        <div style={styles.leftCol} className="glass-panel">
-          <h3 style={styles.sectionTitle}>
-            <Sparkles size={18} color="var(--accent-red)" /> TMDB Auto-Fetch Metadata
-          </h3>
+      {/* Mode Selector Tabs */}
+      <div style={styles.modeTabs}>
+        <button
+          type="button"
+          style={{ ...styles.modeTabBtn, ...(mode === "single" ? styles.modeTabActive : {}) }}
+          onClick={() => setMode("single")}
+        >
+          <Film size={18} /> Single Entry Mode
+        </button>
 
-          {/* Media Type Toggle */}
-          <div style={styles.typeToggle}>
-            <button
-              type="button"
-              style={{ ...styles.typeBtn, ...(type === "movie" ? styles.typeActiveRed : {}) }}
-              onClick={() => setType("movie")}
-            >
-              <Film size={16} /> Movie
-            </button>
-            <button
-              type="button"
-              style={{ ...styles.typeBtn, ...(type === "series" ? styles.typeActiveGreen : {}) }}
-              onClick={() => setType("series")}
-            >
-              <Tv size={16} /> TV Series
-            </button>
-          </div>
+        <button
+          type="button"
+          style={{ ...styles.modeTabBtn, ...(mode === "batch" ? styles.modeTabActive : {}) }}
+          onClick={() => setMode("batch")}
+        >
+          <FolderPlus size={18} color="var(--accent-green)" /> 📁 Batch Folder Scanner
+        </button>
+      </div>
 
-          {/* TMDB Search Component */}
-          <div style={styles.field}>
-            <label style={styles.label}>Live TMDB Search</label>
-            <TmdbSearchInput onSelectMedia={handleTmdbSelect} initialQuery={title} />
-          </div>
-
-          <div style={styles.row}>
-            <div style={styles.field}>
-              <label style={styles.label}>Title</label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Auto-extracted from path or search TMDB..."
-                style={styles.input}
-              />
-            </div>
-            <div style={{ ...styles.field, maxWidth: "120px" }}>
-              <label style={styles.label}>Year</label>
-              <input
-                type="number"
-                value={year}
-                onChange={(e) => setYear(e.target.value)}
-                style={styles.input}
-              />
-            </div>
-          </div>
-
-          <div style={styles.row}>
-            <div style={styles.field}>
-              <label style={styles.label}>Poster Image URL</label>
-              <input
-                type="url"
-                value={posterUrl}
-                onChange={(e) => setPosterUrl(e.target.value)}
-                placeholder="https://image.tmdb.org/t/p/w500/..."
-                style={styles.input}
-              />
-            </div>
-            <div style={styles.field}>
-              <label style={styles.label}>Backdrop Image URL</label>
-              <input
-                type="url"
-                value={backdropUrl}
-                onChange={(e) => setBackdropUrl(e.target.value)}
-                placeholder="https://image.tmdb.org/t/p/original/..."
-                style={styles.input}
-              />
-            </div>
-          </div>
-
-          <div style={styles.row}>
-            <div style={styles.field}>
-              <label style={styles.label}>YouTube Trailer URL</label>
-              <input
-                type="url"
-                value={trailerUrl}
-                onChange={(e) => setTrailerUrl(e.target.value)}
-                placeholder="https://www.youtube.com/watch?v=..."
-                style={styles.input}
-              />
-            </div>
-            <div style={{ ...styles.field, maxWidth: "140px" }}>
-              <label style={styles.label}>IMDb Rating</label>
-              <input
-                type="number"
-                step="0.1"
-                value={imdbRating}
-                onChange={(e) => setImdbRating(e.target.value)}
-                placeholder="8.8"
-                style={styles.input}
-              />
+      {mode === "batch" ? (
+        /* BATCH FOLDER SCANNER UI */
+        <form onSubmit={handleBatchScan} style={styles.batchCard} className="glass-panel">
+          <div style={styles.batchHeader}>
+            <FolderPlus size={28} color="var(--accent-green)" />
+            <div>
+              <h3 style={styles.batchTitle}>Batch Scan & Add All Movies in Folder</h3>
+              <p style={styles.batchSub}>
+                Paste your folder path or video file list. The scanner filters out subtitles (.srt), extracts titles, auto-fetches TMDB metadata, and saves all items to the library at once!
+              </p>
             </div>
           </div>
 
           <div style={styles.field}>
-            <label style={styles.label}>Genres (comma-separated)</label>
+            <label style={styles.label}>Base Folder Path (e.g. C:\Users\Ahmed\Downloads\English\Marvel Films)</label>
             <input
               type="text"
-              value={genresStr}
-              onChange={(e) => setGenresStr(e.target.value)}
-              placeholder="Action, Sci-Fi, Adventure"
+              value={folderPath}
+              onChange={(e) => setFolderPath(e.target.value)}
+              placeholder="C:\Users\Ahmed\Downloads\English\Marvel Films"
               style={styles.input}
+              required={!fileListText}
             />
           </div>
 
           <div style={styles.field}>
-            <label style={styles.label}>Overview</label>
+            <label style={styles.label}>Video File Names / Paths (Optional: One file per line)</label>
             <textarea
-              rows={3}
-              value={overview}
-              onChange={(e) => setOverview(e.target.value)}
+              rows={6}
+              value={fileListText}
+              onChange={(e) => setFileListText(e.target.value)}
+              placeholder="Iron Man (2008).mkv&#10;Thor (2011).mp4&#10;The Avengers (2012).mkv&#10;(Subtitle files like .srt are ignored automatically)"
               style={styles.textarea}
-            />
-          </div>
-
-          <div style={styles.row}>
-            {type === "movie" ? (
-              <>
-                <div style={styles.field}>
-                  <label style={styles.label}>Director</label>
-                  <input
-                    type="text"
-                    value={director}
-                    onChange={(e) => setDirector(e.target.value)}
-                    style={styles.input}
-                  />
-                </div>
-                <div style={styles.field}>
-                  <label style={styles.label}>Runtime (mins)</label>
-                  <input
-                    type="number"
-                    value={runtime}
-                    onChange={(e) => setRuntime(e.target.value)}
-                    style={styles.input}
-                  />
-                </div>
-              </>
-            ) : (
-              <>
-                <div style={styles.field}>
-                  <label style={styles.label}>Creator</label>
-                  <input
-                    type="text"
-                    value={creator}
-                    onChange={(e) => setCreator(e.target.value)}
-                    style={styles.input}
-                  />
-                </div>
-                <div style={{ ...styles.field, maxWidth: "120px" }}>
-                  <label style={styles.label}>Seasons</label>
-                  <input
-                    type="number"
-                    value={seasonCount}
-                    onChange={(e) => setSeasonCount(e.target.value)}
-                    style={styles.input}
-                  />
-                </div>
-              </>
-            )}
-          </div>
-
-          <div style={styles.field}>
-            <label style={styles.label}>Top Cast (One per line: Name as Character)</label>
-            <textarea
-              rows={3}
-              value={castStr}
-              onChange={(e) => setCastStr(e.target.value)}
-              placeholder="Leonardo DiCaprio as Cobb&#10;Joseph Gordon-Levitt as Arthur"
-              style={styles.textarea}
-            />
-          </div>
-        </div>
-
-        {/* Right Form Block — Local PC File Path Configuration */}
-        <div style={styles.rightCol} className="glass-panel">
-          <h3 style={styles.sectionTitle}>
-            <HardDrive size={18} color="var(--accent-green)" /> Local PC Media File Locations
-          </h3>
-
-          <div style={styles.field}>
-            <label style={styles.label}>Paste Local File or Folder Path ({currentUser?.displayName})</label>
-            <input
-              type="text"
-              value={defaultPath}
-              onChange={(e) => handleDefaultPathChange(e.target.value)}
-              placeholder="e.g. C:\Downloads\Marvel Films\Avengers.mp4"
-              style={styles.input}
             />
             <span style={styles.helpText}>
-              Pasting a file path automatically extracts the title, filters out subtitle files, and auto-fetches TMDB metadata!
+              Subtitles (.srt, .vtt, .ass) and text files (.txt, .nfo) are automatically ignored.
             </span>
           </div>
 
-          {/* Episode Specific Mapping for TV Series */}
-          {type === "series" && (
-            <div style={styles.episodeMapperSection}>
-              <h4 style={styles.subSectionTitle}>Episode Multi-File Mapping</h4>
-              <p style={styles.helpText}>Map individual episode codes to local video files (.mp4, .mkv):</p>
+          {scanning && (
+            <div style={styles.progressBox}>
+              <Loader2 size={20} color="var(--accent-green)" className="animate-spin" />
+              <span>{scanProgress}</span>
+            </div>
+          )}
 
-              <div style={styles.epMapperGrid}>
-                {Array.from({ length: Math.min(parseInt(seasonCount) || 1, 3) }).map((_, sIdx) => {
-                  const sNum = sIdx + 1;
-                  return Array.from({ length: 3 }).map((_, eIdx) => {
-                    const eNum = eIdx + 1;
-                    const code = `S${sNum}E${eNum}`;
-                    return (
-                      <div key={code} style={styles.epFieldRow}>
-                        <span style={styles.epBadge}>{code}</span>
-                        <input
-                          type="text"
-                          value={episodePaths[code] || ""}
-                          onChange={(e) => handleEpisodePathChange(code, e.target.value)}
-                          placeholder={`D:\\Series\\${title || 'Show'}\\${code}.mp4`}
-                          style={styles.epInput}
-                        />
-                      </div>
-                    );
-                  });
-                })}
+          <button type="submit" style={styles.batchSubmitBtn} disabled={scanning}>
+            {scanning ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
+            {scanning ? "Scanning Folder & Fetching TMDB..." : "Scan & Save All Items to Library"}
+          </button>
+        </form>
+      ) : (
+        /* SINGLE ENTRY FORM UI */
+        <form onSubmit={handleSubmitSingle} style={styles.formGrid}>
+          {/* Left Form Block — TMDB Search & Metadata */}
+          <div style={styles.leftCol} className="glass-panel">
+            <h3 style={styles.sectionTitle}>
+              <Sparkles size={18} color="var(--accent-red)" /> TMDB Auto-Fetch Metadata
+            </h3>
+
+            <div style={styles.typeToggle}>
+              <button
+                type="button"
+                style={{ ...styles.typeBtn, ...(type === "movie" ? styles.typeActiveRed : {}) }}
+                onClick={() => setType("movie")}
+              >
+                <Film size={16} /> Movie
+              </button>
+              <button
+                type="button"
+                style={{ ...styles.typeBtn, ...(type === "series" ? styles.typeActiveGreen : {}) }}
+                onClick={() => setType("series")}
+              >
+                <Tv size={16} /> TV Series
+              </button>
+            </div>
+
+            <div style={styles.field}>
+              <label style={styles.label}>Live TMDB Search</label>
+              <TmdbSearchInput onSelectMedia={handleTmdbSelect} initialQuery={title} />
+            </div>
+
+            <div style={styles.row}>
+              <div style={styles.field}>
+                <label style={styles.label}>Title</label>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Auto-extracted from path or search TMDB..."
+                  style={styles.input}
+                />
+              </div>
+              <div style={{ ...styles.field, maxWidth: "120px" }}>
+                <label style={styles.label}>Year</label>
+                <input
+                  type="number"
+                  value={year}
+                  onChange={(e) => setYear(e.target.value)}
+                  style={styles.input}
+                />
               </div>
             </div>
-          )}
 
-          {/* Poster Preview Frame */}
-          {posterUrl && (
-            <div style={styles.previewBox}>
-              <span style={styles.label}>Poster Live Preview</span>
-              <img src={posterUrl} alt="Preview" style={styles.previewImg} />
+            <div style={styles.row}>
+              <div style={styles.field}>
+                <label style={styles.label}>Poster Image URL</label>
+                <input
+                  type="url"
+                  value={posterUrl}
+                  onChange={(e) => setPosterUrl(e.target.value)}
+                  placeholder="https://image.tmdb.org/t/p/w500/..."
+                  style={styles.input}
+                />
+              </div>
+              <div style={styles.field}>
+                <label style={styles.label}>Backdrop Image URL</label>
+                <input
+                  type="url"
+                  value={backdropUrl}
+                  onChange={(e) => setBackdropUrl(e.target.value)}
+                  placeholder="https://image.tmdb.org/t/p/original/..."
+                  style={styles.input}
+                />
+              </div>
             </div>
-          )}
 
-          <div style={styles.submitSection}>
-            <button type="submit" style={styles.submitBtn}>
-              <Save size={18} /> Save Entry to Shared Library
-            </button>
+            <div style={styles.row}>
+              <div style={styles.field}>
+                <label style={styles.label}>YouTube Trailer URL</label>
+                <input
+                  type="url"
+                  value={trailerUrl}
+                  onChange={(e) => setTrailerUrl(e.target.value)}
+                  placeholder="https://www.youtube.com/watch?v=..."
+                  style={styles.input}
+                />
+              </div>
+              <div style={{ ...styles.field, maxWidth: "140px" }}>
+                <label style={styles.label}>IMDb Rating</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={imdbRating}
+                  onChange={(e) => setImdbRating(e.target.value)}
+                  placeholder="8.8"
+                  style={styles.input}
+                />
+              </div>
+            </div>
+
+            <div style={styles.field}>
+              <label style={styles.label}>Genres (comma-separated)</label>
+              <input
+                type="text"
+                value={genresStr}
+                onChange={(e) => setGenresStr(e.target.value)}
+                placeholder="Action, Sci-Fi, Adventure"
+                style={styles.input}
+              />
+            </div>
+
+            <div style={styles.field}>
+              <label style={styles.label}>Overview</label>
+              <textarea
+                rows={3}
+                value={overview}
+                onChange={(e) => setOverview(e.target.value)}
+                style={styles.textarea}
+              />
+            </div>
+
+            <div style={styles.row}>
+              {type === "movie" ? (
+                <>
+                  <div style={styles.field}>
+                    <label style={styles.label}>Director</label>
+                    <input
+                      type="text"
+                      value={director}
+                      onChange={(e) => setDirector(e.target.value)}
+                      style={styles.input}
+                    />
+                  </div>
+                  <div style={styles.field}>
+                    <label style={styles.label}>Runtime (mins)</label>
+                    <input
+                      type="number"
+                      value={runtime}
+                      onChange={(e) => setRuntime(e.target.value)}
+                      style={styles.input}
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={styles.field}>
+                    <label style={styles.label}>Creator</label>
+                    <input
+                      type="text"
+                      value={creator}
+                      onChange={(e) => setCreator(e.target.value)}
+                      style={styles.input}
+                    />
+                  </div>
+                  <div style={{ ...styles.field, maxWidth: "120px" }}>
+                    <label style={styles.label}>Seasons</label>
+                    <input
+                      type="number"
+                      value={seasonCount}
+                      onChange={(e) => setSeasonCount(e.target.value)}
+                      style={styles.input}
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div style={styles.field}>
+              <label style={styles.label}>Top Cast (One per line: Name as Character)</label>
+              <textarea
+                rows={3}
+                value={castStr}
+                onChange={(e) => setCastStr(e.target.value)}
+                placeholder="Leonardo DiCaprio as Cobb&#10;Joseph Gordon-Levitt as Arthur"
+                style={styles.textarea}
+              />
+            </div>
           </div>
-        </div>
-      </form>
+
+          {/* Right Form Block — Local PC File Path Configuration */}
+          <div style={styles.rightCol} className="glass-panel">
+            <h3 style={styles.sectionTitle}>
+              <HardDrive size={18} color="var(--accent-green)" /> Local PC Media File Locations
+            </h3>
+
+            <div style={styles.field}>
+              <label style={styles.label}>Paste Local File or Folder Path ({currentUser?.displayName})</label>
+              <input
+                type="text"
+                value={defaultPath}
+                onChange={(e) => handleDefaultPathChange(e.target.value)}
+                placeholder="e.g. C:\Downloads\Marvel Films\Avengers.mp4"
+                style={styles.input}
+              />
+              <span style={styles.helpText}>
+                Pasting a file path automatically extracts the title, ignores subtitles (.srt), and auto-fetches TMDB metadata!
+              </span>
+            </div>
+
+            {/* Episode Specific Mapping for TV Series */}
+            {type === "series" && (
+              <div style={styles.episodeMapperSection}>
+                <h4 style={styles.subSectionTitle}>Episode Multi-File Mapping</h4>
+                <p style={styles.helpText}>Map individual episode codes to local video files (.mp4, .mkv):</p>
+
+                <div style={styles.epMapperGrid}>
+                  {Array.from({ length: Math.min(parseInt(seasonCount) || 1, 3) }).map((_, sIdx) => {
+                    const sNum = sIdx + 1;
+                    return Array.from({ length: 3 }).map((_, eIdx) => {
+                      const eNum = eIdx + 1;
+                      const code = `S${sNum}E${eNum}`;
+                      return (
+                        <div key={code} style={styles.epFieldRow}>
+                          <span style={styles.epBadge}>{code}</span>
+                          <input
+                            type="text"
+                            value={episodePaths[code] || ""}
+                            onChange={(e) => handleEpisodePathChange(code, e.target.value)}
+                            placeholder={`D:\\Series\\${title || 'Show'}\\${code}.mp4`}
+                            style={styles.epInput}
+                          />
+                        </div>
+                      );
+                    });
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Poster Preview Frame */}
+            {posterUrl && (
+              <div style={styles.previewBox}>
+                <span style={styles.label}>Poster Live Preview</span>
+                <img src={posterUrl} alt="Preview" style={styles.previewImg} />
+              </div>
+            )}
+
+            <div style={styles.submitSection}>
+              <button type="submit" style={styles.submitBtn}>
+                <Save size={18} /> Save Entry to Shared Library
+              </button>
+            </div>
+          </div>
+        </form>
+      )}
     </div>
   );
 };
@@ -502,6 +630,85 @@ const styles = {
     fontSize: "1.8rem",
     fontWeight: 800,
     color: "#ffffff"
+  },
+  modeTabs: {
+    display: "flex",
+    gap: "12px",
+    backgroundColor: "var(--bg-surface)",
+    border: "1px solid var(--border-subtle)",
+    padding: "6px",
+    borderRadius: "10px"
+  },
+  modeTabBtn: {
+    flex: 1,
+    padding: "12px",
+    background: "none",
+    border: "none",
+    color: "var(--text-secondary)",
+    fontWeight: 700,
+    fontSize: "0.95rem",
+    borderRadius: "8px",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "10px",
+    transition: "var(--transition)"
+  },
+  modeTabActive: {
+    backgroundColor: "var(--bg-elevated)",
+    color: "#ffffff",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.5)"
+  },
+  batchCard: {
+    borderRadius: "14px",
+    padding: "32px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "24px"
+  },
+  batchHeader: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: "16px"
+  },
+  batchTitle: {
+    fontSize: "1.3rem",
+    fontWeight: 800,
+    color: "#ffffff",
+    marginBottom: "4px"
+  },
+  batchSub: {
+    fontSize: "0.9rem",
+    color: "var(--text-secondary)",
+    lineHeight: "1.5"
+  },
+  progressBox: {
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    padding: "14px",
+    backgroundColor: "rgba(70, 211, 105, 0.15)",
+    border: "1px solid var(--accent-green)",
+    borderRadius: "8px",
+    color: "#ffffff",
+    fontSize: "0.95rem",
+    fontWeight: 600
+  },
+  batchSubmitBtn: {
+    padding: "16px 28px",
+    backgroundColor: "var(--accent-green)",
+    color: "#000000",
+    border: "none",
+    borderRadius: "8px",
+    fontWeight: 800,
+    fontSize: "1.05rem",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "12px",
+    boxShadow: "0 6px 20px rgba(70,211,105,0.4)"
   },
   formGrid: {
     display: "grid",
