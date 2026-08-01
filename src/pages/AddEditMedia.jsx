@@ -1,12 +1,46 @@
 import React, { useState, useEffect } from "react";
 import { 
-  Film, Tv, Search, Save, ArrowLeft, HardDrive, Plus, Trash2, Sparkles, CheckCircle2 
+  Film, Tv, Search, Save, ArrowLeft, HardDrive, Plus, Trash2, Sparkles, CheckCircle2, Wand2 
 } from "lucide-react";
 import { TmdbSearchInput } from "../components/TmdbSearchInput";
-import { getTmdbDetails } from "../services/tmdb";
+import { getTmdbDetails, searchTmdb } from "../services/tmdb";
 import { saveMediaEntry } from "../services/storage";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
+
+// Allowed video file extensions — ignore subtitles (.srt, .vtt, .ass) & text files
+const VIDEO_EXTENSIONS = [".mp4", ".mkv", ".avi", ".mov", ".wmv", ".m4v", ".webm", ".flv", ".ts"];
+const SUB_EXTENSIONS = [".srt", ".ass", ".vtt", ".sub", ".txt", ".nfo"];
+
+export const isVideoFilePath = (path) => {
+  if (!path) return true; // Accept folders or custom inputs
+  const extIndex = path.lastIndexOf(".");
+  if (extIndex === -1) return true; // Folder path
+  const ext = path.substring(extIndex).toLowerCase();
+  if (SUB_EXTENSIONS.includes(ext)) return false; // Reject subtitles
+  return true;
+};
+
+export const extractCleanTitleFromPath = (fullPath) => {
+  if (!fullPath) return "";
+  const normalized = fullPath.replace(/\\/g, "/");
+  const parts = normalized.split("/").filter(Boolean);
+  if (parts.length === 0) return "";
+  
+  let name = parts[parts.length - 1];
+
+  // Strip known extensions
+  [...VIDEO_EXTENSIONS, ...SUB_EXTENSIONS].forEach((ext) => {
+    if (name.toLowerCase().endsWith(ext)) {
+      name = name.substring(0, name.length - ext.length);
+    }
+  });
+
+  // Clean tags like [1080p], (2010), dots, and underscores
+  name = name.replace(/\[.*?\]|\(.*?\)/g, " ");
+  name = name.replace(/[._-]/g, " ");
+  return name.trim();
+};
 
 export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
   const { currentUser } = useAuth();
@@ -28,7 +62,6 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
   const [creator, setCreator] = useState(editItem?.creator || "");
   const [studio, setStudio] = useState(editItem?.studio || "");
   
-  // Cast JSON or text
   const [castStr, setCastStr] = useState(
     (editItem?.cast || []).map((c) => `${c.name} as ${c.character}`).join("\n")
   );
@@ -48,7 +81,7 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
   // Handle TMDB selection
   const handleTmdbSelect = async (selected) => {
     try {
-      addToast(`Fetching full metadata from TMDB for "${selected.title}"...`, "info");
+      addToast(`Fetching metadata from TMDB for "${selected.title}"...`, "info");
       const details = await getTmdbDetails(selected.tmdb_id, selected.type);
       
       setTmdbId(details.tmdb_id);
@@ -81,6 +114,30 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
     }
   };
 
+  // Auto-extract title & search TMDB when file path is pasted/typed
+  const handleDefaultPathChange = async (newPath) => {
+    setDefaultPath(newPath);
+
+    // Validate video format
+    if (!isVideoFilePath(newPath)) {
+      addToast("Note: Path ends with subtitle extension. Non-video files will be ignored during playback.", "warning");
+    }
+
+    const extracted = extractCleanTitleFromPath(newPath);
+    if (extracted && (!title || title === "Untitled")) {
+      setTitle(extracted);
+      // Auto search TMDB for extracted title
+      try {
+        const searchResults = await searchTmdb(extracted);
+        if (searchResults && searchResults.length > 0) {
+          handleTmdbSelect(searchResults[0]);
+        }
+      } catch (e) {
+        console.warn("Auto TMDB lookup error:", e);
+      }
+    }
+  };
+
   const handleEpisodePathChange = (code, value) => {
     setEpisodePaths((prev) => ({
       ...prev,
@@ -90,9 +147,11 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!title) {
-      addToast("Please enter a media title.", "error");
-      return;
+
+    // Auto extract title if missing
+    let finalTitle = title.trim();
+    if (!finalTitle) {
+      finalTitle = extractCleanTitleFromPath(defaultPath) || "Untitled Media";
     }
 
     const parsedGenres = genresStr
@@ -127,14 +186,14 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
     const mediaData = {
       tmdb_id: tmdbId ? parseInt(tmdbId) : Date.now(),
       type,
-      title,
+      title: finalTitle,
       year: parseInt(year) || new Date().getFullYear(),
-      poster_url: posterUrl,
-      backdrop_url: backdropUrl,
+      poster_url: posterUrl || "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500&auto=format&fit=crop&q=60",
+      backdrop_url: backdropUrl || "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=1920&auto=format&fit=crop&q=80",
       trailer_url: trailerUrl,
-      genres: parsedGenres,
-      imdb_rating: parseFloat(imdbRating) || 0,
-      overview,
+      genres: parsedGenres.length > 0 ? parsedGenres : ["Cinema"],
+      imdb_rating: parseFloat(imdbRating) || 8.0,
+      overview: overview || `Local collection file: ${defaultPath}`,
       release_date: releaseDate,
       runtime: parseInt(runtime) || 0,
       director,
@@ -149,7 +208,7 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
 
     try {
       await saveMediaEntry(mediaData, currentUser);
-      addToast(`"${title}" saved to library successfully!`, "success");
+      addToast(`"${finalTitle}" saved to library!`, "success");
       onSaveSuccess();
     } catch (err) {
       addToast(`Failed to save entry: ${err.message}`, "error");
@@ -198,12 +257,12 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
 
           <div style={styles.row}>
             <div style={styles.field}>
-              <label style={styles.label}>Title *</label>
+              <label style={styles.label}>Title</label>
               <input
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                required
+                placeholder="Auto-extracted from path or search TMDB..."
                 style={styles.input}
               />
             </div>
@@ -351,16 +410,16 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
           </h3>
 
           <div style={styles.field}>
-            <label style={styles.label}>Default File Path ({currentUser?.displayName})</label>
+            <label style={styles.label}>Paste Local File or Folder Path ({currentUser?.displayName})</label>
             <input
               type="text"
               value={defaultPath}
-              onChange={(e) => setDefaultPath(e.target.value)}
-              placeholder="D:\Movies\Inception (2010).mkv"
+              onChange={(e) => handleDefaultPathChange(e.target.value)}
+              placeholder="e.g. C:\Downloads\Marvel Films\Avengers.mp4"
               style={styles.input}
             />
             <span style={styles.helpText}>
-              Windows file path on your local disk that VLC Media Player will open.
+              Pasting a file path automatically extracts the title, filters out subtitle files, and auto-fetches TMDB metadata!
             </span>
           </div>
 
@@ -368,7 +427,7 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
           {type === "series" && (
             <div style={styles.episodeMapperSection}>
               <h4 style={styles.subSectionTitle}>Episode Multi-File Mapping</h4>
-              <p style={styles.helpText}>Map individual episode codes to local disk files:</p>
+              <p style={styles.helpText}>Map individual episode codes to local video files (.mp4, .mkv):</p>
 
               <div style={styles.epMapperGrid}>
                 {Array.from({ length: Math.min(parseInt(seasonCount) || 1, 3) }).map((_, sIdx) => {
@@ -383,7 +442,7 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
                           type="text"
                           value={episodePaths[code] || ""}
                           onChange={(e) => handleEpisodePathChange(code, e.target.value)}
-                          placeholder={`D:\\Series\\${title}\\${code}.mkv`}
+                          placeholder={`D:\\Series\\${title || 'Show'}\\${code}.mp4`}
                           style={styles.epInput}
                         />
                       </div>
