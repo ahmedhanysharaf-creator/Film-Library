@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { X, Settings, Key, ShieldCheck, Database, Save } from "lucide-react";
-import { getSecurityToken, setSecurityToken } from "../services/vlcLauncher";
+import { X, Settings, Key, ShieldCheck, Database, Save, Download, Tv } from "lucide-react";
+import { getSecurityToken, setSecurityToken, downloadWindowsRegistryFix } from "../services/vlcLauncher";
 import { getTmdbApiKey, setTmdbApiKey } from "../services/tmdb";
 import { useToast } from "../context/ToastContext";
 
@@ -45,7 +45,7 @@ export const SettingsModal = ({ onClose }) => {
         <div style={styles.header}>
           <div style={styles.titleGroup}>
             <Settings size={22} color="var(--accent-red)" />
-            <h3 style={styles.title}>Companion & API Settings</h3>
+            <h3 style={styles.title}>Companion & VLC Settings</h3>
           </div>
           <button style={styles.closeBtn} onClick={onClose}>
             <X size={20} />
@@ -53,11 +53,31 @@ export const SettingsModal = ({ onClose }) => {
         </div>
 
         <form onSubmit={handleSave} style={styles.form}>
+          {/* Windows VLC 1-Click Protocol Setup */}
+          <div style={styles.vlcSetupBox}>
+            <Tv size={24} color="var(--accent-green)" />
+            <div style={{ flex: 1 }}>
+              <div style={styles.vlcSetupTitle}>1-Click Windows VLC Protocol Setup</div>
+              <p style={styles.vlcSetupSub}>
+                Download this 1-click Registry file (`.reg`) and run it once on Windows to enable automatic direct VLC launching from Chrome!
+              </p>
+            </div>
+            <button
+              type="button"
+              style={styles.downloadRegBtn}
+              onClick={() => {
+                downloadWindowsRegistryFix();
+                addToast("Downloaded Registry Fix! Double-click file on PC to enable direct VLC opening.", "success");
+              }}
+            >
+              <Download size={14} /> Download `.reg` Fix
+            </button>
+          </div>
+
           {/* Security Token Section */}
           <div style={styles.section}>
             <label style={styles.label}>
-              <ShieldCheck size={16} color="var(--accent-green)" />
-              Companion Shared Security Token
+              <ShieldCheck size={16} color="var(--accent-green)" /> Companion Security Token
             </label>
             <input
               type="text"
@@ -67,15 +87,14 @@ export const SettingsModal = ({ onClose }) => {
               style={styles.input}
             />
             <span style={styles.helpText}>
-              This token validates `filmlibrary://` VLC launcher commands against your Windows companion app.
+              Validates `filmlibrary://` VLC protocol commands against your local companion launcher.
             </span>
           </div>
 
           {/* TMDB API Key */}
           <div style={styles.section}>
             <label style={styles.label}>
-              <Key size={16} color="#f5c518" />
-              TMDB API Key (Optional Override)
+              <Key size={16} color="#f5c518" /> TMDB API Key (Optional Override)
             </label>
             <input
               type="text"
@@ -89,11 +108,10 @@ export const SettingsModal = ({ onClose }) => {
           {/* Firebase Config JSON */}
           <div style={styles.section}>
             <label style={styles.label}>
-              <Database size={16} color="#3b82f6" />
-              Firebase Config JSON (Optional Override)
+              <Database size={16} color="#3b82f6" /> Firebase Config JSON (Optional Override)
             </label>
             <textarea
-              rows={4}
+              rows={3}
               value={firebaseConfigStr}
               onChange={(e) => setFirebaseConfigStr(e.target.value)}
               placeholder='{"apiKey": "...", "projectId": "...", ...}'
@@ -126,7 +144,7 @@ const styles = {
   },
   modal: {
     width: "100%",
-    maxWidth: "560px",
+    maxWidth: "580px",
     borderRadius: "14px",
     padding: "28px",
     display: "flex",
@@ -157,7 +175,40 @@ const styles = {
   form: {
     display: "flex",
     flexDirection: "column",
-    gap: "20px"
+    gap: "18px"
+  },
+  vlcSetupBox: {
+    display: "flex",
+    alignItems: "center",
+    gap: "14px",
+    padding: "14px 16px",
+    backgroundColor: "rgba(70,211,105,0.1)",
+    border: "1px solid var(--accent-green)",
+    borderRadius: "10px"
+  },
+  vlcSetupTitle: {
+    fontSize: "0.92rem",
+    fontWeight: 700,
+    color: "#ffffff"
+  },
+  vlcSetupSub: {
+    fontSize: "0.78rem",
+    color: "var(--text-secondary)",
+    marginTop: "2px"
+  },
+  downloadRegBtn: {
+    padding: "8px 12px",
+    backgroundColor: "var(--accent-green)",
+    color: "#000000",
+    border: "none",
+    borderRadius: "6px",
+    fontWeight: 700,
+    fontSize: "0.8rem",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    whiteSpace: "nowrap"
   },
   section: {
     display: "flex",
