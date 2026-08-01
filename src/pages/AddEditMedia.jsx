@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { 
-  Film, Tv, Save, ArrowLeft, HardDrive, Sparkles, FolderPlus, Loader2, CheckCircle2, AlertCircle 
+  Film, Tv, Save, ArrowLeft, HardDrive, Sparkles, FolderPlus, Loader2, CheckCircle2, AlertCircle, CheckSquare, Square, RefreshCw
 } from "lucide-react";
 import { TmdbSearchInput } from "../components/TmdbSearchInput";
 import { getTmdbDetails, searchTmdb } from "../services/tmdb";
@@ -14,9 +14,9 @@ const SUB_EXTENSIONS = [".srt", ".ass", ".vtt", ".sub", ".txt", ".nfo"];
 export const isVideoFilePath = (path) => {
   if (!path) return true;
   const extIndex = path.lastIndexOf(".");
-  if (extIndex === -1) return true;
+  if (extIndex === -1) return true; // Accept folders
   const ext = path.substring(extIndex).toLowerCase();
-  if (SUB_EXTENSIONS.includes(ext)) return false;
+  if (SUB_EXTENSIONS.includes(ext)) return false; // Filter out subtitles
   return true;
 };
 
@@ -73,11 +73,13 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
   const [defaultPath, setDefaultPath] = useState(initialUserPaths.default || "");
   const [episodePaths, setEpisodePaths] = useState(initialUserPaths || {});
 
-  // Batch Scanner Form State
+  // Batch Scanner 3-Step State: "input" -> "scanning" -> "confirm"
+  const [batchStep, setBatchStep] = useState("input");
   const [folderPath, setFolderPath] = useState("");
   const [fileListText, setFileListText] = useState("");
-  const [scanning, setScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState("");
+  const [scannedResults, setScannedResults] = useState([]);
+  const [savingBatch, setSavingBatch] = useState(false);
 
   const handleTmdbSelect = async (selected) => {
     try {
@@ -118,18 +120,23 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
     setDefaultPath(newPath);
 
     if (!isVideoFilePath(newPath)) {
-      addToast("Path ends with subtitle extension. Non-video files will be ignored during playback.", "warning");
+      addToast("Path ends with subtitle extension (.srt/.vtt). Non-video files will be ignored during playback.", "warning");
+      return;
     }
 
-    const extracted = extractCleanTitleFromPath(newPath);
-    if (extracted && (!title || title === "Untitled")) {
-      setTitle(extracted);
-      try {
-        const searchResults = await searchTmdb(extracted);
-        if (searchResults && searchResults.length > 0) {
-          handleTmdbSelect(searchResults[0]);
-        }
-      } catch (e) {}
+    // Only auto-extract if the path points to an actual file (has extension like .mp4, .mkv)
+    const hasVideoExt = VIDEO_EXTENSIONS.some((ext) => newPath.toLowerCase().endsWith(ext));
+    if (hasVideoExt) {
+      const extracted = extractCleanTitleFromPath(newPath);
+      if (extracted && (!title || title === "Untitled")) {
+        setTitle(extracted);
+        try {
+          const searchResults = await searchTmdb(extracted);
+          if (searchResults && searchResults.length > 0) {
+            handleTmdbSelect(searchResults[0]);
+          }
+        } catch (e) {}
+      }
     }
   };
 
@@ -193,25 +200,24 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
     }
   };
 
-  // Batch Folder Scanner Handler
-  const handleBatchScan = async (e) => {
+  // Step 1 -> Step 2: Start Batch Scanning
+  const handleStartBatchScan = async (e) => {
     e.preventDefault();
     if (!folderPath && !fileListText) {
       addToast("Please enter a folder path or list of video files.", "error");
       return;
     }
 
-    setScanning(true);
+    setBatchStep("scanning");
+
     const lines = fileListText
       .split("\n")
       .map((l) => l.trim())
       .filter(Boolean);
 
-    // If no explicit file lines provided, use folder path as a single collection item
     const itemsToProcess = lines.length > 0 ? lines : [folderPath];
-
-    let savedCount = 0;
     const baseFolder = folderPath.trim().replace(/\\$/g, "");
+    const results = [];
 
     for (let i = 0; i < itemsToProcess.length; i++) {
       const rawItem = itemsToProcess[i];
@@ -229,46 +235,80 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
       const cleanTitle = extractCleanTitleFromPath(rawItem);
       if (!cleanTitle) continue;
 
-      setScanProgress(`Processing ${i + 1}/${itemsToProcess.length}: "${cleanTitle}"...`);
+      setScanProgress(`Scanning (${i + 1}/${itemsToProcess.length}): Fetching TMDB metadata for "${cleanTitle}"...`);
 
       try {
-        let mediaData = null;
-        // Search TMDB for metadata
         const searchResults = await searchTmdb(cleanTitle);
 
         if (searchResults && searchResults.length > 0) {
           const topMatch = searchResults[0];
           const details = await getTmdbDetails(topMatch.tmdb_id, topMatch.type);
           
-          mediaData = {
-            ...details,
-            new_paths: { default: fullItemPath }
-          };
+          results.push({
+            selected: true,
+            filePath: fullItemPath,
+            mediaData: {
+              ...details,
+              new_paths: { default: fullItemPath }
+            }
+          });
         } else {
           // Fallback entry if not found on TMDB
-          mediaData = {
-            tmdb_id: Date.now() + Math.floor(Math.random() * 10000),
-            type: "movie",
-            title: cleanTitle,
-            year: new Date().getFullYear(),
-            poster_url: "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500&auto=format&fit=crop&q=60",
-            backdrop_url: "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=1920&auto=format&fit=crop&q=80",
-            genres: ["Cinema"],
-            imdb_rating: 8.0,
-            overview: `Local video file: ${fullItemPath}`,
-            new_paths: { default: fullItemPath }
-          };
+          results.push({
+            selected: true,
+            filePath: fullItemPath,
+            mediaData: {
+              tmdb_id: Date.now() + Math.floor(Math.random() * 10000),
+              type: "movie",
+              title: cleanTitle,
+              year: new Date().getFullYear(),
+              poster_url: "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500&auto=format&fit=crop&q=60",
+              backdrop_url: "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=1920&auto=format&fit=crop&q=80",
+              genres: ["Cinema"],
+              imdb_rating: 8.0,
+              overview: `Local video file: ${fullItemPath}`,
+              new_paths: { default: fullItemPath }
+            }
+          });
         }
-
-        await saveMediaEntry(mediaData, currentUser);
-        savedCount++;
       } catch (err) {
-        console.error(`Error scanning item ${cleanTitle}:`, err);
+        console.error(`Error scanning ${cleanTitle}:`, err);
       }
     }
 
-    setScanning(false);
-    addToast(`Batch Scan Complete! Added ${savedCount} movies to your library.`, "success");
+    setScannedResults(results);
+    setBatchStep("confirm");
+  };
+
+  // Toggle item selection in Step 3 confirmation grid
+  const toggleItemSelection = (index) => {
+    setScannedResults((prev) =>
+      prev.map((item, idx) => (idx === index ? { ...item, selected: !item.selected } : item))
+    );
+  };
+
+  // Step 3 -> Finish: Save Selected Items to Library
+  const handleConfirmBatchSave = async () => {
+    const selectedItems = scannedResults.filter((r) => r.selected);
+    if (selectedItems.length === 0) {
+      addToast("Please select at least one movie/series to save.", "warning");
+      return;
+    }
+
+    setSavingBatch(true);
+    let count = 0;
+
+    for (const item of selectedItems) {
+      try {
+        await saveMediaEntry(item.mediaData, currentUser);
+        count++;
+      } catch (err) {
+        console.error("Batch save error:", err);
+      }
+    }
+
+    setSavingBatch(false);
+    addToast(`Successfully added ${count} movies/series to your library!`, "success");
     onSaveSuccess();
   };
 
@@ -286,7 +326,10 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
         <button
           type="button"
           style={{ ...styles.modeTabBtn, ...(mode === "single" ? styles.modeTabActive : {}) }}
-          onClick={() => setMode("single")}
+          onClick={() => {
+            setMode("single");
+            setBatchStep("input");
+          }}
         >
           <Film size={18} /> Single Entry Mode
         </button>
@@ -296,61 +339,150 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
           style={{ ...styles.modeTabBtn, ...(mode === "batch" ? styles.modeTabActive : {}) }}
           onClick={() => setMode("batch")}
         >
-          <FolderPlus size={18} color="var(--accent-green)" /> 📁 Batch Folder Scanner
+          <FolderPlus size={18} color="var(--accent-green)" /> 📁 Batch Folder Scanner & Preview
         </button>
       </div>
 
       {mode === "batch" ? (
-        /* BATCH FOLDER SCANNER UI */
-        <form onSubmit={handleBatchScan} style={styles.batchCard} className="glass-panel">
-          <div style={styles.batchHeader}>
-            <FolderPlus size={28} color="var(--accent-green)" />
-            <div>
-              <h3 style={styles.batchTitle}>Batch Scan & Add All Movies in Folder</h3>
-              <p style={styles.batchSub}>
-                Paste your folder path or video file list. The scanner filters out subtitles (.srt), extracts titles, auto-fetches TMDB metadata, and saves all items to the library at once!
-              </p>
-            </div>
-          </div>
+        /* BATCH FOLDER SCANNER 3-STEP WIZARD UI */
+        <div style={styles.batchCard} className="glass-panel">
+          {batchStep === "input" && (
+            <form onSubmit={handleStartBatchScan} style={styles.batchInnerForm}>
+              <div style={styles.batchHeader}>
+                <FolderPlus size={32} color="var(--accent-green)" />
+                <div>
+                  <h3 style={styles.batchTitle}>Step 1: Folder Path & Video File Scanner</h3>
+                  <p style={styles.batchSub}>
+                    Paste your folder path (e.g. <code>C:\Users\Ahmed\Downloads\English\Marvel Films</code>) or video file names. The scanner will extract all video files, ignore subtitle files (.srt), fetch full TMDB metadata, and present a preview checklist!
+                  </p>
+                </div>
+              </div>
 
-          <div style={styles.field}>
-            <label style={styles.label}>Base Folder Path (e.g. C:\Users\Ahmed\Downloads\English\Marvel Films)</label>
-            <input
-              type="text"
-              value={folderPath}
-              onChange={(e) => setFolderPath(e.target.value)}
-              placeholder="C:\Users\Ahmed\Downloads\English\Marvel Films"
-              style={styles.input}
-              required={!fileListText}
-            />
-          </div>
+              <div style={styles.field}>
+                <label style={styles.label}>Base Folder Path</label>
+                <input
+                  type="text"
+                  value={folderPath}
+                  onChange={(e) => setFolderPath(e.target.value)}
+                  placeholder="C:\Users\Ahmed\Downloads\English\Marvel Films"
+                  style={styles.input}
+                  required={!fileListText}
+                />
+              </div>
 
-          <div style={styles.field}>
-            <label style={styles.label}>Video File Names / Paths (Optional: One file per line)</label>
-            <textarea
-              rows={6}
-              value={fileListText}
-              onChange={(e) => setFileListText(e.target.value)}
-              placeholder="Iron Man (2008).mkv&#10;Thor (2011).mp4&#10;The Avengers (2012).mkv&#10;(Subtitle files like .srt are ignored automatically)"
-              style={styles.textarea}
-            />
-            <span style={styles.helpText}>
-              Subtitles (.srt, .vtt, .ass) and text files (.txt, .nfo) are automatically ignored.
-            </span>
-          </div>
+              <div style={styles.field}>
+                <label style={styles.label}>Video File Names / Paths (One video file per line)</label>
+                <textarea
+                  rows={6}
+                  value={fileListText}
+                  onChange={(e) => setFileListText(e.target.value)}
+                  placeholder="Iron Man (2008).mkv&#10;Thor (2011).mp4&#10;The Avengers (2012).mkv&#10;(Non-video files like .srt subtitles are automatically filtered out)"
+                  style={styles.textarea}
+                />
+                <span style={styles.helpText}>
+                  Subtitles (.srt, .vtt, .ass) and text files (.txt, .nfo) are ignored automatically.
+                </span>
+              </div>
 
-          {scanning && (
-            <div style={styles.progressBox}>
-              <Loader2 size={20} color="var(--accent-green)" className="animate-spin" />
-              <span>{scanProgress}</span>
+              <button type="submit" style={styles.batchSubmitBtn}>
+                <Sparkles size={18} /> 🔍 Scan Folder & Fetch TMDB Details
+              </button>
+            </form>
+          )}
+
+          {batchStep === "scanning" && (
+            <div style={styles.loadingState}>
+              <Loader2 size={42} color="var(--accent-green)" className="animate-spin" />
+              <h3 style={styles.loadingTitle}>Scanning Folder & Extracting TMDB Metadata...</h3>
+              <p style={styles.loadingSub}>{scanProgress}</p>
             </div>
           )}
 
-          <button type="submit" style={styles.batchSubmitBtn} disabled={scanning}>
-            {scanning ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
-            {scanning ? "Scanning Folder & Fetching TMDB..." : "Scan & Save All Items to Library"}
-          </button>
-        </form>
+          {batchStep === "confirm" && (
+            <div style={styles.confirmState}>
+              <div style={styles.confirmHeader}>
+                <CheckCircle2 size={28} color="var(--accent-green)" />
+                <div>
+                  <h3 style={styles.batchTitle}>Step 3: Review Discovered Movies & Confirm</h3>
+                  <p style={styles.batchSub}>
+                    We scanned your folder and fetched metadata from TMDB for {scannedResults.length} item(s). Uncheck any movie you don't want to add, then click **Done**!
+                  </p>
+                </div>
+              </div>
+
+              {/* Scanned Results Checklist Grid */}
+              <div style={styles.resultsGrid}>
+                {scannedResults.map((item, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      ...styles.resultCard,
+                      ...(item.selected ? styles.resultCardSelected : {})
+                    }}
+                    onClick={() => toggleItemSelection(idx)}
+                  >
+                    <div style={styles.checkboxArea}>
+                      {item.selected ? (
+                        <CheckSquare size={22} color="var(--accent-green)" />
+                      ) : (
+                        <Square size={22} color="var(--text-muted)" />
+                      )}
+                    </div>
+                    <img
+                      src={item.mediaData.poster_url}
+                      alt={item.mediaData.title}
+                      style={styles.resultPoster}
+                    />
+                    <div style={styles.resultInfo}>
+                      <div style={styles.resultTitleRow}>
+                        <span style={styles.resultTitle}>{item.mediaData.title}</span>
+                        <span style={styles.resultYear}>({item.mediaData.year})</span>
+                      </div>
+                      <div style={styles.resultMeta}>
+                        <span style={styles.resultBadge}>{item.mediaData.type.toUpperCase()}</span>
+                        <span style={styles.resultRating}>⭐ {item.mediaData.imdb_rating}</span>
+                        <span style={styles.resultGenres}>
+                          {(item.mediaData.genres || []).slice(0, 2).join(", ")}
+                        </span>
+                      </div>
+                      <div style={styles.resultPath} title={item.filePath}>
+                        📁 {item.filePath}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Confirm Actions */}
+              <div style={styles.confirmActionRow}>
+                <button
+                  type="button"
+                  style={styles.reScanBtn}
+                  onClick={() => setBatchStep("input")}
+                  disabled={savingBatch}
+                >
+                  <RefreshCw size={16} /> Back to Scan Input
+                </button>
+
+                <button
+                  type="button"
+                  style={styles.doneBtn}
+                  onClick={handleConfirmBatchSave}
+                  disabled={savingBatch}
+                >
+                  {savingBatch ? (
+                    <Loader2 size={18} className="animate-spin" />
+                  ) : (
+                    <CheckCircle2 size={18} />
+                  )}
+                  {savingBatch
+                    ? "Saving Entries to Library..."
+                    : `Done — Save Selected (${scannedResults.filter((r) => r.selected).length}) Items to Library`}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       ) : (
         /* SINGLE ENTRY FORM UI */
         <form onSubmit={handleSubmitSingle} style={styles.formGrid}>
@@ -546,9 +678,32 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
                 style={styles.input}
               />
               <span style={styles.helpText}>
-                Pasting a file path automatically extracts the title, ignores subtitles (.srt), and auto-fetches TMDB metadata!
+                Pasting a single video file path (.mp4/.mkv) auto-fetches TMDB metadata.
               </span>
             </div>
+
+            {/* Folder Warning Banner if a folder path is detected */}
+            {defaultPath && !VIDEO_EXTENSIONS.some((ext) => defaultPath.toLowerCase().endsWith(ext)) && (
+              <div style={styles.folderNotice}>
+                <FolderPlus size={20} color="var(--accent-green)" />
+                <div style={{ flex: 1 }}>
+                  <strong>Folder Path Detected!</strong>
+                  <p style={{ fontSize: "0.8rem", margin: "2px 0 0 0" }}>
+                    This folder contains multiple movies. Switch to **Batch Folder Scanner** to scan and add all movies automatically!
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  style={styles.switchModeBtn}
+                  onClick={() => {
+                    setFolderPath(defaultPath);
+                    setMode("batch");
+                  }}
+                >
+                  Launch Scanner
+                </button>
+              </div>
+            )}
 
             {/* Episode Specific Mapping for TV Series */}
             {type === "series" && (
@@ -667,6 +822,11 @@ const styles = {
     flexDirection: "column",
     gap: "24px"
   },
+  batchInnerForm: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "20px"
+  },
   batchHeader: {
     display: "flex",
     alignItems: "flex-start",
@@ -683,17 +843,160 @@ const styles = {
     color: "var(--text-secondary)",
     lineHeight: "1.5"
   },
-  progressBox: {
+  loadingState: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "60px 20px",
+    gap: "16px",
+    textAlign: "center"
+  },
+  loadingTitle: {
+    fontSize: "1.3rem",
+    fontWeight: 800,
+    color: "#ffffff"
+  },
+  loadingSub: {
+    fontSize: "0.95rem",
+    color: "var(--accent-green)",
+    fontWeight: 600
+  },
+  confirmState: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "20px"
+  },
+  confirmHeader: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: "16px"
+  },
+  resultsGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+    gap: "16px",
+    maxHeight: "440px",
+    overflowY: "auto",
+    paddingRight: "6px"
+  },
+  resultCard: {
+    display: "flex",
+    gap: "12px",
+    padding: "12px",
+    backgroundColor: "var(--bg-elevated)",
+    border: "2px solid var(--border-subtle)",
+    borderRadius: "10px",
+    cursor: "pointer",
+    transition: "var(--transition)",
+    position: "relative"
+  },
+  resultCardSelected: {
+    borderColor: "var(--accent-green)",
+    backgroundColor: "rgba(70, 211, 105, 0.1)"
+  },
+  checkboxArea: {
+    display: "flex",
+    alignItems: "center"
+  },
+  resultPoster: {
+    width: "60px",
+    height: "88px",
+    objectFit: "cover",
+    borderRadius: "6px"
+  },
+  resultInfo: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "4px",
+    flex: 1,
+    overflow: "hidden"
+  },
+  resultTitleRow: {
     display: "flex",
     alignItems: "center",
-    gap: "12px",
-    padding: "14px",
-    backgroundColor: "rgba(70, 211, 105, 0.15)",
-    border: "1px solid var(--accent-green)",
-    borderRadius: "8px",
-    color: "#ffffff",
+    gap: "6px"
+  },
+  resultTitle: {
     fontSize: "0.95rem",
-    fontWeight: 600
+    fontWeight: 700,
+    color: "#ffffff",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis"
+  },
+  resultYear: {
+    fontSize: "0.8rem",
+    color: "var(--text-muted)"
+  },
+  resultMeta: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    fontSize: "0.78rem"
+  },
+  resultBadge: {
+    padding: "2px 6px",
+    backgroundColor: "var(--bg-surface)",
+    color: "#ffffff",
+    borderRadius: "4px",
+    fontWeight: 700,
+    fontSize: "0.7rem"
+  },
+  resultRating: {
+    color: "var(--accent-gold)",
+    fontWeight: 700
+  },
+  resultGenres: {
+    color: "var(--text-secondary)",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis"
+  },
+  resultPath: {
+    fontSize: "0.72rem",
+    color: "var(--text-muted)",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    marginTop: "auto"
+  },
+  confirmActionRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: "16px",
+    paddingTop: "12px",
+    borderTop: "1px solid var(--border-subtle)"
+  },
+  reScanBtn: {
+    padding: "12px 20px",
+    backgroundColor: "var(--bg-elevated)",
+    color: "#ffffff",
+    border: "1px solid var(--border-subtle)",
+    borderRadius: "8px",
+    fontWeight: 600,
+    fontSize: "0.9rem",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px"
+  },
+  doneBtn: {
+    flex: 1,
+    padding: "14px 28px",
+    backgroundColor: "var(--accent-green)",
+    color: "#000000",
+    border: "none",
+    borderRadius: "8px",
+    fontWeight: 800,
+    fontSize: "1.05rem",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "10px",
+    boxShadow: "0 6px 20px rgba(70,211,105,0.4)"
   },
   batchSubmitBtn: {
     padding: "16px 28px",
@@ -709,6 +1012,27 @@ const styles = {
     justifyContent: "center",
     gap: "12px",
     boxShadow: "0 6px 20px rgba(70,211,105,0.4)"
+  },
+  folderNotice: {
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    padding: "12px 16px",
+    backgroundColor: "rgba(70,211,105,0.12)",
+    border: "1px solid var(--accent-green)",
+    borderRadius: "8px",
+    color: "#ffffff"
+  },
+  switchModeBtn: {
+    padding: "6px 12px",
+    backgroundColor: "var(--accent-green)",
+    color: "#000000",
+    border: "none",
+    borderRadius: "6px",
+    fontWeight: 700,
+    fontSize: "0.8rem",
+    cursor: "pointer",
+    whiteSpace: "nowrap"
   },
   formGrid: {
     display: "grid",
