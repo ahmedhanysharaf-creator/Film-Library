@@ -65,17 +65,27 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete }) => {
         {/* Header Backdrop Banner */}
         <div style={{
           ...styles.banner,
-          backgroundImage: `linear-gradient(to bottom, rgba(13,13,13,0.2), rgba(13,13,13,1)), url(${item.backdrop_url || item.poster_url})`
+          backgroundImage: `linear-gradient(to bottom, rgba(13,13,13,0.3), rgba(13,13,13,1)), url(${item.backdrop_url || item.poster_url})`
         }}>
-          <button style={styles.closeBtn} onClick={onClose}>
+          <button style={styles.closeBtn} onClick={onClose} title="Close popup">
             <X size={20} />
           </button>
 
           {item.trailer_url && (
-            <button style={styles.trailerBtn} onClick={() => setShowTrailer(true)}>
-              <Youtube size={18} color="#e50914" />
-              Watch Trailer
-            </button>
+            <div style={styles.trailerGroup}>
+              <button style={styles.trailerBtn} onClick={() => setShowTrailer(true)}>
+                <Video size={18} color="#e50914" /> Watch Trailer
+              </button>
+              <a
+                href={item.trailer_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={styles.externalTrailerBtn}
+                title="Open Trailer / Ad Link"
+              >
+                <ExternalLink size={16} /> Link
+              </a>
+            </div>
           )}
         </div>
 
@@ -84,7 +94,13 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete }) => {
           <div style={styles.mainGrid}>
             {/* Poster Sidebar */}
             <div style={styles.posterCol}>
-              <img src={item.poster_url} alt={item.title} style={styles.poster} />
+              <img
+                src={item.poster_url || "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500&auto=format&fit=crop&q=60"}
+                alt={item.title}
+                style={styles.poster}
+                loading="lazy"
+                decoding="async"
+              />
 
               {/* Watch Status Selector Buttons */}
               <div style={styles.statusGroup}>
@@ -95,8 +111,7 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete }) => {
                   }}
                   onClick={() => handleStatusChange("watched")}
                 >
-                  <CheckCircle2 size={16} />
-                  Watched
+                  <CheckCircle2 size={16} /> Watched
                 </button>
 
                 <button
@@ -106,8 +121,7 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete }) => {
                   }}
                   onClick={() => handleStatusChange("watchlist")}
                 >
-                  <Bookmark size={16} />
-                  Watchlist
+                  <Bookmark size={16} /> Watchlist
                 </button>
               </div>
 
@@ -168,7 +182,7 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete }) => {
               </div>
 
               {/* Overview */}
-              <p style={styles.overview}>{item.overview}</p>
+              <p style={styles.overview}>{item.overview || "No overview snippet available for this media title."}</p>
 
               {/* Credits */}
               <div style={styles.creditsGrid}>
@@ -220,8 +234,7 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete }) => {
                       }
                     }}
                   >
-                    <Play size={20} fill="#ffffff" />
-                    Play Movie in VLC
+                    <Play size={20} fill="#ffffff" /> Play Movie in VLC
                   </button>
 
                   {defaultMoviePath && (
@@ -351,7 +364,7 @@ const styles = {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.85)",
+    backgroundColor: "rgba(0, 0, 0, 0.88)",
     zIndex: 200,
     display: "flex",
     alignItems: "center",
@@ -362,10 +375,11 @@ const styles = {
     width: "100%",
     maxWidth: "960px",
     maxHeight: "90vh",
+    backgroundColor: "var(--bg-surface)",
     borderRadius: "16px",
     overflowY: "auto",
     position: "relative",
-    boxShadow: "0 24px 60px rgba(0,0,0,0.9)",
+    boxShadow: "0 24px 60px rgba(0,0,0,0.95)",
     border: "1px solid var(--border-subtle)"
   },
   banner: {
@@ -385,19 +399,25 @@ const styles = {
     width: "36px",
     height: "36px",
     borderRadius: "50%",
-    backgroundColor: "rgba(0,0,0,0.7)",
-    border: "none",
+    backgroundColor: "rgba(0,0,0,0.75)",
+    border: "1px solid var(--border-subtle)",
     color: "#ffffff",
     cursor: "pointer",
     display: "flex",
     alignItems: "center",
-    justifyContent: "center"
+    justifyContent: "center",
+    zIndex: 10
   },
-  trailerBtn: {
+  trailerGroup: {
     position: "absolute",
     bottom: "20px",
     right: "20px",
-    backgroundColor: "rgba(0,0,0,0.8)",
+    display: "flex",
+    gap: "8px",
+    zIndex: 10
+  },
+  trailerBtn: {
+    backgroundColor: "rgba(0,0,0,0.85)",
     color: "#ffffff",
     border: "1px solid var(--border-subtle)",
     padding: "10px 18px",
@@ -407,8 +427,21 @@ const styles = {
     cursor: "pointer",
     display: "flex",
     alignItems: "center",
-    gap: "8px",
-    backdropFilter: "blur(6px)"
+    gap: "8px"
+  },
+  externalTrailerBtn: {
+    backgroundColor: "rgba(0,0,0,0.85)",
+    color: "#ffffff",
+    border: "1px solid var(--border-subtle)",
+    padding: "10px 14px",
+    borderRadius: "20px",
+    fontWeight: 600,
+    fontSize: "0.85rem",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    textDecoration: "none"
   },
   content: {
     padding: "24px 32px 40px 32px",
