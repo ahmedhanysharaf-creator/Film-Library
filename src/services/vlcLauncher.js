@@ -42,7 +42,7 @@ export const downloadVlcM3uPlaylist = (path, title) => {
 
 /**
  * Generate and trigger downloadable .reg file
- * Registers filmlibrary:// protocol with auto-detecting VLC launcher
+ * Quote-escaped cmd.exe launcher that handles folder paths with spaces ("Marvel Films") perfectly!
  */
 export const downloadWindowsRegistryFix = () => {
   const regContent = `Windows Registry Editor Version 5.00
@@ -56,7 +56,7 @@ export const downloadWindowsRegistryFix = () => {
 [HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell\\open]
 
 [HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell\\open\\command]
-@="powershell.exe -NoProfile -WindowStyle Hidden -Command \\"$url='%1'; $v='C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe'; if (-not (Test-Path $v)){$v='C:\\\\Program Files (x86)\\\\VideoLAN\\\\VLC\\\\vlc.exe'}; if ($url -match 'path=(.*?)(?:&|$)') { $p=[System.Uri]::UnescapeDataString($matches[1]); Start-Process $v -ArgumentList ('\\\"' + $p + '\\\"') }\\""
+@="cmd.exe /c \\"set \\\"VLC=C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe\\\" & if not exist \\\"%VLC%\\\" set \\\"VLC=C:\\\\Program Files (x86)\\\\VideoLAN\\\\VLC\\\\vlc.exe\\\" & for /f \\\"tokens=2 delims==\\\" %a in (\\\"%1\\\") do for /f \\\"tokens=1 delims=^&\\\" %b in (\\\"%a\\\") do start \\\"\\\" \\\"%VLC%\\\" \\\"%~b\\\"\\""
 `;
 
   const blob = new Blob([regContent], { type: "text/plain" });
@@ -80,15 +80,18 @@ export const launchInVlc = (path, title, addToast) => {
   }
 
   const token = getSecurityToken();
-  const encodedPath = encodeURIComponent(path);
+  const rawPath = path;
   const encodedToken = encodeURIComponent(token);
   
-  // Custom filmlibrary:// protocol URL
-  const customProtocolUrl = `filmlibrary://open?path=${encodedPath}&token=${encodedToken}`;
+  // Custom filmlibrary:// protocol URL with raw path string
+  const customProtocolUrl = `filmlibrary://open?path=${rawPath}&token=${encodedToken}`;
 
   console.log(`[VLC Launcher] Triggering direct protocol: ${customProtocolUrl}`);
 
-  // 1. Trigger direct protocol launch
+  // 1. Copy file path to clipboard
+  copyPathToClipboard(path);
+
+  // 2. Trigger direct protocol launcher
   try {
     window.location.href = customProtocolUrl;
   } catch (e) {
