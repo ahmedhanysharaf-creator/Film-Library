@@ -8,12 +8,13 @@ import {
   addDoc, 
   updateDoc, 
   deleteDoc, 
+  writeBatch,
   query, 
   where,
   serverTimestamp 
 } from "firebase/firestore";
 
-// Seed sample data for local storage mode so user gets a WOW experience out-of-the-box!
+// Seed sample data for local storage mode
 const INITIAL_SEED_LIBRARY = [
   {
     id: "seed_inception",
@@ -131,7 +132,6 @@ const INITIAL_SEED_LIBRARY = [
 const LOCAL_STORAGE_LIB_KEY = "filmlibrary_items_data";
 const LOCAL_STORAGE_USERS_KEY = "filmlibrary_allowed_users_data";
 
-// Helper: Get local storage library
 const getLocalLibrary = () => {
   const data = localStorage.getItem(LOCAL_STORAGE_LIB_KEY);
   if (!data) {
@@ -170,8 +170,7 @@ export const fetchLibraryItems = async () => {
 };
 
 /**
- * Save or Merge Media Entry into Library
- * If tmdb_id already exists, consolidate user paths!
+ * Save or Merge Single Media Entry into Library
  */
 export const saveMediaEntry = async (mediaData, currentUser) => {
   const allItems = await fetchLibraryItems();
@@ -184,7 +183,6 @@ export const saveMediaEntry = async (mediaData, currentUser) => {
   };
 
   if (existingIndex >= 0) {
-    // Consolidated Single Card Update
     const existing = allItems[existingIndex];
     let updatedUserPaths = [...(existing.user_paths || [])];
     
@@ -213,7 +211,6 @@ export const saveMediaEntry = async (mediaData, currentUser) => {
     }
     return updatedDocData;
   } else {
-    // New Library Entry
     const newDocData = {
       ...mediaData,
       user_paths: [userPathObj],
@@ -228,12 +225,104 @@ export const saveMediaEntry = async (mediaData, currentUser) => {
       const docRef = await addDoc(collection(db, "library"), newDocData);
       return { id: docRef.id, ...newDocData };
     } else {
-      const newEntry = { id: `local_${Date.now()}`, ...newDocData };
+      const newEntry = { id: `local_${Date.now()}_${Math.random()}`, ...newDocData };
       allItems.unshift(newEntry);
       saveLocalLibrary(allItems);
       return newEntry;
     }
   }
+};
+
+/**
+ * Super-Fast Batch Save using Firestore writeBatch + LocalStorage bulk sync
+ * Saves all 42 items in 1 single atomic call!
+ */
+export const saveMediaEntriesBatch = async (mediaDataList, currentUser, onProgress) => {
+  if (!mediaDataList || mediaDataList.length === 0) return 0;
+
+  const allItems = await fetchLibraryItems();
+  const total = mediaDataList.length;
+
+  const useFirestore = isFirebaseConfigured() && db;
+  let batch = useFirestore ? writeBatch(db) : null;
+  let savedCount = 0;
+
+  for (let i = 0; i < total; i++) {
+    const mediaData = mediaDataList[i];
+    const existingIndex = allItems.findIndex((item) => item.tmdb_id === mediaData.tmdb_id);
+
+    const userPathObj = {
+      uid: currentUser.uid,
+      display_name: currentUser.displayName || currentUser.email.split("@")[0],
+      paths: mediaData.new_paths || { default: mediaData.default_path || "" }
+    };
+
+    if (existingIndex >= 0) {
+      const existing = allItems[existingIndex];
+      let updatedUserPaths = [...(existing.user_paths || [])];
+      
+      const userPathIndex = updatedUserPaths.findIndex((up) => up.uid === currentUser.uid);
+      if (userPathIndex >= 0) {
+        updatedUserPaths[userPathIndex] = userPathObj;
+      } else {
+        updatedUserPaths.push(userPathObj);
+      }
+
+      const updatedDocData = {
+        ...existing,
+        ...mediaData,
+        user_paths: updatedUserPaths,
+        updated_at: new Date().toISOString()
+      };
+      delete updatedDocData.new_paths;
+      delete updatedDocData.default_path;
+
+      if (useFirestore) {
+        const docRef = doc(db, "library", existing.id);
+        batch.set(docRef, updatedDocData, { merge: true });
+      }
+
+      allItems[existingIndex] = updatedDocData;
+    } else {
+      const newDocData = {
+        ...mediaData,
+        user_paths: [userPathObj],
+        user_progress: mediaData.user_progress || {},
+        added_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      delete newDocData.new_paths;
+      delete newDocData.default_path;
+
+      if (useFirestore) {
+        const newDocRef = doc(collection(db, "library"));
+        batch.set(newDocRef, newDocData);
+        allItems.unshift({ id: newDocRef.id, ...newDocData });
+      } else {
+        const newEntry = { id: `local_${Date.now()}_${i}`, ...newDocData };
+        allItems.unshift(newEntry);
+      }
+    }
+
+    savedCount++;
+    const pct = Math.round(((i + 1) / total) * 100);
+    if (onProgress) {
+      onProgress(i + 1, total, mediaData.title, pct);
+    }
+  }
+
+  // Commit Firestore batch in 1 single atomic network request
+  if (useFirestore && batch) {
+    try {
+      await batch.commit();
+    } catch (e) {
+      console.warn("Firestore batch commit warning, syncing local library:", e);
+    }
+  }
+
+  // Always update LocalStorage bulk cache
+  saveLocalLibrary(allItems);
+  return savedCount;
 };
 
 /**

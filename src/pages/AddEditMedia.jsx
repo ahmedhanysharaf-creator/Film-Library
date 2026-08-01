@@ -4,7 +4,7 @@ import {
 } from "lucide-react";
 import { TmdbSearchInput } from "../components/TmdbSearchInput";
 import { getTmdbDetails, searchTmdb } from "../services/tmdb";
-import { saveMediaEntry } from "../services/storage";
+import { saveMediaEntry, saveMediaEntriesBatch } from "../services/storage";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 
@@ -363,7 +363,7 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
     }
   };
 
-  // Real-time Live Saving Progress Overlay
+  // Instant Atomic Batch Save with Real-time Progress Tracking
   const handleConfirmBatchSave = async () => {
     const selectedItems = scannedResults.filter((r) => r.selected);
     if (selectedItems.length === 0) {
@@ -372,31 +372,36 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
     }
 
     setSavingBatch(true);
-    let count = 0;
-    const totalCount = selectedItems.length;
 
-    for (let i = 0; i < totalCount; i++) {
-      const item = selectedItems[i];
-      const pct = Math.round(((i + 1) / totalCount) * 100);
+    const mediaDataList = selectedItems.map((item) => item.mediaData);
 
+    try {
+      const totalSaved = await saveMediaEntriesBatch(
+        mediaDataList,
+        currentUser,
+        (current, total, title, percentage) => {
+          setSaveProgressData({ current, total, title, percentage });
+        }
+      );
+
+      // Brief pause at 100% so user sees completion
       setSaveProgressData({
-        current: i + 1,
-        total: totalCount,
-        title: item.mediaData.title,
-        percentage: pct
+        current: selectedItems.length,
+        total: selectedItems.length,
+        title: "All Items Processed!",
+        percentage: 100
       });
 
-      try {
-        await saveMediaEntry(item.mediaData, currentUser);
-        count++;
-      } catch (err) {
-        console.error("Batch save error:", err);
-      }
-    }
+      await new Promise((resolve) => setTimeout(resolve, 600));
 
-    setSavingBatch(false);
-    addToast(`Successfully added all ${count} items to your shared library!`, "success");
-    onSaveSuccess();
+      addToast(`Successfully added all ${totalSaved} items to your shared library!`, "success");
+      onSaveSuccess();
+    } catch (err) {
+      console.error("Batch save error:", err);
+      addToast(`Error saving batch: ${err.message}`, "error");
+    } finally {
+      setSavingBatch(false);
+    }
   };
 
   return (
@@ -958,7 +963,7 @@ const styles = {
     height: "100%",
     backgroundColor: "var(--accent-green)",
     borderRadius: "10px",
-    transition: "width 0.3s ease",
+    transition: "width 0.2s ease",
     boxShadow: "0 0 12px rgba(70,211,105,0.6)"
   },
   savingPctText: {
