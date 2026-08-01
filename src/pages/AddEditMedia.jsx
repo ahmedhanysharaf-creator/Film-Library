@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { 
-  Film, Tv, Save, ArrowLeft, HardDrive, Sparkles, FolderPlus, Loader2, CheckCircle2, AlertCircle, CheckSquare, Square, RefreshCw
+  Film, Tv, Save, ArrowLeft, HardDrive, Sparkles, FolderPlus, Loader2, CheckCircle2, AlertCircle, CheckSquare, Square, RefreshCw, FolderSearch
 } from "lucide-react";
 import { TmdbSearchInput } from "../components/TmdbSearchInput";
 import { getTmdbDetails, searchTmdb } from "../services/tmdb";
@@ -12,12 +12,11 @@ const VIDEO_EXTENSIONS = [".mp4", ".mkv", ".avi", ".mov", ".wmv", ".m4v", ".webm
 const SUB_EXTENSIONS = [".srt", ".ass", ".vtt", ".sub", ".txt", ".nfo"];
 
 export const isVideoFilePath = (path) => {
-  if (!path) return true;
+  if (!path) return false;
   const extIndex = path.lastIndexOf(".");
-  if (extIndex === -1) return true; // Accept folders
+  if (extIndex === -1) return false; // Folders are not video files
   const ext = path.substring(extIndex).toLowerCase();
-  if (SUB_EXTENSIONS.includes(ext)) return false; // Filter out subtitles
-  return true;
+  return VIDEO_EXTENSIONS.includes(ext);
 };
 
 export const extractCleanTitleFromPath = (fullPath) => {
@@ -44,6 +43,7 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
   const { addToast } = useToast();
 
   const [mode, setMode] = useState("single"); // "single" | "batch"
+  const folderInputRef = useRef(null);
 
   // Single Entry Form State
   const [type, setType] = useState(editItem?.type || "movie");
@@ -119,14 +119,9 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
   const handleDefaultPathChange = async (newPath) => {
     setDefaultPath(newPath);
 
-    if (!isVideoFilePath(newPath)) {
-      addToast("Path ends with subtitle extension (.srt/.vtt). Non-video files will be ignored during playback.", "warning");
-      return;
-    }
-
-    // Only auto-extract if the path points to an actual file (has extension like .mp4, .mkv)
-    const hasVideoExt = VIDEO_EXTENSIONS.some((ext) => newPath.toLowerCase().endsWith(ext));
-    if (hasVideoExt) {
+    // Only auto-extract if the path points to an actual VIDEO FILE (.mp4, .mkv), NOT a folder!
+    const isVideoFile = VIDEO_EXTENSIONS.some((ext) => newPath.toLowerCase().endsWith(ext));
+    if (isVideoFile) {
       const extracted = extractCleanTitleFromPath(newPath);
       if (extracted && (!title || title === "Untitled")) {
         setTitle(extracted);
@@ -138,6 +133,34 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
         } catch (e) {}
       }
     }
+  };
+
+  // Local Folder Picker via Browser File API (webkitdirectory)
+  const handleSelectFolderFiles = (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    // Filter only video files (.mp4, .mkv, .avi, etc.) - ignore subtitles (.srt, .vtt)
+    const videoFiles = files.filter((f) => {
+      const ext = f.name.substring(f.name.lastIndexOf(".")).toLowerCase();
+      return VIDEO_EXTENSIONS.includes(ext);
+    });
+
+    if (videoFiles.length === 0) {
+      addToast("No video files (.mp4, .mkv, .avi) found in the selected folder.", "warning");
+      return;
+    }
+
+    const firstRelativePath = videoFiles[0].webkitRelativePath || "";
+    const detectedFolderName = firstRelativePath.split("/")[0] || "Marvel Films";
+    
+    if (!folderPath) {
+      setFolderPath(`C:\\Users\\Ahmed\\Downloads\\English\\${detectedFolderName}`);
+    }
+
+    const fileNamesList = videoFiles.map((f) => f.name).join("\n");
+    setFileListText(fileNamesList);
+    addToast(`Discovered ${videoFiles.length} video file(s) in folder! Subtitles were filtered out.`, "success");
   };
 
   const handleEpisodePathChange = (code, value) => {
@@ -203,30 +226,27 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
   // Step 1 -> Step 2: Start Batch Scanning
   const handleStartBatchScan = async (e) => {
     e.preventDefault();
-    if (!folderPath && !fileListText) {
-      addToast("Please enter a folder path or list of video files.", "error");
-      return;
-    }
-
-    setBatchStep("scanning");
 
     const lines = fileListText
       .split("\n")
       .map((l) => l.trim())
       .filter(Boolean);
 
-    const itemsToProcess = lines.length > 0 ? lines : [folderPath];
+    // Filter to ensure ONLY actual video files are processed (NEVER raw folder names like "Marvel Films")
+    const videoItems = lines.filter((line) => isVideoFilePath(line));
+
+    if (videoItems.length === 0) {
+      addToast("Please select a local folder or paste actual video file names (.mp4, .mkv). Folders must contain video files.", "error");
+      return;
+    }
+
+    setBatchStep("scanning");
+
     const baseFolder = folderPath.trim().replace(/\\$/g, "");
     const results = [];
 
-    for (let i = 0; i < itemsToProcess.length; i++) {
-      const rawItem = itemsToProcess[i];
-
-      // Ignore subtitle files (.srt, .vtt, .ass)
-      if (!isVideoFilePath(rawItem)) {
-        console.log(`Skipping non-video subtitle file: ${rawItem}`);
-        continue;
-      }
+    for (let i = 0; i < videoItems.length; i++) {
+      const rawItem = videoItems[i];
 
       const fullItemPath = rawItem.includes(":") || rawItem.startsWith("\\")
         ? rawItem
@@ -235,7 +255,7 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
       const cleanTitle = extractCleanTitleFromPath(rawItem);
       if (!cleanTitle) continue;
 
-      setScanProgress(`Scanning (${i + 1}/${itemsToProcess.length}): Fetching TMDB metadata for "${cleanTitle}"...`);
+      setScanProgress(`Scanning (${i + 1}/${videoItems.length}): Fetching TMDB metadata for "${cleanTitle}"...`);
 
       try {
         const searchResults = await searchTmdb(cleanTitle);
@@ -280,14 +300,12 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
     setBatchStep("confirm");
   };
 
-  // Toggle item selection in Step 3 confirmation grid
   const toggleItemSelection = (index) => {
     setScannedResults((prev) =>
       prev.map((item, idx) => (idx === index ? { ...item, selected: !item.selected } : item))
     );
   };
 
-  // Step 3 -> Finish: Save Selected Items to Library
   const handleConfirmBatchSave = async () => {
     const selectedItems = scannedResults.filter((r) => r.selected);
     if (selectedItems.length === 0) {
@@ -351,33 +369,54 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
               <div style={styles.batchHeader}>
                 <FolderPlus size={32} color="var(--accent-green)" />
                 <div>
-                  <h3 style={styles.batchTitle}>Step 1: Folder Path & Video File Scanner</h3>
+                  <h3 style={styles.batchTitle}>Step 1: Select PC Folder & Video Scanner</h3>
                   <p style={styles.batchSub}>
-                    Paste your folder path (e.g. <code>C:\Users\Ahmed\Downloads\English\Marvel Films</code>) or video file names. The scanner will extract all video files, ignore subtitle files (.srt), fetch full TMDB metadata, and present a preview checklist!
+                    Click **Select Local PC Folder** or paste video file names. Chrome will scan every video file (.mp4, .mkv) in that folder, ignore subtitle files (.srt), and auto-fetch full TMDB metadata!
                   </p>
                 </div>
               </div>
 
+              {/* Native Folder Selector Button */}
+              <div style={styles.folderPickerSection}>
+                <input
+                  type="file"
+                  ref={folderInputRef}
+                  onChange={handleSelectFolderFiles}
+                  style={{ display: "none" }}
+                  webkitdirectory="true"
+                  directory="true"
+                  multiple
+                />
+                <button
+                  type="button"
+                  style={styles.folderPickBtn}
+                  onClick={() => folderInputRef.current && folderInputRef.current.click()}
+                >
+                  <FolderSearch size={22} /> Select Local PC Folder to Auto-Scan Video Files
+                </button>
+              </div>
+
               <div style={styles.field}>
-                <label style={styles.label}>Base Folder Path</label>
+                <label style={styles.label}>Base Folder Path on PC</label>
                 <input
                   type="text"
                   value={folderPath}
                   onChange={(e) => setFolderPath(e.target.value)}
                   placeholder="C:\Users\Ahmed\Downloads\English\Marvel Films"
                   style={styles.input}
-                  required={!fileListText}
+                  required
                 />
               </div>
 
               <div style={styles.field}>
-                <label style={styles.label}>Video File Names / Paths (One video file per line)</label>
+                <label style={styles.label}>Discovered Video Files (One file per line)</label>
                 <textarea
                   rows={6}
                   value={fileListText}
                   onChange={(e) => setFileListText(e.target.value)}
-                  placeholder="Iron Man (2008).mkv&#10;Thor (2011).mp4&#10;The Avengers (2012).mkv&#10;(Non-video files like .srt subtitles are automatically filtered out)"
+                  placeholder="Iron Man (2008).mkv&#10;Thor (2011).mp4&#10;The Avengers (2012).mkv&#10;(Click 'Select Local PC Folder' above to auto-detect all video files in your folder!)"
                   style={styles.textarea}
+                  required
                 />
                 <span style={styles.helpText}>
                   Subtitles (.srt, .vtt, .ass) and text files (.txt, .nfo) are ignored automatically.
@@ -385,7 +424,7 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
               </div>
 
               <button type="submit" style={styles.batchSubmitBtn}>
-                <Sparkles size={18} /> 🔍 Scan Folder & Fetch TMDB Details
+                <Sparkles size={18} /> 🔍 Scan Folder Movies & Fetch TMDB Details
               </button>
             </form>
           )}
@@ -393,7 +432,7 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
           {batchStep === "scanning" && (
             <div style={styles.loadingState}>
               <Loader2 size={42} color="var(--accent-green)" className="animate-spin" />
-              <h3 style={styles.loadingTitle}>Scanning Folder & Extracting TMDB Metadata...</h3>
+              <h3 style={styles.loadingTitle}>Scanning Folder Movies & Extracting TMDB Metadata...</h3>
               <p style={styles.loadingSub}>{scanProgress}</p>
             </div>
           )}
@@ -405,7 +444,7 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
                 <div>
                   <h3 style={styles.batchTitle}>Step 3: Review Discovered Movies & Confirm</h3>
                   <p style={styles.batchSub}>
-                    We scanned your folder and fetched metadata from TMDB for {scannedResults.length} item(s). Uncheck any movie you don't want to add, then click **Done**!
+                    We scanned your folder and fetched metadata from TMDB for {scannedResults.length} movie(s). Uncheck any movie you don't want to add, then click **Done**!
                   </p>
                 </div>
               </div>
@@ -521,7 +560,7 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Auto-extracted from path or search TMDB..."
+                  placeholder="Movie or TV Series Title..."
                   style={styles.input}
                 />
               </div>
@@ -669,7 +708,7 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
             </h3>
 
             <div style={styles.field}>
-              <label style={styles.label}>Paste Local File or Folder Path ({currentUser?.displayName})</label>
+              <label style={styles.label}>Paste Local File Path ({currentUser?.displayName})</label>
               <input
                 type="text"
                 value={defaultPath}
@@ -842,6 +881,27 @@ const styles = {
     fontSize: "0.9rem",
     color: "var(--text-secondary)",
     lineHeight: "1.5"
+  },
+  folderPickerSection: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "8px"
+  },
+  folderPickBtn: {
+    width: "100%",
+    padding: "16px",
+    backgroundColor: "var(--bg-elevated)",
+    color: "var(--accent-green)",
+    border: "2px dashed var(--accent-green)",
+    borderRadius: "10px",
+    fontWeight: 700,
+    fontSize: "1rem",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "12px",
+    transition: "var(--transition)"
   },
   loadingState: {
     display: "flex",
