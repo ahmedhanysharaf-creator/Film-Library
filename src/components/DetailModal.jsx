@@ -1,9 +1,9 @@
 import React, { useState } from "react";
 import { 
   X, Play, Star, Clock, User, Film, Tv, CheckCircle2, Bookmark, 
-  Trash2, Edit3, Copy, HardDrive, Video, ExternalLink 
+  Trash2, Edit3, Copy, HardDrive, Video, ExternalLink, Download 
 } from "lucide-react";
-import { launchInVlc, copyPathToClipboard } from "../services/vlcLauncher";
+import { launchInVlc, copyPathToClipboard, downloadVlcM3uPlaylist, downloadWindowsRegistryFix } from "../services/vlcLauncher";
 import { updateWatchProgress } from "../services/storage";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
@@ -221,27 +221,52 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete }) => {
                 </div>
               )}
 
-              {/* Movie One-Click VLC Play button */}
+              {/* Movie One-Click VLC Play & File Download Options */}
               {item.type === "movie" && (
-                <div style={styles.playSection}>
-                  <button
-                    style={styles.mainPlayBtn}
-                    onClick={() => {
-                      if (defaultMoviePath) {
-                        launchInVlc(defaultMoviePath, item.title, addToast);
-                      } else {
-                        addToast("No local file path configured for your user.", "warning");
-                      }
-                    }}
-                  >
-                    <Play size={20} fill="#ffffff" /> Play Movie in VLC
-                  </button>
-
-                  {defaultMoviePath && (
-                    <button style={styles.copyBtn} onClick={() => copyPathToClipboard(defaultMoviePath, addToast)}>
-                      <Copy size={16} /> Copy Path
+                <div style={styles.playSectionCol}>
+                  <div style={styles.playSection}>
+                    <button
+                      style={styles.mainPlayBtn}
+                      onClick={() => {
+                        if (defaultMoviePath) {
+                          launchInVlc(defaultMoviePath, item.title, addToast);
+                        } else {
+                          addToast("No local file path configured for your user.", "warning");
+                        }
+                      }}
+                    >
+                      <Play size={20} fill="#ffffff" /> Play Movie in VLC
                     </button>
-                  )}
+
+                    {defaultMoviePath && (
+                      <button
+                        style={styles.m3uDownloadBtn}
+                        onClick={() => {
+                          downloadVlcM3uPlaylist(defaultMoviePath, item.title);
+                          addToast("Downloaded VLC Playlist (.m3u)! Open file to play in VLC.", "success");
+                        }}
+                      >
+                        <Download size={16} /> Get `.m3u` File
+                      </button>
+                    )}
+                  </div>
+
+                  <div style={styles.secondaryPlayRow}>
+                    {defaultMoviePath && (
+                      <button style={styles.copyBtn} onClick={() => copyPathToClipboard(defaultMoviePath, addToast)}>
+                        <Copy size={14} /> Copy Local File Path
+                      </button>
+                    )}
+                    <button
+                      style={styles.regFixBtn}
+                      onClick={() => {
+                        downloadWindowsRegistryFix();
+                        addToast("Downloaded Registry Fix! Double-click file to enable direct VLC opening.", "success");
+                      }}
+                    >
+                      <Download size={14} /> Download `.reg` Windows VLC Fix
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -634,14 +659,23 @@ const styles = {
     fontSize: "0.75rem",
     color: "var(--text-muted)"
   },
+  playSectionCol: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "10px",
+    marginTop: "8px"
+  },
   playSection: {
     display: "flex",
-    gap: "12px",
-    marginTop: "8px"
+    gap: "12px"
+  },
+  secondaryPlayRow: {
+    display: "flex",
+    gap: "12px"
   },
   mainPlayBtn: {
     flex: 1,
-    padding: "14px 24px",
+    padding: "14px 20px",
     backgroundColor: "var(--accent-red)",
     color: "#ffffff",
     border: "none",
@@ -655,16 +689,48 @@ const styles = {
     cursor: "pointer",
     boxShadow: "0 6px 20px rgba(229,9,20,0.4)"
   },
-  copyBtn: {
+  m3uDownloadBtn: {
     padding: "14px 20px",
-    backgroundColor: "var(--bg-elevated)",
-    color: "#ffffff",
-    border: "1px solid var(--border-subtle)",
+    backgroundColor: "var(--accent-green)",
+    color: "#000000",
+    border: "none",
     borderRadius: "8px",
-    fontWeight: 600,
+    fontWeight: 800,
+    fontSize: "0.9rem",
     cursor: "pointer",
     display: "flex",
     alignItems: "center",
+    gap: "8px",
+    boxShadow: "0 4px 14px rgba(70,211,105,0.4)"
+  },
+  copyBtn: {
+    flex: 1,
+    padding: "10px 14px",
+    backgroundColor: "var(--bg-elevated)",
+    color: "#ffffff",
+    border: "1px solid var(--border-subtle)",
+    borderRadius: "6px",
+    fontWeight: 600,
+    fontSize: "0.82rem",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "6px"
+  },
+  regFixBtn: {
+    flex: 1,
+    padding: "10px 14px",
+    backgroundColor: "var(--bg-elevated)",
+    color: "var(--accent-green)",
+    border: "1px solid var(--accent-green)",
+    borderRadius: "6px",
+    fontWeight: 700,
+    fontSize: "0.82rem",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
     gap: "6px"
   },
   seriesSection: {
