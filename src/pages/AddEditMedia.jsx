@@ -363,7 +363,7 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
     }
   };
 
-  // Instant Batch Save & Immediate Navigation to Home
+  // Fast Batch Save & Automatic Direct Navigation to The Library
   const handleConfirmBatchSave = async () => {
     const selectedItems = scannedResults.filter((r) => r.selected);
     if (selectedItems.length === 0) {
@@ -383,6 +383,16 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
         }
       );
 
+      // Brief flash at 100% completion so user sees "Done!" banner
+      setSaveProgressData({
+        current: selectedItems.length,
+        total: selectedItems.length,
+        title: "All Items Processed Successfully!",
+        percentage: 100
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
       setSavingBatch(false);
       addToast(`Successfully added all ${totalSaved} items to your shared library!`, "success");
       onSaveSuccess();
@@ -399,8 +409,15 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
       {savingBatch && (
         <div style={styles.savingOverlay}>
           <div style={styles.savingBox} className="glass-modal">
-            <Loader2 size={54} color="var(--accent-green)" className="animate-spin" />
-            <h2 style={styles.savingHeader}>Saving Items to Shared Library</h2>
+            {saveProgressData.percentage === 100 ? (
+              <CheckCircle2 size={58} color="var(--accent-green)" className="animate-pop" />
+            ) : (
+              <Loader2 size={54} color="var(--accent-green)" className="animate-spin" />
+            )}
+
+            <h2 style={styles.savingHeader}>
+              {saveProgressData.percentage === 100 ? "Done! Added to Library" : "Saving Items to Shared Library"}
+            </h2>
 
             <div style={styles.progressTrack}>
               <div style={{ ...styles.progressBar, width: `${saveProgressData.percentage}%` }} />
@@ -409,12 +426,33 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
             <div style={styles.savingPctText}>{saveProgressData.percentage}% Complete</div>
 
             <div style={styles.savingDetailText}>
-              Saving item <strong>#{saveProgressData.current}</strong> of <strong>{saveProgressData.total}</strong>:
-              <div style={styles.savingMovieTitle}>"{saveProgressData.title}"</div>
-              <span style={styles.savingRemainingText}>
-                ({saveProgressData.total - saveProgressData.current} items remaining)
-              </span>
+              {saveProgressData.percentage === 100 ? (
+                <div style={{ color: "var(--accent-green)", fontWeight: 700 }}>
+                  All items added! Redirecting you to The Library...
+                </div>
+              ) : (
+                <>
+                  Saving item <strong>#{saveProgressData.current}</strong> of <strong>{saveProgressData.total}</strong>:
+                  <div style={styles.savingMovieTitle}>"{saveProgressData.title}"</div>
+                  <span style={styles.savingRemainingText}>
+                    ({saveProgressData.total - saveProgressData.current} items remaining)
+                  </span>
+                </>
+              )}
             </div>
+
+            {saveProgressData.percentage === 100 && (
+              <button
+                type="button"
+                style={styles.doneRedirectBtn}
+                onClick={() => {
+                  setSavingBatch(false);
+                  onSaveSuccess();
+                }}
+              >
+                <CheckCircle2 size={16} /> Go to The Library Now
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -975,6 +1013,21 @@ const styles = {
     fontSize: "0.82rem",
     color: "var(--text-muted)",
     display: "block"
+  },
+  doneRedirectBtn: {
+    marginTop: "12px",
+    padding: "12px 24px",
+    backgroundColor: "var(--accent-green)",
+    color: "#000000",
+    border: "none",
+    borderRadius: "8px",
+    fontWeight: 800,
+    fontSize: "0.95rem",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    boxShadow: "0 4px 14px rgba(70,211,105,0.4)"
   },
   container: {
     maxWidth: "1300px",

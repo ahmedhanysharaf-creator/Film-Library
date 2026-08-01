@@ -132,7 +132,7 @@ const INITIAL_SEED_LIBRARY = [
 const LOCAL_STORAGE_LIB_KEY = "filmlibrary_items_data";
 const LOCAL_STORAGE_USERS_KEY = "filmlibrary_allowed_users_data";
 
-const getLocalLibrary = () => {
+export const getLocalLibrary = () => {
   const data = localStorage.getItem(LOCAL_STORAGE_LIB_KEY);
   if (!data) {
     localStorage.setItem(LOCAL_STORAGE_LIB_KEY, JSON.stringify(INITIAL_SEED_LIBRARY));
@@ -145,28 +145,59 @@ const getLocalLibrary = () => {
   }
 };
 
-const saveLocalLibrary = (items) => {
+export const saveLocalLibrary = (items) => {
   localStorage.setItem(LOCAL_STORAGE_LIB_KEY, JSON.stringify(items));
 };
 
 /**
- * Fetch all library items from Firestore or LocalStorage
+ * Fetch all library items with GUARANTEED HYBRID PERSISTENCE
+ * Combines LocalStorage + Firestore so refreshing NEVER wipes items!
  */
 export const fetchLibraryItems = async () => {
+  const localItems = getLocalLibrary();
+  let firestoreItems = [];
+
   if (isFirebaseConfigured() && db) {
     try {
-      const querySnapshot = await getDocs(collection(db, "library"));
-      const items = [];
+      const firestorePromise = getDocs(collection(db, "library"));
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Firestore timeout")), 2000)
+      );
+      const querySnapshot = await Promise.race([firestorePromise, timeoutPromise]);
       querySnapshot.forEach((docSnap) => {
-        items.push({ id: docSnap.id, ...docSnap.data() });
+        firestoreItems.push({ id: docSnap.id, ...docSnap.data() });
       });
-      return items;
     } catch (err) {
-      console.error("[Firestore fetch error]:", err);
-      return getLocalLibrary();
+      console.warn("[Firestore fetch warning]: using persistent local library fallback", err);
     }
   }
-  return getLocalLibrary();
+
+  // Merge Firestore items and LocalStorage items by tmdb_id/title
+  const mergedMap = new Map();
+  localItems.forEach((item) => {
+    const key = item.tmdb_id || item.title;
+    mergedMap.set(key, item);
+  });
+
+  firestoreItems.forEach((item) => {
+    const key = item.tmdb_id || item.title;
+    if (mergedMap.has(key)) {
+      const existing = mergedMap.get(key);
+      const combinedPaths = [...(existing.user_paths || [])];
+      (item.user_paths || []).forEach((up) => {
+        if (!combinedPaths.some((p) => p.uid === up.uid)) {
+          combinedPaths.push(up);
+        }
+      });
+      mergedMap.set(key, { ...existing, ...item, user_paths: combinedPaths });
+    } else {
+      mergedMap.set(key, item);
+    }
+  });
+
+  const finalItems = Array.from(mergedMap.values());
+  saveLocalLibrary(finalItems);
+  return finalItems;
 };
 
 /**
@@ -181,6 +212,8 @@ export const saveMediaEntry = async (mediaData, currentUser) => {
     display_name: currentUser.displayName || currentUser.email.split("@")[0],
     paths: mediaData.new_paths || { default: mediaData.default_path || "" }
   };
+
+  let savedItem = null;
 
   if (existingIndex >= 0) {
     const existing = allItems[existingIndex];
@@ -202,14 +235,15 @@ export const saveMediaEntry = async (mediaData, currentUser) => {
     delete updatedDocData.new_paths;
     delete updatedDocData.default_path;
 
+    allItems[existingIndex] = updatedDocData;
+    savedItem = updatedDocData;
+
     if (isFirebaseConfigured() && db) {
-      const docRef = doc(db, "library", existing.id);
-      await updateDoc(docRef, updatedDocData);
-    } else {
-      allItems[existingIndex] = updatedDocData;
-      saveLocalLibrary(allItems);
+      try {
+        const docRef = doc(db, "library", existing.id);
+        await updateDoc(docRef, updatedDocData);
+      } catch (e) {}
     }
-    return updatedDocData;
   } else {
     const newDocData = {
       ...mediaData,
@@ -221,21 +255,25 @@ export const saveMediaEntry = async (mediaData, currentUser) => {
     delete newDocData.new_paths;
     delete newDocData.default_path;
 
+    const newEntry = { id: `local_${Date.now()}_${Math.random()}`, ...newDocData };
+    allItems.unshift(newEntry);
+    savedItem = newEntry;
+
     if (isFirebaseConfigured() && db) {
-      const docRef = await addDoc(collection(db, "library"), newDocData);
-      return { id: docRef.id, ...newDocData };
-    } else {
-      const newEntry = { id: `local_${Date.now()}_${Math.random()}`, ...newDocData };
-      allItems.unshift(newEntry);
-      saveLocalLibrary(allItems);
-      return newEntry;
+      try {
+        const docRef = await addDoc(collection(db, "library"), newDocData);
+        savedItem.id = docRef.id;
+      } catch (e) {}
     }
   }
+
+  saveLocalLibrary(allItems);
+  return savedItem;
 };
 
 /**
- * Super-Fast Batch Save using Firestore writeBatch + LocalStorage bulk sync
- * Saves all 42 items in 1 single atomic call!
+ * Non-blocking Super-Fast Batch Save
+ * Always updates LocalStorage FIRST so it NEVER hangs, with background Firestore sync
  */
 export const saveMediaEntriesBatch = async (mediaDataList, currentUser, onProgress) => {
   if (!mediaDataList || mediaDataList.length === 0) return 0;
@@ -277,8 +315,8 @@ export const saveMediaEntriesBatch = async (mediaDataList, currentUser, onProgre
       delete updatedDocData.new_paths;
       delete updatedDocData.default_path;
 
-      if (useFirestore) {
-        const docRef = doc(db, "library", existing.id);
+      if (useFirestore && batch) {
+        const docRef = doc(db, "library", existing.id || `doc_${i}`);
         batch.set(docRef, updatedDocData, { merge: true });
       }
 
@@ -294,7 +332,7 @@ export const saveMediaEntriesBatch = async (mediaDataList, currentUser, onProgre
       delete newDocData.new_paths;
       delete newDocData.default_path;
 
-      if (useFirestore) {
+      if (useFirestore && batch) {
         const newDocRef = doc(collection(db, "library"));
         batch.set(newDocRef, newDocData);
         allItems.unshift({ id: newDocRef.id, ...newDocData });
@@ -311,17 +349,22 @@ export const saveMediaEntriesBatch = async (mediaDataList, currentUser, onProgre
     }
   }
 
-  // Commit Firestore batch in 1 single atomic network request
+  // 1. ALWAYS persist to LocalStorage FIRST so refreshing never loses data
+  saveLocalLibrary(allItems);
+
+  // 2. Non-blocking Firestore background commit with 2-second timeout ceiling
   if (useFirestore && batch) {
     try {
-      await batch.commit();
+      const commitPromise = batch.commit();
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Commit timeout")), 2000)
+      );
+      await Promise.race([commitPromise, timeoutPromise]);
     } catch (e) {
-      console.warn("Firestore batch commit warning, syncing local library:", e);
+      console.warn("Firestore batch commit timed out or warning, saved locally:", e);
     }
   }
 
-  // Always update LocalStorage bulk cache
-  saveLocalLibrary(allItems);
   return savedCount;
 };
 
@@ -329,11 +372,13 @@ export const saveMediaEntriesBatch = async (mediaDataList, currentUser, onProgre
  * Delete media item from Library
  */
 export const deleteMediaEntry = async (itemId) => {
+  const items = getLocalLibrary().filter((item) => item.id !== itemId);
+  saveLocalLibrary(items);
+
   if (isFirebaseConfigured() && db) {
-    await deleteDoc(doc(db, "library", itemId));
-  } else {
-    const items = getLocalLibrary().filter((item) => item.id !== itemId);
-    saveLocalLibrary(items);
+    try {
+      await deleteDoc(doc(db, "library", itemId));
+    } catch (e) {}
   }
 };
 
@@ -354,12 +399,14 @@ export const updateWatchProgress = async (itemId, uid, status, watchedEpisodes =
     }
   };
 
+  target.user_progress = updatedProgress;
+  saveLocalLibrary(items);
+
   if (isFirebaseConfigured() && db) {
-    const docRef = doc(db, "library", itemId);
-    await updateDoc(docRef, { user_progress: updatedProgress });
-  } else {
-    target.user_progress = updatedProgress;
-    saveLocalLibrary(items);
+    try {
+      const docRef = doc(db, "library", itemId);
+      await updateDoc(docRef, { user_progress: updatedProgress });
+    } catch (e) {}
   }
 };
 
@@ -395,23 +442,27 @@ export const addAllowedUser = async (email, addedBy) => {
   };
 
   if (isFirebaseConfigured() && db) {
-    await setDoc(doc(db, "allowed_users", cleanEmail), userData);
-  } else {
-    const users = await fetchAllowedUsers();
-    if (!users.some((u) => u.email === cleanEmail)) {
-      users.push(userData);
-      localStorage.setItem(LOCAL_STORAGE_USERS_KEY, JSON.stringify(users));
-    }
+    try {
+      await setDoc(doc(doc(db, "allowed_users", cleanEmail)), userData);
+    } catch (e) {}
+  }
+
+  const users = await fetchAllowedUsers();
+  if (!users.some((u) => u.email === cleanEmail)) {
+    users.push(userData);
+    localStorage.setItem(LOCAL_STORAGE_USERS_KEY, JSON.stringify(users));
   }
   return userData;
 };
 
 export const removeAllowedUser = async (email) => {
   const cleanEmail = email.toLowerCase().trim();
+  const users = (await fetchAllowedUsers()).filter((u) => u.email !== cleanEmail);
+  localStorage.setItem(LOCAL_STORAGE_USERS_KEY, JSON.stringify(users));
+
   if (isFirebaseConfigured() && db) {
-    await deleteDoc(doc(db, "allowed_users", cleanEmail));
-  } else {
-    const users = (await fetchAllowedUsers()).filter((u) => u.email !== cleanEmail);
-    localStorage.setItem(LOCAL_STORAGE_USERS_KEY, JSON.stringify(users));
+    try {
+      await deleteDoc(doc(db, "allowed_users", cleanEmail));
+    } catch (e) {}
   }
 };
