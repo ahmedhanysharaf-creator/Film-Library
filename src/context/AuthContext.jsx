@@ -1,9 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { auth, googleProvider, isFirebaseConfigured } from "../services/firebase";
+import { auth, isFirebaseConfigured } from "../services/firebase";
 import { 
-  signInWithPopup, 
-  signInWithRedirect, 
-  getRedirectResult, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  updateProfile, 
   signOut as firebaseSignOut, 
   onAuthStateChanged 
 } from "firebase/auth";
@@ -27,7 +27,7 @@ export const AuthProvider = ({ children }) => {
       
       // Bootstrap Rule: If no allowed users exist yet, first logger becomes admin!
       if (allowed.length === 0) {
-        await addAllowedUser(email, "Bootstrap Admin");
+        await addAllowedUser(email, user.displayName || "Bootstrap Admin");
         addToast(`Welcome! You are the first user and have been granted administrator access.`, "success");
         return true;
       }
@@ -42,30 +42,6 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     if (isFirebaseConfigured() && auth) {
-      // Handle page return after signInWithRedirect
-      getRedirectResult(auth)
-        .then(async (result) => {
-          if (result && result.user) {
-            const user = result.user;
-            const allowed = await checkWhitelist(user);
-            if (allowed) {
-              setCurrentUser({
-                uid: user.uid,
-                email: user.email,
-                displayName: user.displayName || user.email.split("@")[0],
-                photoURL: user.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${user.email}`
-              });
-              setIsWhitelisted(true);
-              addToast(`Welcome, ${user.displayName || 'User'}!`, "success");
-            }
-          }
-        })
-        .catch((err) => {
-          console.error("Redirect auth error:", err);
-          const msg = `Firebase Auth Error: ${err.message}`;
-          addToast(msg, "error", 10000);
-        });
-
       const unsubscribe = onAuthStateChanged(auth, async (user) => {
         if (user) {
           const allowed = await checkWhitelist(user);
@@ -81,7 +57,7 @@ export const AuthProvider = ({ children }) => {
             await firebaseSignOut(auth);
             setCurrentUser(null);
             setIsWhitelisted(false);
-            addToast("Access Denied — You are not authorized to use this app.", "error");
+            addToast("Access Denied — You are not authorized on the whitelist.", "error");
           }
         } else {
           setCurrentUser(null);
@@ -104,10 +80,16 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  const loginWithGoogle = async () => {
-    if (isFirebaseConfigured() && auth && googleProvider) {
+  // Email & Password Sign In
+  const loginWithEmailPassword = async (email, password) => {
+    if (!email || !password) {
+      addToast("Please enter both email and password.", "error");
+      return false;
+    }
+
+    if (isFirebaseConfigured() && auth) {
       try {
-        const result = await signInWithPopup(auth, googleProvider);
+        const result = await signInWithEmailAndPassword(auth, email.trim(), password);
         const user = result.user;
         const allowed = await checkWhitelist(user);
 
@@ -115,29 +97,79 @@ export const AuthProvider = ({ children }) => {
           await firebaseSignOut(auth);
           setCurrentUser(null);
           setIsWhitelisted(false);
-          addToast("Access Denied — You are not authorized to use this app.", "error");
+          addToast("Access Denied — Your email is not whitelisted.", "error");
           return false;
         }
-        addToast(`Welcome back, ${user.displayName || 'User'}!`, "success");
+        addToast(`Signed in successfully as ${user.displayName || user.email}`, "success");
         return true;
       } catch (err) {
-        console.error("Google Auth error:", err);
-        const errMsg = err.code || err.message || "Unknown error";
-        
-        let userInstruction = `Firebase Auth Error (${errMsg}): ${err.message}`;
-        if (err.code === "auth/unauthorized-domain") {
-          userInstruction = "Domain Not Authorized! Go to Firebase Console -> Authentication -> Settings -> Authorized domains and add 'ahmedhanysharaf-creator.github.io'";
-        } else if (err.code === "auth/operation-not-allowed") {
-          userInstruction = "Google Sign-In Disabled! Go to Firebase Console -> Authentication -> Sign-in method -> Edit Google -> Enable.";
+        console.error("Email login error:", err);
+        let msg = err.message;
+        if (err.code === "auth/user-not-found" || err.code === "auth/wrong-password" || err.code === "auth/invalid-credential") {
+          msg = "Invalid email or password.";
         }
-        
-        alert(userInstruction);
-        addToast(userInstruction, "error", 10000);
+        addToast(`Sign In Error: ${msg}`, "error");
         return false;
       }
     } else {
-      addToast("Firebase keys not set. Signed in via local mode!", "warning", 5000);
-      return loginAsDemoUser("Alice (Demo User)", "alice@filmlibrary.com");
+      // Local Storage Fallback User Login
+      const demoUser = {
+        uid: `user_${email.replace(/[^a-zA-Z0-9]/g, "_")}`,
+        email: email.trim(),
+        displayName: email.split("@")[0],
+        photoURL: `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`
+      };
+      setCurrentUser(demoUser);
+      setIsWhitelisted(true);
+      localStorage.setItem("filmlibrary_demo_user", JSON.stringify(demoUser));
+      addToast(`Signed in as ${demoUser.displayName}`, "success");
+      return true;
+    }
+  };
+
+  // Email & Password Account Registration
+  const registerWithEmailPassword = async (name, email, password) => {
+    if (!email || !password) {
+      addToast("Please enter both email and password.", "error");
+      return false;
+    }
+
+    if (password.length < 6) {
+      addToast("Password must be at least 6 characters.", "error");
+      return false;
+    }
+
+    if (isFirebaseConfigured() && auth) {
+      try {
+        const result = await createUserWithEmailAndPassword(auth, email.trim(), password);
+        const user = result.user;
+        
+        if (name && name.trim()) {
+          await updateProfile(user, { displayName: name.trim() });
+        }
+
+        const allowed = await checkWhitelist(user);
+        if (!allowed) {
+          await firebaseSignOut(auth);
+          setCurrentUser(null);
+          setIsWhitelisted(false);
+          addToast("Access Denied — Account created, but your email is not on the whitelist.", "error");
+          return false;
+        }
+
+        addToast(`Account created! Welcome ${name || user.email}`, "success");
+        return true;
+      } catch (err) {
+        console.error("Registration error:", err);
+        let msg = err.message;
+        if (err.code === "auth/email-already-in-use") {
+          msg = "An account with this email already exists. Try signing in.";
+        }
+        addToast(`Registration Error: ${msg}`, "error");
+        return false;
+      }
+    } else {
+      return loginWithEmailPassword(email, password);
     }
   };
 
@@ -171,7 +203,8 @@ export const AuthProvider = ({ children }) => {
         currentUser,
         loading,
         isWhitelisted,
-        loginWithGoogle,
+        loginWithEmailPassword,
+        registerWithEmailPassword,
         loginAsDemoUser,
         logout
       }}

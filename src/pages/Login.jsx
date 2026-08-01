@@ -1,26 +1,36 @@
-import React from "react";
-import { Film, ShieldCheck, PlayCircle, Users, Tv, AlertCircle } from "lucide-react";
+import React, { useState } from "react";
+import { Film, ShieldCheck, Mail, Lock, User, LogIn, UserPlus, Users, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { useToast } from "../context/ToastContext";
 
 export const Login = ({ onLoginSuccess }) => {
-  const { loginWithGoogle, loginAsDemoUser } = useAuth();
-  const { addToast } = useToast();
+  const { loginWithEmailPassword, registerWithEmailPassword, loginAsDemoUser } = useAuth();
 
-  const handleGoogleSignIn = async () => {
-    try {
-      const success = await loginWithGoogle();
-      if (success && onLoginSuccess) {
-        onLoginSuccess();
-      }
-    } catch (err) {
-      console.error("Google sign-in error in handler:", err);
-      alert(`Firebase Google Auth Error: ${err.message || err}`);
+  const [isRegisterMode, setIsRegisterMode] = useState(false);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    let success = false;
+    if (isRegisterMode) {
+      success = await registerWithEmailPassword(name, email, password);
+    } else {
+      success = await loginWithEmailPassword(email, password);
+    }
+
+    setLoading(false);
+    if (success && onLoginSuccess) {
+      onLoginSuccess();
     }
   };
 
-  const handleDemoSignIn = (name, email) => {
-    loginAsDemoUser(name, email);
+  const handleDemoSignIn = (demoName, demoEmail) => {
+    loginAsDemoUser(demoName, demoEmail);
     if (onLoginSuccess) {
       onLoginSuccess();
     }
@@ -43,15 +53,89 @@ export const Login = ({ onLoginSuccess }) => {
           <p style={styles.subtitle}>Your personal cinema, organized.</p>
         </div>
 
-        {/* Primary Action: Google Auth */}
-        <button style={styles.googleBtn} onClick={handleGoogleSignIn}>
-          <img
-            src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
-            alt="Google"
-            style={styles.googleIcon}
-          />
-          Sign in with Google
-        </button>
+        {/* Tab Switcher: Sign In vs Create Account */}
+        <div style={styles.tabs}>
+          <button
+            style={{
+              ...styles.tabBtn,
+              ...( !isRegisterMode ? styles.tabActive : {} )
+            }}
+            onClick={() => setIsRegisterMode(false)}
+          >
+            <LogIn size={16} /> Sign In
+          </button>
+          <button
+            style={{
+              ...styles.tabBtn,
+              ...( isRegisterMode ? styles.tabActive : {} )
+            }}
+            onClick={() => setIsRegisterMode(true)}
+          >
+            <UserPlus size={16} /> Create Account
+          </button>
+        </div>
+
+        {/* Sign In / Register Form */}
+        <form onSubmit={handleSubmit} style={styles.form}>
+          {isRegisterMode && (
+            <div style={styles.inputGroup}>
+              <User size={18} color="var(--text-muted)" style={styles.inputIcon} />
+              <input
+                type="text"
+                placeholder="Full Name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required={isRegisterMode}
+                style={styles.input}
+              />
+            </div>
+          )}
+
+          <div style={styles.inputGroup}>
+            <Mail size={18} color="var(--text-muted)" style={styles.inputIcon} />
+            <input
+              type="email"
+              placeholder="Email Address"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              style={styles.input}
+            />
+          </div>
+
+          <div style={styles.inputGroup}>
+            <Lock size={18} color="var(--text-muted)" style={styles.inputIcon} />
+            <input
+              type={showPassword ? "text" : "password"}
+              placeholder="Password (min 6 characters)"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              style={styles.input}
+            />
+            <button
+              type="button"
+              style={styles.togglePasswordBtn}
+              onClick={() => setShowPassword(!showPassword)}
+            >
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
+
+          <button type="submit" style={styles.submitBtn} disabled={loading}>
+            {loading ? (
+              "Processing..."
+            ) : isRegisterMode ? (
+              <>
+                <UserPlus size={18} /> Register & Access Library
+              </>
+            ) : (
+              <>
+                <LogIn size={18} /> Sign In
+              </>
+            )}
+          </button>
+        </form>
 
         <div style={styles.divider}>
           <span style={styles.dividerText}>or test instant demo mode</span>
@@ -69,10 +153,10 @@ export const Login = ({ onLoginSuccess }) => {
           </button>
         </div>
 
-        {/* Whitelist Guard Note */}
+        {/* Security Notice */}
         <div style={styles.securityNotice}>
           <ShieldCheck size={18} color="var(--accent-green)" />
-          <span>Private Access Guarded by Firestore Whitelist (`allowed_users`)</span>
+          <span>Cross-Device Cloud Access • Guarded by Whitelist</span>
         </div>
       </div>
     </div>
@@ -104,10 +188,10 @@ const styles = {
     width: "100%",
     maxWidth: "440px",
     borderRadius: "16px",
-    padding: "40px 32px",
+    padding: "36px 32px",
     display: "flex",
     flexDirection: "column",
-    gap: "24px",
+    gap: "20px",
     position: "relative",
     zIndex: 10,
     boxShadow: "0 20px 50px rgba(0,0,0,0.9)",
@@ -121,31 +205,94 @@ const styles = {
     gap: "8px"
   },
   logoBadge: {
-    width: "56px",
-    height: "56px",
+    width: "52px",
+    height: "52px",
     backgroundColor: "var(--accent-red)",
     borderRadius: "14px",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     boxShadow: "0 8px 24px rgba(229, 9, 20, 0.5)",
-    marginBottom: "8px"
+    marginBottom: "4px"
   },
   title: {
-    fontSize: "1.8rem",
+    fontSize: "1.7rem",
     fontWeight: 800,
     letterSpacing: "1px",
     color: "#ffffff"
   },
   subtitle: {
-    fontSize: "0.95rem",
+    fontSize: "0.9rem",
     color: "var(--text-secondary)"
   },
-  googleBtn: {
+  tabs: {
+    display: "flex",
+    backgroundColor: "var(--bg-elevated)",
+    borderRadius: "8px",
+    padding: "4px",
+    border: "1px solid var(--border-subtle)"
+  },
+  tabBtn: {
+    flex: 1,
+    padding: "10px",
+    background: "none",
+    border: "none",
+    color: "var(--text-secondary)",
+    fontSize: "0.9rem",
+    fontWeight: 600,
+    borderRadius: "6px",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "8px",
+    transition: "var(--transition)"
+  },
+  tabActive: {
+    backgroundColor: "var(--bg-surface)",
+    color: "#ffffff",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.4)"
+  },
+  form: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "14px"
+  },
+  inputGroup: {
+    position: "relative",
+    display: "flex",
+    alignItems: "center"
+  },
+  inputIcon: {
+    position: "absolute",
+    left: "14px",
+    pointerEvents: "none"
+  },
+  input: {
+    width: "100%",
+    padding: "12px 42px 12px 44px",
+    backgroundColor: "var(--bg-elevated)",
+    border: "1px solid var(--border-subtle)",
+    borderRadius: "8px",
+    color: "#ffffff",
+    fontSize: "0.95rem",
+    outline: "none"
+  },
+  togglePasswordBtn: {
+    position: "absolute",
+    right: "12px",
+    background: "none",
+    border: "none",
+    color: "var(--text-muted)",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center"
+  },
+  submitBtn: {
     width: "100%",
     padding: "14px 20px",
-    backgroundColor: "#ffffff",
-    color: "#000000",
+    backgroundColor: "var(--accent-red)",
+    color: "#ffffff",
     border: "none",
     borderRadius: "8px",
     fontWeight: 700,
@@ -154,12 +301,9 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    gap: "12px",
-    transition: "transform 0.2s ease, box-shadow 0.2s ease"
-  },
-  googleIcon: {
-    width: "20px",
-    height: "20px"
+    gap: "10px",
+    boxShadow: "0 6px 20px rgba(229, 9, 20, 0.4)",
+    marginTop: "4px"
   },
   divider: {
     display: "flex",
@@ -167,7 +311,7 @@ const styles = {
     justifyContent: "center",
     borderBottom: "1px solid var(--border-subtle)",
     lineHeight: "0.1em",
-    margin: "8px 0"
+    margin: "4px 0"
   },
   dividerText: {
     backgroundColor: "var(--bg-elevated)",
@@ -204,6 +348,6 @@ const styles = {
     gap: "8px",
     fontSize: "0.78rem",
     color: "var(--text-muted)",
-    paddingTop: "8px"
+    paddingTop: "4px"
   }
 };
