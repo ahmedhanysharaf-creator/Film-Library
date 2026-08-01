@@ -1,6 +1,6 @@
 import React, { useState, useRef } from "react";
 import { 
-  Film, Tv, Save, ArrowLeft, HardDrive, Sparkles, FolderPlus, Loader2, CheckCircle2, AlertCircle, CheckSquare, Square, RefreshCw, FolderSearch
+  Film, Tv, Save, ArrowLeft, HardDrive, Sparkles, FolderPlus, Loader2, CheckCircle2, AlertCircle, CheckSquare, Square, RefreshCw, FolderSearch, Edit3, Search
 } from "lucide-react";
 import { TmdbSearchInput } from "../components/TmdbSearchInput";
 import { getTmdbDetails, searchTmdb } from "../services/tmdb";
@@ -80,6 +80,7 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
   const [scanProgress, setScanProgress] = useState("");
   const [scannedResults, setScannedResults] = useState([]);
   const [savingBatch, setSavingBatch] = useState(false);
+  const [editingResultIndex, setEditingResultIndex] = useState(null);
 
   const handleTmdbSelect = async (selected) => {
     try {
@@ -236,7 +237,7 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
     const videoItems = lines.filter((line) => isVideoFilePath(line));
 
     if (videoItems.length === 0) {
-      addToast("Please select a local folder or paste actual video file names (.mp4, .mkv). Folders must contain video files.", "error");
+      addToast("Please click 'Select Local PC Folder' or paste video file names (.mp4, .mkv). Folders must contain video files.", "error");
       return;
     }
 
@@ -267,6 +268,7 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
           results.push({
             selected: true,
             filePath: fullItemPath,
+            rawFileName: rawItem,
             mediaData: {
               ...details,
               new_paths: { default: fullItemPath }
@@ -277,6 +279,7 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
           results.push({
             selected: true,
             filePath: fullItemPath,
+            rawFileName: rawItem,
             mediaData: {
               tmdb_id: Date.now() + Math.floor(Math.random() * 10000),
               type: "movie",
@@ -304,6 +307,32 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
     setScannedResults((prev) =>
       prev.map((item, idx) => (idx === index ? { ...item, selected: !item.selected } : item))
     );
+  };
+
+  const handleUpdateItemTmdbMatch = async (index, newSelectedMedia) => {
+    try {
+      addToast(`Updating TMDB details to "${newSelectedMedia.title}"...`, "info");
+      const details = await getTmdbDetails(newSelectedMedia.tmdb_id, newSelectedMedia.type);
+      
+      setScannedResults((prev) =>
+        prev.map((item, idx) => {
+          if (idx === index) {
+            return {
+              ...item,
+              mediaData: {
+                ...details,
+                new_paths: { default: item.filePath }
+              }
+            };
+          }
+          return item;
+        })
+      );
+      setEditingResultIndex(null);
+      addToast(`Updated TMDB match for item #${index + 1}!`, "success");
+    } catch (err) {
+      addToast(`Failed to update TMDB match: ${err.message}`, "error");
+    }
   };
 
   const handleConfirmBatchSave = async () => {
@@ -369,9 +398,9 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
               <div style={styles.batchHeader}>
                 <FolderPlus size={32} color="var(--accent-green)" />
                 <div>
-                  <h3 style={styles.batchTitle}>Step 1: Select PC Folder & Video Scanner</h3>
+                  <h3 style={styles.batchTitle}>Step 1: Select Local Folder or Paste Video Files</h3>
                   <p style={styles.batchSub}>
-                    Click **Select Local PC Folder** or paste video file names. Chrome will scan every video file (.mp4, .mkv) in that folder, ignore subtitle files (.srt), and auto-fetch full TMDB metadata!
+                    Click **Select Local PC Folder** below. Chrome will read every video file (.mp4, .mkv) in your folder, ignore subtitle files (.srt), fetch full TMDB metadata, and present a review checklist before adding anything!
                   </p>
                 </div>
               </div>
@@ -392,7 +421,7 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
                   style={styles.folderPickBtn}
                   onClick={() => folderInputRef.current && folderInputRef.current.click()}
                 >
-                  <FolderSearch size={22} /> Select Local PC Folder to Auto-Scan Video Files
+                  <FolderSearch size={24} /> Step 1: Click Here to Select Your Local PC Movie Folder
                 </button>
               </div>
 
@@ -409,12 +438,12 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
               </div>
 
               <div style={styles.field}>
-                <label style={styles.label}>Discovered Video Files (One file per line)</label>
+                <label style={styles.label}>Video Files to Scan (One video file per line)</label>
                 <textarea
                   rows={6}
                   value={fileListText}
                   onChange={(e) => setFileListText(e.target.value)}
-                  placeholder="Iron Man (2008).mkv&#10;Thor (2011).mp4&#10;The Avengers (2012).mkv&#10;(Click 'Select Local PC Folder' above to auto-detect all video files in your folder!)"
+                  placeholder="Iron Man (2008).mkv&#10;Thor (2011).mp4&#10;The Avengers (2012).mkv&#10;(Click the green button above to auto-detect all video files in your folder!)"
                   style={styles.textarea}
                   required
                 />
@@ -424,7 +453,7 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
               </div>
 
               <button type="submit" style={styles.batchSubmitBtn}>
-                <Sparkles size={18} /> 🔍 Scan Folder Movies & Fetch TMDB Details
+                <Sparkles size={18} /> 🔍 Step 2: Scan Movies & Extract TMDB Details
               </button>
             </form>
           )}
@@ -442,14 +471,14 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
               <div style={styles.confirmHeader}>
                 <CheckCircle2 size={28} color="var(--accent-green)" />
                 <div>
-                  <h3 style={styles.batchTitle}>Step 3: Review Discovered Movies & Confirm</h3>
+                  <h3 style={styles.batchTitle}>Step 3: Verify TMDB Information & Confirm</h3>
                   <p style={styles.batchSub}>
-                    We scanned your folder and fetched metadata from TMDB for {scannedResults.length} movie(s). Uncheck any movie you don't want to add, then click **Done**!
+                    We scanned {scannedResults.length} movie(s). Verify the information below! If any TMDB match is wrong, click **Change TMDB Match** to fix it before saving!
                   </p>
                 </div>
               </div>
 
-              {/* Scanned Results Checklist Grid */}
+              {/* Scanned Results Checklist & TMDB Match Adjuster Grid */}
               <div style={styles.resultsGrid}>
                 {scannedResults.map((item, idx) => (
                   <div
@@ -458,20 +487,22 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
                       ...styles.resultCard,
                       ...(item.selected ? styles.resultCardSelected : {})
                     }}
-                    onClick={() => toggleItemSelection(idx)}
                   >
-                    <div style={styles.checkboxArea}>
+                    <div style={styles.checkboxArea} onClick={() => toggleItemSelection(idx)}>
                       {item.selected ? (
-                        <CheckSquare size={22} color="var(--accent-green)" />
+                        <CheckSquare size={24} color="var(--accent-green)" />
                       ) : (
-                        <Square size={22} color="var(--text-muted)" />
+                        <Square size={24} color="var(--text-muted)" />
                       )}
                     </div>
+
                     <img
                       src={item.mediaData.poster_url}
                       alt={item.mediaData.title}
                       style={styles.resultPoster}
+                      onClick={() => toggleItemSelection(idx)}
                     />
+
                     <div style={styles.resultInfo}>
                       <div style={styles.resultTitleRow}>
                         <span style={styles.resultTitle}>{item.mediaData.title}</span>
@@ -485,8 +516,37 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
                         </span>
                       </div>
                       <div style={styles.resultPath} title={item.filePath}>
-                        📁 {item.filePath}
+                        📁 {item.rawFileName || item.filePath}
                       </div>
+
+                      {/* Interactive Change TMDB Match button */}
+                      {editingResultIndex === idx ? (
+                        <div style={styles.editTmdbBox} onClick={(e) => e.stopPropagation()}>
+                          <label style={styles.label}>Search Correct TMDB Entry:</label>
+                          <TmdbSearchInput
+                            onSelectMedia={(selected) => handleUpdateItemTmdbMatch(idx, selected)}
+                            initialQuery={item.mediaData.title}
+                          />
+                          <button
+                            type="button"
+                            style={styles.cancelEditBtn}
+                            onClick={() => setEditingResultIndex(null)}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          style={styles.fixMatchBtn}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingResultIndex(idx);
+                          }}
+                        >
+                          <Edit3 size={13} /> Change TMDB Match
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -515,8 +575,8 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
                     <CheckCircle2 size={18} />
                   )}
                   {savingBatch
-                    ? "Saving Entries to Library..."
-                    : `Done — Save Selected (${scannedResults.filter((r) => r.selected).length}) Items to Library`}
+                    ? "Saving Entries to Shared Library..."
+                    : `Done — Add Verified (${scannedResults.filter((r) => r.selected).length}) Items to Library`}
                 </button>
               </div>
             </div>
@@ -889,18 +949,19 @@ const styles = {
   },
   folderPickBtn: {
     width: "100%",
-    padding: "16px",
+    padding: "20px",
     backgroundColor: "var(--bg-elevated)",
     color: "var(--accent-green)",
     border: "2px dashed var(--accent-green)",
-    borderRadius: "10px",
-    fontWeight: 700,
-    fontSize: "1rem",
+    borderRadius: "12px",
+    fontWeight: 800,
+    fontSize: "1.1rem",
     cursor: "pointer",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    gap: "12px",
+    gap: "14px",
+    boxShadow: "0 4px 16px rgba(70,211,105,0.15)",
     transition: "var(--transition)"
   },
   loadingState: {
@@ -934,16 +995,16 @@ const styles = {
   },
   resultsGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-    gap: "16px",
-    maxHeight: "440px",
+    gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+    gap: "18px",
+    maxHeight: "480px",
     overflowY: "auto",
     paddingRight: "6px"
   },
   resultCard: {
     display: "flex",
-    gap: "12px",
-    padding: "12px",
+    gap: "14px",
+    padding: "14px",
     backgroundColor: "var(--bg-elevated)",
     border: "2px solid var(--border-subtle)",
     borderRadius: "10px",
@@ -957,11 +1018,12 @@ const styles = {
   },
   checkboxArea: {
     display: "flex",
-    alignItems: "center"
+    alignItems: "flex-start",
+    paddingTop: "4px"
   },
   resultPoster: {
-    width: "60px",
-    height: "88px",
+    width: "68px",
+    height: "100px",
     objectFit: "cover",
     borderRadius: "6px"
   },
@@ -978,7 +1040,7 @@ const styles = {
     gap: "6px"
   },
   resultTitle: {
-    fontSize: "0.95rem",
+    fontSize: "0.98rem",
     fontWeight: 700,
     color: "#ffffff",
     whiteSpace: "nowrap",
@@ -1019,7 +1081,40 @@ const styles = {
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",
-    marginTop: "auto"
+    marginTop: "2px"
+  },
+  fixMatchBtn: {
+    marginTop: "6px",
+    padding: "4px 8px",
+    backgroundColor: "var(--bg-surface)",
+    border: "1px solid var(--border-subtle)",
+    color: "var(--accent-green)",
+    borderRadius: "4px",
+    fontSize: "0.75rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "4px",
+    alignSelf: "flex-start"
+  },
+  editTmdbBox: {
+    marginTop: "8px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "6px",
+    backgroundColor: "var(--bg-surface)",
+    padding: "8px",
+    borderRadius: "6px",
+    border: "1px solid var(--accent-green)"
+  },
+  cancelEditBtn: {
+    alignSelf: "flex-end",
+    background: "none",
+    border: "none",
+    color: "var(--text-muted)",
+    fontSize: "0.75rem",
+    cursor: "pointer"
   },
   confirmActionRow: {
     display: "flex",
