@@ -1,13 +1,14 @@
 import React, { useState } from "react";
-import { Star, Play, CheckCircle2, Bookmark, Monitor, Tv, Film } from "lucide-react";
+import { Star, Play, CheckCircle2, Bookmark, Monitor, Tv, Film, Edit3, Trash2 } from "lucide-react";
 import { launchInVlc } from "../services/vlcLauncher";
 import { useToast } from "../context/ToastContext";
 import { useAuth } from "../context/AuthContext";
 
-export const PosterCard = ({ item, onClick, viewMode = "grid" }) => {
+export const PosterCard = ({ item, onClick, onEdit, onDelete, viewMode = "grid" }) => {
   const { addToast } = useToast();
   const { currentUser } = useAuth();
   const [hovered, setHovered] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   // Check current user progress
   const userProgress = (item.user_progress || {})[currentUser?.uid || ""] || {};
@@ -23,7 +24,6 @@ export const PosterCard = ({ item, onClick, viewMode = "grid" }) => {
     if (defaultPath) {
       launchInVlc(defaultPath, item.title, addToast);
     } else {
-      // Fallback: search any user path available
       const anyUserPath = (item.user_paths || [])[0];
       const anyPath = anyUserPath?.paths?.default || (anyUserPath?.paths ? Object.values(anyUserPath.paths)[0] : "");
       if (anyPath) {
@@ -32,6 +32,16 @@ export const PosterCard = ({ item, onClick, viewMode = "grid" }) => {
         addToast(`No local file path configured for "${item.title}". Click for details.`, "warning");
       }
     }
+  };
+
+  const handleQuickEdit = (e) => {
+    e.stopPropagation();
+    if (onEdit) onEdit(item);
+  };
+
+  const handleQuickDelete = (e) => {
+    e.stopPropagation();
+    if (onDelete) onDelete(item.id);
   };
 
   if (viewMode === "list") {
@@ -73,9 +83,18 @@ export const PosterCard = ({ item, onClick, viewMode = "grid" }) => {
             </span>
           )}
           <button style={styles.playBtnSmall} onClick={handleQuickPlay}>
-            <Play size={14} fill="#ffffff" />
-            Play
+            <Play size={14} fill="#ffffff" /> Play
           </button>
+          {onEdit && (
+            <button style={styles.listIconBtn} onClick={handleQuickEdit} title="Edit Item">
+              <Edit3 size={14} />
+            </button>
+          )}
+          {onDelete && (
+            <button style={{ ...styles.listIconBtn, color: "var(--accent-red)" }} onClick={handleQuickDelete} title="Delete Item">
+              <Trash2 size={14} />
+            </button>
+          )}
         </div>
       </div>
     );
@@ -86,7 +105,10 @@ export const PosterCard = ({ item, onClick, viewMode = "grid" }) => {
       style={styles.card}
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      onMouseLeave={() => {
+        setHovered(false);
+        setConfirmDelete(false);
+      }}
       className="animate-fade"
     >
       {/* Poster Image */}
@@ -139,13 +161,32 @@ export const PosterCard = ({ item, onClick, viewMode = "grid" }) => {
             </div>
 
             <p style={styles.overviewSnippet}>
-              {item.overview ? `${item.overview.substring(0, 100)}...` : "Click to view media details."}
+              {item.overview ? `${item.overview.substring(0, 80)}...` : "Click to view media details."}
             </p>
 
             <button style={styles.playBtn} onClick={handleQuickPlay}>
-              <Play size={16} fill="#ffffff" />
-              Play in VLC
+              <Play size={16} fill="#ffffff" /> Play in VLC
             </button>
+
+            {/* Quick Edit & Delete Controls */}
+            <div style={styles.quickActionRow}>
+              {onEdit && (
+                <button style={styles.quickEditBtn} onClick={handleQuickEdit}>
+                  <Edit3 size={13} /> Edit
+                </button>
+              )}
+              {onDelete && (
+                !confirmDelete ? (
+                  <button style={styles.quickDeleteBtn} onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}>
+                    <Trash2 size={13} /> Delete
+                  </button>
+                ) : (
+                  <button style={styles.confirmDeleteBtnCard} onClick={handleQuickDelete}>
+                    Confirm Delete?
+                  </button>
+                )
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -177,7 +218,7 @@ const styles = {
   posterWrapper: {
     position: "relative",
     width: "100%",
-    paddingTop: "150%", // 2:3 aspect ratio
+    paddingTop: "150%",
     backgroundColor: "#000000",
     overflow: "hidden"
   },
@@ -216,19 +257,19 @@ const styles = {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(13, 13, 13, 0.92)",
+    backgroundColor: "rgba(13, 13, 13, 0.94)",
     zIndex: 3,
     display: "flex",
     flexDirection: "column",
     justifyContent: "flex-end",
-    padding: "16px",
+    padding: "14px",
     transition: "opacity 0.25s ease",
     backdropFilter: "blur(6px)"
   },
   overlayContent: {
     display: "flex",
     flexDirection: "column",
-    gap: "10px"
+    gap: "8px"
   },
   overlayHeader: {
     display: "flex",
@@ -236,12 +277,15 @@ const styles = {
     justifyContent: "space-between"
   },
   overlayTitle: {
-    fontSize: "1.05rem",
+    fontSize: "0.98rem",
     fontWeight: 700,
-    color: "#ffffff"
+    color: "#ffffff",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis"
   },
   overlayYear: {
-    fontSize: "0.85rem",
+    fontSize: "0.8rem",
     color: "var(--text-secondary)"
   },
   genreTags: {
@@ -250,17 +294,17 @@ const styles = {
     gap: "4px"
   },
   genrePill: {
-    fontSize: "0.7rem",
-    padding: "2px 8px",
+    fontSize: "0.68rem",
+    padding: "2px 6px",
     backgroundColor: "rgba(255,255,255,0.1)",
     borderRadius: "4px",
     color: "var(--text-secondary)"
   },
   overviewSnippet: {
-    fontSize: "0.8rem",
+    fontSize: "0.75rem",
     color: "var(--text-secondary)",
-    lineHeight: "1.4",
-    margin: "4px 0"
+    lineHeight: "1.3",
+    margin: "2px 0"
   },
   playBtn: {
     width: "100%",
@@ -270,11 +314,57 @@ const styles = {
     padding: "8px 12px",
     borderRadius: "4px",
     fontWeight: 700,
-    fontSize: "0.88rem",
+    fontSize: "0.85rem",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     gap: "6px",
+    cursor: "pointer"
+  },
+  quickActionRow: {
+    display: "flex",
+    gap: "6px",
+    marginTop: "2px"
+  },
+  quickEditBtn: {
+    flex: 1,
+    padding: "6px",
+    backgroundColor: "var(--bg-elevated)",
+    border: "1px solid var(--border-subtle)",
+    color: "#ffffff",
+    borderRadius: "4px",
+    fontSize: "0.75rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "4px"
+  },
+  quickDeleteBtn: {
+    flex: 1,
+    padding: "6px",
+    backgroundColor: "var(--bg-elevated)",
+    border: "1px solid var(--border-subtle)",
+    color: "var(--accent-red)",
+    borderRadius: "4px",
+    fontSize: "0.75rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "4px"
+  },
+  confirmDeleteBtnCard: {
+    flex: 1,
+    padding: "6px",
+    backgroundColor: "var(--accent-red)",
+    color: "#ffffff",
+    border: "none",
+    borderRadius: "4px",
+    fontSize: "0.75rem",
+    fontWeight: 700,
     cursor: "pointer"
   },
   cardFooter: {
@@ -297,7 +387,6 @@ const styles = {
     display: "flex",
     gap: "6px"
   },
-  // List view styles
   listItem: {
     display: "flex",
     alignItems: "center",
@@ -355,7 +444,7 @@ const styles = {
   listActions: {
     display: "flex",
     alignItems: "center",
-    gap: "12px"
+    gap: "10px"
   },
   playBtnSmall: {
     backgroundColor: "var(--accent-red)",
@@ -368,6 +457,14 @@ const styles = {
     display: "flex",
     alignItems: "center",
     gap: "6px",
+    cursor: "pointer"
+  },
+  listIconBtn: {
+    padding: "6px 10px",
+    backgroundColor: "var(--bg-elevated)",
+    border: "1px solid var(--border-subtle)",
+    color: "#ffffff",
+    borderRadius: "4px",
     cursor: "pointer"
   }
 };

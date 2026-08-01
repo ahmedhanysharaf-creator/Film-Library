@@ -33,7 +33,6 @@ const AppContent = () => {
     );
   }
 
-  // Whitelist Guard Enforcement
   if (!currentUser || !isWhitelisted) {
     return <Login onLoginSuccess={() => setActivePage("library")} />;
   }
@@ -49,7 +48,6 @@ const AppContent = () => {
       await deleteMediaEntry(itemId);
       addToast("Media entry deleted from library.", "info");
       setSelectedItem(null);
-      // Refresh page state
       setActivePage("library");
     } catch (err) {
       addToast(`Failed to delete item: ${err.message}`, "error");
@@ -79,7 +77,10 @@ const AppContent = () => {
         )}
 
         {activePage === "library" && (
-          <Library onSelectItem={(item) => setSelectedItem(item)} />
+          <Library
+            onSelectItem={(item) => setSelectedItem(item)}
+            onEditItem={handleEdit}
+          />
         )}
 
         {activePage === "add" && (

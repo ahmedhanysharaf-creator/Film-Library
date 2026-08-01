@@ -14,7 +14,7 @@ const SUB_EXTENSIONS = [".srt", ".ass", ".vtt", ".sub", ".txt", ".nfo"];
 export const isVideoFilePath = (path) => {
   if (!path) return false;
   const extIndex = path.lastIndexOf(".");
-  if (extIndex === -1) return false; // Folders are not video files
+  if (extIndex === -1) return false;
   const ext = path.substring(extIndex).toLowerCase();
   return VIDEO_EXTENSIONS.includes(ext);
 };
@@ -28,27 +28,21 @@ export const extractTitleAndYearFromPath = (fullPath) => {
   
   let rawName = parts[parts.length - 1];
 
-  // Strip file extensions (.mp4, .mkv, etc.)
   [...VIDEO_EXTENSIONS, ...SUB_EXTENSIONS].forEach((ext) => {
     if (rawName.toLowerCase().endsWith(ext)) {
       rawName = rawName.substring(0, rawName.length - ext.length);
     }
   });
 
-  // Extract 4-digit Year (e.g. 1998, 2000, 2002, 2003, 2024)
   let extractedYear = null;
   const yearMatch = rawName.match(/\b(19\d\d|20\d\d)\b/);
   if (yearMatch) {
     extractedYear = parseInt(yearMatch[1]);
   }
 
-  // 1. Remove 4-digit year and surrounding brackets/parentheses: "(1998)", "[2002]"
   let clean = rawName.replace(/[\[\(]?\b(19\d\d|20\d\d)\b[\]\)]?/g, " ");
-
-  // 2. Remove leading scene codes: "M02", "M03", "M04", "01", "E01", "S01E01" followed by optional dashes/dots
   clean = clean.replace(/^(?:M\d+|E\d+|S\d+E\d+|\d+)\b\s*[-_.]*\s*/i, "");
 
-  // 3. Remove quality tags
   const tags = [
     "1080p", "720p", "4k", "2160p", "bluray", "web-dl", "webrip", "hdrip", "dvdrip",
     "x264", "x265", "hevc", "aac", "dts", "repack", "remux", "hdr", "dual audio"
@@ -58,12 +52,9 @@ export const extractTitleAndYearFromPath = (fullPath) => {
     clean = clean.replace(reg, "");
   });
 
-  // 4. Clean leading/trailing dashes and dots
   clean = clean.replace(/^[-\s._]+/, "");
   clean = clean.replace(/[._]/g, " ");
   clean = clean.replace(/\s+-\s+/g, " ");
-
-  // 5. Final whitespace normalize
   clean = clean.replace(/\s+/g, " ").trim();
 
   return {
@@ -72,7 +63,6 @@ export const extractTitleAndYearFromPath = (fullPath) => {
   };
 };
 
-// Legacy helper compatibility
 export const extractCleanTitleFromPath = (fullPath) => {
   return extractTitleAndYearFromPath(fullPath).cleanTitle;
 };
@@ -81,7 +71,7 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
   const { currentUser } = useAuth();
   const { addToast } = useToast();
 
-  const [mode, setMode] = useState("single"); // "single" | "batch"
+  const [mode, setMode] = useState("single");
   const folderInputRef = useRef(null);
 
   // Single Entry Form State
@@ -119,6 +109,7 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
   const [scanProgress, setScanProgress] = useState("");
   const [scannedResults, setScannedResults] = useState([]);
   const [savingBatch, setSavingBatch] = useState(false);
+  const [saveProgressData, setSaveProgressData] = useState({ current: 0, total: 0, title: "", percentage: 0 });
   const [editingResultIndex, setEditingResultIndex] = useState(null);
 
   const handleTmdbSelect = async (selected) => {
@@ -159,7 +150,6 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
   const handleDefaultPathChange = async (newPath) => {
     setDefaultPath(newPath);
 
-    // Only auto-extract if the path points to an actual VIDEO FILE (.mp4, .mkv), NOT a folder!
     const isVideoFile = VIDEO_EXTENSIONS.some((ext) => newPath.toLowerCase().endsWith(ext));
     if (isVideoFile) {
       const { cleanTitle, year: parsedYear } = extractTitleAndYearFromPath(newPath);
@@ -177,12 +167,10 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
     }
   };
 
-  // Local Folder Picker via Browser File API (webkitdirectory)
   const handleSelectFolderFiles = (e) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
 
-    // Filter only video files (.mp4, .mkv, .avi, etc.) - ignore subtitles (.srt, .vtt)
     const videoFiles = files.filter((f) => {
       const ext = f.name.substring(f.name.lastIndexOf(".")).toLowerCase();
       return VIDEO_EXTENSIONS.includes(ext);
@@ -375,6 +363,7 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
     }
   };
 
+  // Real-time Live Saving Progress Overlay
   const handleConfirmBatchSave = async () => {
     const selectedItems = scannedResults.filter((r) => r.selected);
     if (selectedItems.length === 0) {
@@ -384,30 +373,58 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
 
     setSavingBatch(true);
     let count = 0;
+    const totalCount = selectedItems.length;
 
-    // Fast parallel batch saving (chunks of 10 for instant completion)
-    const BATCH_SIZE = 10;
-    for (let i = 0; i < selectedItems.length; i += BATCH_SIZE) {
-      const chunk = selectedItems.slice(i, i + BATCH_SIZE);
-      await Promise.all(
-        chunk.map(async (item) => {
-          try {
-            await saveMediaEntry(item.mediaData, currentUser);
-            count++;
-          } catch (err) {
-            console.error("Batch save error:", err);
-          }
-        })
-      );
+    for (let i = 0; i < totalCount; i++) {
+      const item = selectedItems[i];
+      const pct = Math.round(((i + 1) / totalCount) * 100);
+
+      setSaveProgressData({
+        current: i + 1,
+        total: totalCount,
+        title: item.mediaData.title,
+        percentage: pct
+      });
+
+      try {
+        await saveMediaEntry(item.mediaData, currentUser);
+        count++;
+      } catch (err) {
+        console.error("Batch save error:", err);
+      }
     }
 
     setSavingBatch(false);
-    addToast(`Successfully added ${count} movies/series to your library!`, "success");
+    addToast(`Successfully added all ${count} items to your shared library!`, "success");
     onSaveSuccess();
   };
 
   return (
     <div style={styles.container} className="animate-fade">
+      {/* Live Batch Saving Overlay Modal */}
+      {savingBatch && (
+        <div style={styles.savingOverlay}>
+          <div style={styles.savingBox} className="glass-modal">
+            <Loader2 size={54} color="var(--accent-green)" className="animate-spin" />
+            <h2 style={styles.savingHeader}>Saving Items to Shared Library</h2>
+
+            <div style={styles.progressTrack}>
+              <div style={{ ...styles.progressBar, width: `${saveProgressData.percentage}%` }} />
+            </div>
+
+            <div style={styles.savingPctText}>{saveProgressData.percentage}% Complete</div>
+
+            <div style={styles.savingDetailText}>
+              Saving item <strong>#{saveProgressData.current}</strong> of <strong>{saveProgressData.total}</strong>:
+              <div style={styles.savingMovieTitle}>"{saveProgressData.title}"</div>
+              <span style={styles.savingRemainingText}>
+                ({saveProgressData.total - saveProgressData.current} items remaining)
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div style={styles.header}>
         <button style={styles.backBtn} onClick={onCancel}>
           <ArrowLeft size={18} /> Back
@@ -622,7 +639,7 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
                     <CheckCircle2 size={18} />
                   )}
                   {savingBatch
-                    ? "Saving Entries to Shared Library..."
+                    ? "Saving Entries..."
                     : `Done — Add Verified (${scannedResults.filter((r) => r.selected).length}) Items to Library`}
                 </button>
               </div>
@@ -828,7 +845,6 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
               </span>
             </div>
 
-            {/* Folder Warning Banner if a folder path is detected */}
             {defaultPath && !VIDEO_EXTENSIONS.some((ext) => defaultPath.toLowerCase().endsWith(ext)) && (
               <div style={styles.folderNotice}>
                 <FolderPlus size={20} color="var(--accent-green)" />
@@ -851,7 +867,6 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
               </div>
             )}
 
-            {/* Episode Specific Mapping for TV Series */}
             {type === "series" && (
               <div style={styles.episodeMapperSection}>
                 <h4 style={styles.subSectionTitle}>Episode Multi-File Mapping</h4>
@@ -881,7 +896,6 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
               </div>
             )}
 
-            {/* Poster Preview Frame */}
             {posterUrl && (
               <div style={styles.previewBox}>
                 <span style={styles.label}>Poster Live Preview</span>
@@ -902,6 +916,72 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
 };
 
 const styles = {
+  savingOverlay: {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.88)",
+    zIndex: 999,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "24px"
+  },
+  savingBox: {
+    width: "100%",
+    maxWidth: "520px",
+    padding: "40px 32px",
+    borderRadius: "16px",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    textAlign: "center",
+    gap: "16px"
+  },
+  savingHeader: {
+    fontSize: "1.4rem",
+    fontWeight: 800,
+    color: "#ffffff"
+  },
+  progressTrack: {
+    width: "100%",
+    height: "14px",
+    backgroundColor: "var(--bg-elevated)",
+    borderRadius: "10px",
+    overflow: "hidden",
+    border: "1px solid var(--border-subtle)",
+    marginTop: "8px"
+  },
+  progressBar: {
+    height: "100%",
+    backgroundColor: "var(--accent-green)",
+    borderRadius: "10px",
+    transition: "width 0.3s ease",
+    boxShadow: "0 0 12px rgba(70,211,105,0.6)"
+  },
+  savingPctText: {
+    fontSize: "1.3rem",
+    fontWeight: 900,
+    color: "var(--accent-green)"
+  },
+  savingDetailText: {
+    fontSize: "0.92rem",
+    color: "var(--text-secondary)",
+    lineHeight: "1.5"
+  },
+  savingMovieTitle: {
+    fontSize: "1.1rem",
+    fontWeight: 700,
+    color: "#ffffff",
+    margin: "4px 0"
+  },
+  savingRemainingText: {
+    fontSize: "0.82rem",
+    color: "var(--text-muted)",
+    display: "block"
+  },
   container: {
     maxWidth: "1300px",
     margin: "0 auto",

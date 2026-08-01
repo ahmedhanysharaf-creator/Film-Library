@@ -1,17 +1,20 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { 
-  Search, Grid, List, Filter, ArrowUpDown, Check, X, Film, Tv, Star, CheckCircle2, Bookmark 
+  Search, Grid, List, Filter, ArrowUpDown, Check, X, Film, Tv, Star, CheckCircle2, Bookmark, User, Globe 
 } from "lucide-react";
-import { fetchLibraryItems } from "../services/storage";
+import { fetchLibraryItems, deleteMediaEntry } from "../services/storage";
 import { PosterCard } from "../components/PosterCard";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 
-export const Library = ({ onSelectItem }) => {
+export const Library = ({ onSelectItem, onEditItem }) => {
   const { currentUser } = useAuth();
+  const { addToast } = useToast();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Search & Filter state
+  const [libraryScope, setLibraryScope] = useState("all"); // "all" | "my"
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState("grid"); // "grid" | "list"
   const [sortBy, setSortBy] = useState("added"); // "added" | "title" | "rating" | "year"
@@ -20,15 +23,26 @@ export const Library = ({ onSelectItem }) => {
   const [genreLogic, setGenreLogic] = useState("OR"); // "AND" | "OR"
   const [watchFilter, setWatchFilter] = useState("all"); // "all" | "watched" | "unwatched" | "watchlist"
 
+  const loadItems = async () => {
+    setLoading(true);
+    const data = await fetchLibraryItems();
+    setItems(data);
+    setLoading(false);
+  };
+
   useEffect(() => {
-    const loadItems = async () => {
-      setLoading(true);
-      const data = await fetchLibraryItems();
-      setItems(data);
-      setLoading(false);
-    };
     loadItems();
   }, []);
+
+  const handleDeleteItem = async (itemId) => {
+    try {
+      await deleteMediaEntry(itemId);
+      addToast("Media entry deleted from library.", "info");
+      loadItems();
+    } catch (err) {
+      addToast(`Failed to delete entry: ${err.message}`, "error");
+    }
+  };
 
   // Collect all unique genres across library items
   const allAvailableGenres = useMemo(() => {
@@ -50,6 +64,12 @@ export const Library = ({ onSelectItem }) => {
   // Filter & Sort Computation
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
+      // 0. Scope Filter: "all" vs "my"
+      if (libraryScope === "my") {
+        const belongsToUser = (item.user_paths || []).some((up) => up.uid === currentUser?.uid);
+        if (!belongsToUser) return false;
+      }
+
       // 1. Search Query Filter
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
@@ -72,11 +92,9 @@ export const Library = ({ onSelectItem }) => {
       if (selectedGenres.length > 0) {
         const itemGenres = item.genres || [];
         if (genreLogic === "AND") {
-          // Must contain ALL selected genres
           const matchesAll = selectedGenres.every((g) => itemGenres.includes(g));
           if (!matchesAll) return false;
         } else {
-          // Must contain AT LEAST ONE selected genre
           const matchesAny = selectedGenres.some((g) => itemGenres.includes(g));
           if (!matchesAny) return false;
         }
@@ -87,17 +105,35 @@ export const Library = ({ onSelectItem }) => {
       if (sortBy === "title") return a.title.localeCompare(b.title);
       if (sortBy === "rating") return (b.imdb_rating || 0) - (a.imdb_rating || 0);
       if (sortBy === "year") return (b.year || 0) - (a.year || 0);
-      // default: added (newest first)
       return new Date(b.added_at || 0) - new Date(a.added_at || 0);
     });
-  }, [items, searchQuery, typeFilter, watchFilter, selectedGenres, genreLogic, sortBy, currentUser]);
+  }, [items, libraryScope, searchQuery, typeFilter, watchFilter, selectedGenres, genreLogic, sortBy, currentUser]);
 
   return (
     <div style={styles.container} className="animate-fade">
       {/* Top Header & Toolbar */}
       <div style={styles.topBar}>
         <div style={styles.titleSection}>
-          <h1 style={styles.pageTitle}>The Library</h1>
+          <div style={styles.titleWithScope}>
+            <h1 style={styles.pageTitle}>The Library</h1>
+
+            {/* Scope Filter Tabs: All Shared Library vs My Library */}
+            <div style={styles.scopeTabs}>
+              <button
+                style={{ ...styles.scopeBtn, ...(libraryScope === "all" ? styles.scopeActiveAll : {}) }}
+                onClick={() => setLibraryScope("all")}
+              >
+                <Globe size={15} /> All Shared Library ({items.length})
+              </button>
+              <button
+                style={{ ...styles.scopeBtn, ...(libraryScope === "my" ? styles.scopeActiveMy : {}) }}
+                onClick={() => setLibraryScope("my")}
+              >
+                <User size={15} color="var(--accent-green)" /> My Library ({items.filter(i => (i.user_paths || []).some(up => up.uid === currentUser?.uid)).length})
+              </button>
+            </div>
+          </div>
+
           <span style={styles.itemCount}>Showing {filteredItems.length} of {items.length} items</span>
         </div>
 
@@ -255,7 +291,11 @@ export const Library = ({ onSelectItem }) => {
         <div style={styles.emptyState}>
           <Film size={48} color="var(--text-muted)" />
           <h3>No media items match your search / filter criteria.</h3>
-          <p>Try clearing genre filters or changing the search query.</p>
+          <p>
+            {libraryScope === "my"
+              ? "You haven't added any movies to your personal library yet."
+              : "Try clearing genre filters or changing the search query."}
+          </p>
         </div>
       ) : (
         <div style={viewMode === "grid" ? styles.grid : styles.listStack}>
@@ -264,6 +304,8 @@ export const Library = ({ onSelectItem }) => {
               key={item.id}
               item={item}
               onClick={() => onSelectItem(item)}
+              onEdit={onEditItem}
+              onDelete={handleDeleteItem}
               viewMode={viewMode}
             />
           ))}
@@ -290,13 +332,50 @@ const styles = {
   },
   titleSection: {
     display: "flex",
-    alignItems: "baseline",
-    justifyContent: "space-between"
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: "16px"
+  },
+  titleWithScope: {
+    display: "flex",
+    alignItems: "center",
+    gap: "20px"
   },
   pageTitle: {
     fontSize: "2rem",
     fontWeight: 800,
     color: "#ffffff"
+  },
+  scopeTabs: {
+    display: "flex",
+    backgroundColor: "var(--bg-surface)",
+    border: "1px solid var(--border-subtle)",
+    borderRadius: "10px",
+    padding: "4px"
+  },
+  scopeBtn: {
+    padding: "8px 16px",
+    background: "none",
+    border: "none",
+    color: "var(--text-secondary)",
+    fontSize: "0.88rem",
+    fontWeight: 700,
+    borderRadius: "8px",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    transition: "var(--transition)"
+  },
+  scopeActiveAll: {
+    backgroundColor: "var(--bg-elevated)",
+    color: "#ffffff"
+  },
+  scopeActiveMy: {
+    backgroundColor: "var(--bg-elevated)",
+    color: "var(--accent-green)",
+    boxShadow: "0 2px 8px rgba(70,211,105,0.2)"
   },
   itemCount: {
     color: "var(--text-muted)",
