@@ -40,43 +40,45 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const setUserSession = (userObj) => {
+    setCurrentUser(userObj);
+    setIsWhitelisted(true);
+    localStorage.setItem("filmlibrary_demo_user", JSON.stringify(userObj));
+  };
+
   useEffect(() => {
+    // 1. Check persistent localStorage session first
+    const savedSessionStr = localStorage.getItem("filmlibrary_demo_user");
+    if (savedSessionStr) {
+      try {
+        const savedUser = JSON.parse(savedSessionStr);
+        setCurrentUser(savedUser);
+        setIsWhitelisted(true);
+      } catch (e) {}
+    }
+
+    // 2. Sync with Firebase Auth state if configured
     if (isFirebaseConfigured() && auth) {
       const unsubscribe = onAuthStateChanged(auth, async (user) => {
         if (user) {
           const allowed = await checkWhitelist(user);
           if (allowed) {
-            setCurrentUser({
+            const userObj = {
               uid: user.uid,
               email: user.email,
               displayName: user.displayName || user.email.split("@")[0],
               photoURL: user.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${user.email}`
-            });
-            setIsWhitelisted(true);
+            };
+            setUserSession(userObj);
           }
         }
         setLoading(false);
       });
       return unsubscribe;
     } else {
-      // Local Demo Auth check
-      const localUserStr = localStorage.getItem("filmlibrary_demo_user");
-      if (localUserStr) {
-        try {
-          const user = JSON.parse(localUserStr);
-          setCurrentUser(user);
-          setIsWhitelisted(true);
-        } catch (e) {}
-      }
       setLoading(false);
     }
   }, []);
-
-  const setUserSession = (userObj) => {
-    setCurrentUser(userObj);
-    setIsWhitelisted(true);
-    localStorage.setItem("filmlibrary_demo_user", JSON.stringify(userObj));
-  };
 
   // Email & Password Sign In
   const loginWithEmailPassword = async (email, password) => {
