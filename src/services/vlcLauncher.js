@@ -57,6 +57,17 @@ export const downloadWindowsRegistryFix = () => {
 
 [HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell\\open\\command]
 @="cmd.exe /c \\"set \\\"VLC=C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe\\\" & if not exist \\\"%VLC%\\\" set \\\"VLC=C:\\\\Program Files (x86)\\\\VideoLAN\\\\VLC\\\\vlc.exe\\\" & for /f \\\"tokens=2 delims==\\\" %a in (\\\"%1\\\") do for /f \\\"tokens=1 delims=^&\\\" %b in (\\\"%a\\\") do start \\\"\\\" \\\"%VLC%\\\" \\\"%~b\\\"\\""
+
+[HKEY_CURRENT_USER\\Software\\Classes\\vlc]
+@="URL:VLC Protocol"
+"URL Protocol"=""
+
+[HKEY_CURRENT_USER\\Software\\Classes\\vlc\\shell]
+
+[HKEY_CURRENT_USER\\Software\\Classes\\vlc\\shell\\open]
+
+[HKEY_CURRENT_USER\\Software\\Classes\\vlc\\shell\\open\\command]
+@="cmd.exe /c \\"set \\\"VLC=C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe\\\" & if not exist \\\"%VLC%\\\" set \\\"VLC=C:\\\\Program Files (x86)\\\\VideoLAN\\\\VLC\\\\vlc.exe\\\" & for /f \\\"tokens=2 delims==\\\" %a in (\\\"%1\\\") do for /f \\\"tokens=1 delims=^&\\\" %b in (\\\"%a\\\") do start \\\"\\\" \\\"%VLC%\\\" \\\"%~b\\\"\\""
 `;
 
   const blob = new Blob([regContent], { type: "text/plain" });
@@ -80,18 +91,30 @@ export const launchInVlc = (path, title, addToast) => {
   }
 
   const token = getSecurityToken();
-  const rawPath = path;
+  const encodedPath = encodeURIComponent(path);
   const encodedToken = encodeURIComponent(token);
   
-  // Custom filmlibrary:// protocol URL with raw path string
-  const customProtocolUrl = `filmlibrary://open?path=${rawPath}&token=${encodedToken}`;
+  // Custom filmlibrary:// protocol URL
+  const customProtocolUrl = `filmlibrary://open?path=${encodedPath}&token=${encodedToken}`;
 
   console.log(`[VLC Launcher] Triggering direct protocol: ${customProtocolUrl}`);
 
   // 1. Copy file path to clipboard
   copyPathToClipboard(path);
 
-  // 2. Trigger direct protocol launcher
+  // 2. Trigger anchor element user gesture click (Chrome requirement)
+  try {
+    const a = document.createElement("a");
+    a.href = customProtocolUrl;
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      if (document.body.contains(a)) document.body.removeChild(a);
+    }, 500);
+  } catch (e) {}
+
+  // 3. Fallback location trigger
   try {
     window.location.href = customProtocolUrl;
   } catch (e) {
@@ -99,7 +122,7 @@ export const launchInVlc = (path, title, addToast) => {
   }
 
   if (addToast) {
-    addToast(`Opening "${title || 'Media'}" automatically in VLC...`, "success");
+    addToast(`Opening "${title || 'Media'}" in VLC Player...`, "success");
   }
 
   return true;
