@@ -42,7 +42,7 @@ export const downloadVlcM3uPlaylist = (path, title) => {
 
 /**
  * Generate and trigger downloadable .reg file
- * Quote-escaped cmd.exe launcher that handles folder paths with spaces ("Marvel Films") perfectly!
+ * Pure PowerShell single-line launcher that auto-detects VLC path and handles spaces cleanly!
  */
 export const downloadWindowsRegistryFix = () => {
   const regContent = `Windows Registry Editor Version 5.00
@@ -56,25 +56,14 @@ export const downloadWindowsRegistryFix = () => {
 [HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell\\open]
 
 [HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell\\open\\command]
-@="cmd.exe /c \\"set \\\"VLC=C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe\\\" & if not exist \\\"%VLC%\\\" set \\\"VLC=C:\\\\Program Files (x86)\\\\VideoLAN\\\\VLC\\\\vlc.exe\\\" & for /f \\\"tokens=2 delims==\\\" %a in (\\\"%1\\\") do for /f \\\"tokens=1 delims=^&\\\" %b in (\\\"%a\\\") do start \\\"\\\" \\\"%VLC%\\\" \\\"%~b\\\"\\""
-
-[HKEY_CURRENT_USER\\Software\\Classes\\vlc]
-@="URL:VLC Protocol"
-"URL Protocol"=""
-
-[HKEY_CURRENT_USER\\Software\\Classes\\vlc\\shell]
-
-[HKEY_CURRENT_USER\\Software\\Classes\\vlc\\shell\\open]
-
-[HKEY_CURRENT_USER\\Software\\Classes\\vlc\\shell\\open\\command]
-@="cmd.exe /c \\"set \\\"VLC=C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe\\\" & if not exist \\\"%VLC%\\\" set \\\"VLC=C:\\\\Program Files (x86)\\\\VideoLAN\\\\VLC\\\\vlc.exe\\\" & for /f \\\"tokens=2 delims==\\\" %a in (\\\"%1\\\") do for /f \\\"tokens=1 delims=^&\\\" %b in (\\\"%a\\\") do start \\\"\\\" \\\"%VLC%\\\" \\\"%~b\\\"\\""
+@="powershell.exe -NoProfile -WindowStyle Hidden -Command \\"$url='%1'; if($url -match 'path=(.*?)(?:&|$)'){ $p=[System.Uri]::UnescapeDataString($matches[1]); if(Test-Path 'C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe'){ & 'C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe' $p } elseif(Test-Path 'C:\\\\Program Files (x86)\\\\VideoLAN\\\\VLC\\\\vlc.exe'){ & 'C:\\\\Program Files (x86)\\\\VideoLAN\\\\VLC\\\\vlc.exe' $p } else { & 'vlc.exe' $p } }\\""
 `;
 
   const blob = new Blob([regContent], { type: "text/plain" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "Register-1Click-VLC-Protocol.reg";
+  a.download = "Register-1Click-VLC-Protocol-V2.reg";
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
