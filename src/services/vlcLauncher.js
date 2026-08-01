@@ -1,9 +1,6 @@
 /**
  * VLC Media Player Launcher Service
- * Supports 3 Launch Modes:
- * 1. Direct Native Protocol (`filmlibrary://open?path=...`) with Windows cmd parser
- * 2. Standard VLC Protocol (`vlc://file:///...`)
- * 3. Instant Auto-Generated VLC Playlist Stream (`.m3u`)
+ * Triggers direct 1-click automatic VLC opening!
  */
 
 export const getSecurityToken = () => {
@@ -18,16 +15,14 @@ export const copyPathToClipboard = (path, addToast) => {
   if (!path) return;
   navigator.clipboard.writeText(path).then(
     () => {
-      if (addToast) addToast("File path copied to clipboard! (Press Ctrl+V in VLC)", "success");
+      if (addToast) addToast("File path copied to clipboard!", "info");
     },
-    (err) => {
-      console.error("Clipboard copy error:", err);
-    }
+    (err) => {}
   );
 };
 
 /**
- * Generate and trigger instant .m3u playlist download for 1-click VLC playback
+ * Generate and trigger instant .m3u playlist download for optional playback
  */
 export const downloadVlcM3uPlaylist = (path, title) => {
   if (!path) return;
@@ -47,7 +42,7 @@ export const downloadVlcM3uPlaylist = (path, title) => {
 
 /**
  * Generate and trigger downloadable .reg file
- * Uses native Windows cmd URL parser to strip protocol wrapper and pass exact local file path to VLC.exe!
+ * Registers filmlibrary:// protocol with auto-detecting VLC launcher
  */
 export const downloadWindowsRegistryFix = () => {
   const regContent = `Windows Registry Editor Version 5.00
@@ -56,22 +51,19 @@ export const downloadWindowsRegistryFix = () => {
 @="URL:Film Library Protocol"
 "URL Protocol"=""
 
+[HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell]
+
+[HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell\\open]
+
 [HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell\\open\\command]
-@="cmd.exe /c \\"for /f \\\"tokens=2 delims==\\\" %a in (\\\"%1\\\") do for /f \\\"tokens=1 delims=^&\\\" %b in (\\\"%a\\\") do start \\\"\\\" \\\"C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe\\\" \\\"%~b\\\"\\""
-
-[HKEY_CURRENT_USER\\Software\\Classes\\vlc]
-@="URL:VLC Protocol"
-"URL Protocol"=""
-
-[HKEY_CURRENT_USER\\Software\\Classes\\vlc\\shell\\open\\command]
-@="cmd.exe /c \\"for /f \\\"tokens=2 delims==\\\" %a in (\\\"%1\\\") do for /f \\\"tokens=1 delims=^&\\\" %b in (\\\"%a\\\") do start \\\"\\\" \\\"C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe\\\" \\\"%~b\\\"\\""
+@="powershell.exe -NoProfile -WindowStyle Hidden -Command \\"$url='%1'; $v='C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe'; if (-not (Test-Path $v)){$v='C:\\\\Program Files (x86)\\\\VideoLAN\\\\VLC\\\\vlc.exe'}; if ($url -match 'path=(.*?)(?:&|$)') { $p=[System.Uri]::UnescapeDataString($matches[1]); Start-Process $v -ArgumentList ('\\\"' + $p + '\\\"') }\\""
 `;
 
   const blob = new Blob([regContent], { type: "text/plain" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "Register-VLC-Protocol-CmdFix.reg";
+  a.download = "Register-1Click-VLC-Protocol.reg";
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -79,7 +71,7 @@ export const downloadWindowsRegistryFix = () => {
 };
 
 /**
- * Master VLC Launcher
+ * Master 1-Click VLC Direct Launcher
  */
 export const launchInVlc = (path, title, addToast) => {
   if (!path) {
@@ -88,39 +80,23 @@ export const launchInVlc = (path, title, addToast) => {
   }
 
   const token = getSecurityToken();
-  const rawPath = path;
   const encodedPath = encodeURIComponent(path);
   const encodedToken = encodeURIComponent(token);
   
-  // Protocol 1: Custom filmlibrary:// scheme with raw path parameter
-  const customProtocolUrl = `filmlibrary://open?path=${rawPath}&token=${encodedToken}`;
+  // Custom filmlibrary:// protocol URL
+  const customProtocolUrl = `filmlibrary://open?path=${encodedPath}&token=${encodedToken}`;
 
-  console.log(`[VLC Launcher] Triggering protocol: ${customProtocolUrl}`);
+  console.log(`[VLC Launcher] Triggering direct protocol: ${customProtocolUrl}`);
 
-  // 1. Copy file path to clipboard
-  copyPathToClipboard(path);
-
-  // 2. Generate instant .m3u playlist download for guaranteed 1-click playback
-  downloadVlcM3uPlaylist(path, title);
-
-  // 3. Trigger protocol launcher
+  // 1. Trigger direct protocol launch
   try {
-    const iframe = document.createElement("iframe");
-    iframe.style.display = "none";
-    iframe.src = customProtocolUrl;
-    document.body.appendChild(iframe);
-    setTimeout(() => {
-      if (document.body.contains(iframe)) {
-        document.body.removeChild(iframe);
-      }
-    }, 1000);
-  } catch (e) {}
+    window.location.href = customProtocolUrl;
+  } catch (e) {
+    console.warn("Direct protocol trigger warning:", e);
+  }
 
   if (addToast) {
-    addToast(
-      `Playing "${title || 'Media'}": Generated VLC file (.m3u) & copied path! Double-click .m3u file to play.`,
-      "success"
-    );
+    addToast(`Opening "${title || 'Media'}" automatically in VLC...`, "success");
   }
 
   return true;
