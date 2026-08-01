@@ -45,20 +45,31 @@ export const downloadVlcM3uPlaylist = (path, title) => {
 };
 
 /**
- * Generate and trigger downloadable .reg file to register filmlibrary:// protocol in Windows Registry
+ * Generate and trigger downloadable .reg file (HKEY_CURRENT_USER scoped — no Admin rights required!)
  */
 export const downloadWindowsRegistryFix = () => {
   const regContent = `Windows Registry Editor Version 5.00
 
-[HKEY_CLASSES_ROOT\\filmlibrary]
+[HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary]
 @="URL:Film Library VLC Protocol"
 "URL Protocol"=""
 
-[HKEY_CLASSES_ROOT\\filmlibrary\\shell]
+[HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell]
 
-[HKEY_CLASSES_ROOT\\filmlibrary\\shell\\open]
+[HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell\\open]
 
-[HKEY_CLASSES_ROOT\\filmlibrary\\shell\\open\\command]
+[HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell\\open\\command]
+@="\\"C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe\\" \\"%1\\""
+
+[HKEY_CURRENT_USER\\Software\\Classes\\vlc]
+@="URL:VLC Protocol"
+"URL Protocol"=""
+
+[HKEY_CURRENT_USER\\Software\\Classes\\vlc\\shell]
+
+[HKEY_CURRENT_USER\\Software\\Classes\\vlc\\shell\\open]
+
+[HKEY_CURRENT_USER\\Software\\Classes\\vlc\\shell\\open\\command]
 @="\\"C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe\\" \\"%1\\""
 `;
 
@@ -66,7 +77,7 @@ export const downloadWindowsRegistryFix = () => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "Register-filmlibrary-VLC-Protocol.reg";
+  a.download = "Register-VLC-Protocol-UserScope.reg";
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
