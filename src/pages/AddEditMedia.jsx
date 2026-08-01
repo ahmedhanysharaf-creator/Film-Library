@@ -35,18 +35,20 @@ export const extractTitleAndYearFromPath = (fullPath) => {
     }
   });
 
-  // Extract 4-digit Year (e.g. 1998, 2008, 2012, 2024)
+  // Extract 4-digit Year (e.g. 1998, 2000, 2002, 2003, 2024)
   let extractedYear = null;
   const yearMatch = rawName.match(/\b(19\d\d|20\d\d)\b/);
   if (yearMatch) {
     extractedYear = parseInt(yearMatch[1]);
   }
 
-  // Strip scene/list prefixes like "M01 - ", "M02 - ", "01 - ", "01. ", "01_", "E01 - ", "[01] "
-  let clean = rawName.replace(/^(?:M|E|S\d+E\d+|\d+)\s*[-_.]\s*/i, "");
-  clean = clean.replace(/^[\[\(]\d+[\]\)]\s*/, "");
+  // 1. Remove 4-digit year and surrounding brackets/parentheses: "(1998)", "[2002]"
+  let clean = rawName.replace(/[\[\(]?\b(19\d\d|20\d\d)\b[\]\)]?/g, " ");
 
-  // Strip quality & release group tags
+  // 2. Remove leading scene codes: "M02", "M03", "M04", "01", "E01", "S01E01" followed by optional dashes/dots
+  clean = clean.replace(/^(?:M\d+|E\d+|S\d+E\d+|\d+)\b\s*[-_.]*\s*/i, "");
+
+  // 3. Remove quality tags
   const tags = [
     "1080p", "720p", "4k", "2160p", "bluray", "web-dl", "webrip", "hdrip", "dvdrip",
     "x264", "x265", "hevc", "aac", "dts", "repack", "remux", "hdr", "dual audio"
@@ -56,13 +58,12 @@ export const extractTitleAndYearFromPath = (fullPath) => {
     clean = clean.replace(reg, "");
   });
 
-  // Strip brackets [...] and parentheses (...)
-  clean = clean.replace(/\[.*?\]|\(.*?\)/g, " ");
+  // 4. Clean leading/trailing dashes and dots
+  clean = clean.replace(/^[-\s._]+/, "");
+  clean = clean.replace(/[._]/g, " ");
+  clean = clean.replace(/\s+-\s+/g, " ");
 
-  // Replace dots, underscores, and dashes with clean spaces
-  clean = clean.replace(/[._-]/g, " ");
-
-  // Final trim
+  // 5. Final whitespace normalize
   clean = clean.replace(/\s+/g, " ").trim();
 
   return {
@@ -166,9 +167,8 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
         setTitle(cleanTitle);
         if (parsedYear) setYear(parsedYear);
         try {
-          const searchResults = await searchTmdb(cleanTitle);
+          const searchResults = await searchTmdb(cleanTitle, parsedYear);
           if (searchResults && searchResults.length > 0) {
-            // Find match with matching year if available
             const exactMatch = searchResults.find((r) => r.year === parsedYear) || searchResults[0];
             handleTmdbSelect(exactMatch);
           }
@@ -274,7 +274,6 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
       .map((l) => l.trim())
       .filter(Boolean);
 
-    // Filter to ensure ONLY actual video files are processed (NEVER raw folder names like "Marvel Films")
     const videoItems = lines.filter((line) => isVideoFilePath(line));
 
     if (videoItems.length === 0) {
@@ -298,13 +297,12 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
       if (!cleanTitle) continue;
 
       const progressLabel = extractedYear ? `"${cleanTitle}" (${extractedYear})` : `"${cleanTitle}"`;
-      setScanProgress(`Scanning (${i + 1}/${videoItems.length}): Searching TMDB for ${progressLabel}...`);
+      setScanProgress(`Scanning (${i + 1}/${videoItems.length}): Fetching metadata for ${progressLabel}...`);
 
       try {
-        const searchResults = await searchTmdb(cleanTitle);
+        const searchResults = await searchTmdb(cleanTitle, extractedYear);
 
         if (searchResults && searchResults.length > 0) {
-          // Find match with matching year if available
           const topMatch = (extractedYear && searchResults.find((r) => r.year === extractedYear)) || searchResults[0];
           const details = await getTmdbDetails(topMatch.tmdb_id, topMatch.type);
           
@@ -318,7 +316,6 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
             }
           });
         } else {
-          // Fallback entry if not found on TMDB
           results.push({
             selected: true,
             filePath: fullItemPath,
@@ -354,7 +351,7 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
 
   const handleUpdateItemTmdbMatch = async (index, newSelectedMedia) => {
     try {
-      addToast(`Updating TMDB details to "${newSelectedMedia.title}"...`, "info");
+      addToast(`Updating metadata for "${newSelectedMedia.title}"...`, "info");
       const details = await getTmdbDetails(newSelectedMedia.tmdb_id, newSelectedMedia.type);
       
       setScannedResults((prev) =>
@@ -372,9 +369,9 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
         })
       );
       setEditingResultIndex(null);
-      addToast(`Updated TMDB match for item #${index + 1}!`, "success");
+      addToast(`Updated match for item #${index + 1}!`, "success");
     } catch (err) {
-      addToast(`Failed to update TMDB match: ${err.message}`, "error");
+      addToast(`Failed to update match: ${err.message}`, "error");
     }
   };
 
@@ -388,13 +385,20 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
     setSavingBatch(true);
     let count = 0;
 
-    for (const item of selectedItems) {
-      try {
-        await saveMediaEntry(item.mediaData, currentUser);
-        count++;
-      } catch (err) {
-        console.error("Batch save error:", err);
-      }
+    // Fast parallel batch saving (chunks of 10 for instant completion)
+    const BATCH_SIZE = 10;
+    for (let i = 0; i < selectedItems.length; i += BATCH_SIZE) {
+      const chunk = selectedItems.slice(i, i + BATCH_SIZE);
+      await Promise.all(
+        chunk.map(async (item) => {
+          try {
+            await saveMediaEntry(item.mediaData, currentUser);
+            count++;
+          } catch (err) {
+            console.error("Batch save error:", err);
+          }
+        })
+      );
     }
 
     setSavingBatch(false);
@@ -443,7 +447,7 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
                 <div>
                   <h3 style={styles.batchTitle}>Step 1: Select Local Folder or Paste Video Files</h3>
                   <p style={styles.batchSub}>
-                    Click **Select Local PC Folder** below. Chrome will read every video file (.mp4, .mkv) in your folder, ignore subtitle files (.srt), fetch full TMDB metadata, and present a review checklist before adding anything!
+                    Click **Select Local PC Folder** below. Chrome will read every video file (.mp4, .mkv) in your folder, ignore subtitle files (.srt), fetch full metadata, and present a review checklist before adding anything!
                   </p>
                 </div>
               </div>
@@ -486,12 +490,12 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
                   rows={6}
                   value={fileListText}
                   onChange={(e) => setFileListText(e.target.value)}
-                  placeholder="M02 - (1998) - Blade.mp4&#10;M01 - (2008) - Iron Man.mkv&#10;Thor (2011).mp4&#10;(Click the green button above to auto-detect all video files in your folder!)"
+                  placeholder="M02 - (1998) - Blade.mp4&#10;M03 - (2000) - X-Men.mp4&#10;M04 - (2002) - Blade II.mp4&#10;(Click the green button above to auto-detect all video files in your folder!)"
                   style={styles.textarea}
                   required
                 />
                 <span style={styles.helpText}>
-                  Prefixes like 'M02 - ' are automatically stripped, and years like '1998' are matched with TMDB automatically!
+                  Scene prefixes like 'M02 - ' are automatically stripped, and years like '1998' are matched with TMDB automatically!
                 </span>
               </div>
 
