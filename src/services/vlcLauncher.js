@@ -1,7 +1,7 @@
 /**
  * VLC Media Player Launcher Service
  * Supports 3 Launch Modes:
- * 1. Direct Native Protocol (`filmlibrary://open?path=...`) with PowerShell unescaper
+ * 1. Direct Native Protocol (`filmlibrary://open?path=...`) with Windows cmd parser
  * 2. Standard VLC Protocol (`vlc://file:///...`)
  * 3. Instant Auto-Generated VLC Playlist Stream (`.m3u`)
  */
@@ -47,39 +47,31 @@ export const downloadVlcM3uPlaylist = (path, title) => {
 
 /**
  * Generate and trigger downloadable .reg file
- * Automatically unescapes filmlibrary:// protocol URLs into clean local file paths for VLC.exe!
+ * Uses native Windows cmd URL parser to strip protocol wrapper and pass exact local file path to VLC.exe!
  */
 export const downloadWindowsRegistryFix = () => {
   const regContent = `Windows Registry Editor Version 5.00
 
 [HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary]
-@="URL:Film Library VLC Protocol"
+@="URL:Film Library Protocol"
 "URL Protocol"=""
 
-[HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell]
-
-[HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell\\open]
-
 [HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell\\open\\command]
-@="powershell.exe -windowstyle hidden -command \\"$u='%1'; $p=[Uri]::UnescapeDataString(($u -split 'path=')[1] -split '&')[0]; Start-Process 'C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe' -ArgumentList ('\\\"' + $p + '\\\"')\\""
+@="cmd.exe /c \\"for /f \\\"tokens=2 delims==\\\" %a in (\\\"%1\\\") do for /f \\\"tokens=1 delims=^&\\\" %b in (\\\"%a\\\") do start \\\"\\\" \\\"C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe\\\" \\\"%~b\\\"\\""
 
 [HKEY_CURRENT_USER\\Software\\Classes\\vlc]
 @="URL:VLC Protocol"
 "URL Protocol"=""
 
-[HKEY_CURRENT_USER\\Software\\Classes\\vlc\\shell]
-
-[HKEY_CURRENT_USER\\Software\\Classes\\vlc\\shell\\open]
-
 [HKEY_CURRENT_USER\\Software\\Classes\\vlc\\shell\\open\\command]
-@="powershell.exe -windowstyle hidden -command \\"$u='%1'; $p=[Uri]::UnescapeDataString(($u -split 'file:///')[1]); Start-Process 'C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe' -ArgumentList ('\\\"' + $p + '\\\"')\\""
+@="cmd.exe /c \\"for /f \\\"tokens=2 delims==\\\" %a in (\\\"%1\\\") do for /f \\\"tokens=1 delims=^&\\\" %b in (\\\"%a\\\") do start \\\"\\\" \\\"C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe\\\" \\\"%~b\\\"\\""
 `;
 
   const blob = new Blob([regContent], { type: "text/plain" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "Register-VLC-Protocol-Fix.reg";
+  a.download = "Register-VLC-Protocol-CmdFix.reg";
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -96,13 +88,14 @@ export const launchInVlc = (path, title, addToast) => {
   }
 
   const token = getSecurityToken();
+  const rawPath = path;
   const encodedPath = encodeURIComponent(path);
   const encodedToken = encodeURIComponent(token);
   
-  // Protocol 1: Custom filmlibrary:// scheme
-  const customProtocolUrl = `filmlibrary://open?path=${encodedPath}&token=${encodedToken}`;
+  // Protocol 1: Custom filmlibrary:// scheme with raw path parameter
+  const customProtocolUrl = `filmlibrary://open?path=${rawPath}&token=${encodedToken}`;
 
-  console.log(`[VLC Launcher] Triggering custom protocol: ${customProtocolUrl}`);
+  console.log(`[VLC Launcher] Triggering protocol: ${customProtocolUrl}`);
 
   // 1. Copy file path to clipboard
   copyPathToClipboard(path);
@@ -125,7 +118,7 @@ export const launchInVlc = (path, title, addToast) => {
 
   if (addToast) {
     addToast(
-      `Playing "${title || 'Media'}": Generated VLC file (.m3u) & copied path! Double-click file to play.`,
+      `Playing "${title || 'Media'}": Generated VLC file (.m3u) & copied path! Double-click .m3u file to play.`,
       "success"
     );
   }
