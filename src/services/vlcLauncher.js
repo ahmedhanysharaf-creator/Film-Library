@@ -1,7 +1,7 @@
 /**
  * VLC Media Player Launcher Service
  * Supports 3 Launch Modes:
- * 1. Direct Native Protocol (`filmlibrary://open?path=...`)
+ * 1. Direct Native Protocol (`filmlibrary://open?path=...`) with PowerShell unescaper
  * 2. Standard VLC Protocol (`vlc://file:///...`)
  * 3. Instant Auto-Generated VLC Playlist Stream (`.m3u`)
  */
@@ -32,7 +32,8 @@ export const copyPathToClipboard = (path, addToast) => {
 export const downloadVlcM3uPlaylist = (path, title) => {
   if (!path) return;
   const cleanTitle = (title || "Movie").replace(/[^a-zA-Z0-9_\-\s]/g, "");
-  const m3uContent = `#EXTM3U\n#EXTINF:-1,${cleanTitle}\n${path}\n`;
+  const normalizedPath = path.replace(/\//g, "\\");
+  const m3uContent = `#EXTM3U\n#EXTINF:-1,${cleanTitle}\n${normalizedPath}\n`;
   const blob = new Blob([m3uContent], { type: "audio/x-mpegurl" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -45,7 +46,8 @@ export const downloadVlcM3uPlaylist = (path, title) => {
 };
 
 /**
- * Generate and trigger downloadable .reg file (HKEY_CURRENT_USER scoped — no Admin rights required!)
+ * Generate and trigger downloadable .reg file
+ * Automatically unescapes filmlibrary:// protocol URLs into clean local file paths for VLC.exe!
  */
 export const downloadWindowsRegistryFix = () => {
   const regContent = `Windows Registry Editor Version 5.00
@@ -59,7 +61,7 @@ export const downloadWindowsRegistryFix = () => {
 [HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell\\open]
 
 [HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell\\open\\command]
-@="\\"C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe\\" \\"%1\\""
+@="powershell.exe -windowstyle hidden -command \\"$u='%1'; $p=[Uri]::UnescapeDataString(($u -split 'path=')[1] -split '&')[0]; Start-Process 'C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe' -ArgumentList ('\\\"' + $p + '\\\"')\\""
 
 [HKEY_CURRENT_USER\\Software\\Classes\\vlc]
 @="URL:VLC Protocol"
@@ -70,14 +72,14 @@ export const downloadWindowsRegistryFix = () => {
 [HKEY_CURRENT_USER\\Software\\Classes\\vlc\\shell\\open]
 
 [HKEY_CURRENT_USER\\Software\\Classes\\vlc\\shell\\open\\command]
-@="\\"C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe\\" \\"%1\\""
+@="powershell.exe -windowstyle hidden -command \\"$u='%1'; $p=[Uri]::UnescapeDataString(($u -split 'file:///')[1]); Start-Process 'C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe' -ArgumentList ('\\\"' + $p + '\\\"')\\""
 `;
 
   const blob = new Blob([regContent], { type: "text/plain" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "Register-VLC-Protocol-UserScope.reg";
+  a.download = "Register-VLC-Protocol-Fix.reg";
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -94,15 +96,11 @@ export const launchInVlc = (path, title, addToast) => {
   }
 
   const token = getSecurityToken();
-  const normalizedPath = path.replace(/\\/g, "/");
   const encodedPath = encodeURIComponent(path);
   const encodedToken = encodeURIComponent(token);
   
   // Protocol 1: Custom filmlibrary:// scheme
   const customProtocolUrl = `filmlibrary://open?path=${encodedPath}&token=${encodedToken}`;
-  
-  // Protocol 2: Standard vlc:// scheme
-  const nativeVlcUrl = `vlc://file:///${normalizedPath}`;
 
   console.log(`[VLC Launcher] Triggering custom protocol: ${customProtocolUrl}`);
 
@@ -112,7 +110,7 @@ export const launchInVlc = (path, title, addToast) => {
   // 2. Generate instant .m3u playlist download for guaranteed 1-click playback
   downloadVlcM3uPlaylist(path, title);
 
-  // 3. Trigger protocol launchers
+  // 3. Trigger protocol launcher
   try {
     const iframe = document.createElement("iframe");
     iframe.style.display = "none";
@@ -125,13 +123,9 @@ export const launchInVlc = (path, title, addToast) => {
     }, 1000);
   } catch (e) {}
 
-  try {
-    window.location.href = nativeVlcUrl;
-  } catch (e) {}
-
   if (addToast) {
     addToast(
-      `Playing "${title || 'Media'}": Generated VLC file (.m3u) & copied file path! Double-click file to play in VLC.`,
+      `Playing "${title || 'Media'}": Generated VLC file (.m3u) & copied path! Double-click file to play.`,
       "success"
     );
   }
