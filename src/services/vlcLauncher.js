@@ -62,7 +62,7 @@ export const downloadWindowsRegistryFix = () => {
 [HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell\\open]
 
 [HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell\\open\\command]
-@="powershell.exe -NoProfile -WindowStyle Hidden -Command \\"$url='%1'; if($url -match 'path=(.*?)(?:&|$)'){ $p=[System.Uri]::UnescapeDataString($matches[1]).Replace('/', '\\\\'); $args=@(); if($url -match 'sub=(.*?)(?:&|$)'){ $s=[System.Uri]::UnescapeDataString($matches[1]).Replace('/', '\\\\'); $args+=('--sub-file=' + $s) }; $args+=$p; $v='C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe'; if(-not(Test-Path $v)){ $v='C:\\\\Program Files (x86)\\\\VideoLAN\\\\VLC\\\\vlc.exe' }; if(-not(Test-Path $v)){ $v='vlc.exe' }; & $v @args }\\""
+@="powershell.exe -NoProfile -WindowStyle Hidden -Command \\"$url='%1'; if($url -match 'path=(.*?)(?:&|$)'){ $p=[System.Uri]::UnescapeDataString($matches[1]).Replace('/', '\\\\'); $v='C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe'; if(-not(Test-Path $v)){ $v='C:\\\\Program Files (x86)\\\\VideoLAN\\\\VLC\\\\vlc.exe' }; if(-not(Test-Path $v)){ $v='vlc.exe' }; $argList=@(); if($url -match 'sub=(.*?)(?:&|$)'){ $s=[System.Uri]::UnescapeDataString($matches[1]).Replace('/', '\\\\'); $argList+=('--sub-file=\\"' + $s + '\\"') }; $argList+=('\\"' + $p + '\\"'); Start-Process -FilePath $v -ArgumentList $argList }\\""
 `;
 
   const blob = new Blob([regContent], { type: "text/plain" });
