@@ -51,9 +51,9 @@ if ($url -match 'path=(.*?)(?:&|$)') {
     $argList = @()
     if ($url -match 'sub=(.*?)(?:&|$)') {
         $s = [System.Uri]::UnescapeDataString($matches[1]).Replace('/', '\\\\')
-        $argList += \\"--sub-file=$s\\"
+        $argList += \\"--sub-file=\`\\"$s\`\\"\\"
     }
-    $argList += $p
+    $argList += \\"\`\\"$p\`\\"\\"
     Start-Process -FilePath $v -ArgumentList $argList
 }
 '@; Set-Content -Path \\"$dir\\\\vlc-launcher.ps1\\" -Value $psScript -Force; $batContent='@echo off' + [Environment]::NewLine + 'powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \\"' + $dir + '\\\\vlc-launcher.ps1\\" \\"%%~1\\"'; Set-Content -Path \\"$dir\\\\vlc-launcher.bat\\" -Value $batContent -Force; reg add \\"HKCU\\\\Software\\\\Classes\\\\filmlibrary\\" /ve /t REG_SZ /d \\"URL:Film Library Protocol\\" /f >nul; reg add \\"HKCU\\\\Software\\\\Classes\\\\filmlibrary\\" /v \\"URL Protocol\\" /t REG_SZ /d \\"\\" /f >nul; reg add \\"HKCU\\\\Software\\\\Classes\\\\filmlibrary\\\\shell\\\\open\\\\command\\" /ve /t REG_SZ /d \\"\\\\\\"\\" + $dir + \\"\\\\vlc-launcher.bat\\\\\\" \\\\\\"%%1\\\\\\"\\" /f >nul"
