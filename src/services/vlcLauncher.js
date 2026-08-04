@@ -32,6 +32,7 @@ export const downloadVlcM3uPlaylist = (path, title, subPath) => {
   if (subPath) {
     const normalizedSub = subPath.replace(/\//g, "\\");
     m3uContent += `#EXTVLCOPT:sub-file=${normalizedSub}\n`;
+    m3uContent += `#EXTVLCOPT:sub-track=0\n`;
   }
   m3uContent += `#EXTINF:-1,${cleanTitle}\n${normalizedPath}\n`;
 
@@ -65,6 +66,8 @@ if ($url -match 'path=(.*?)(?:&|$)') {
     if ($url -match 'sub=(.*?)(?:&|$)') {
         $s = [System.Uri]::UnescapeDataString($matches[1]).Replace('/', '\\\\')
         $argList += \\"--sub-file=\`\\"\$s\`\\"\\"
+        $argList += \\"--sub-track=0\\"
+        $argList += \\"--sub-track-id=1\\"
     }
     $argList += \\"\`\\"\$p\`\\"\\"
     Start-Process -FilePath $v -ArgumentList $argList
