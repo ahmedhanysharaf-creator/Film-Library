@@ -32,6 +32,7 @@ export const downloadVlcM3uPlaylist = (path, title, subPath) => {
   if (subPath) {
     const normalizedSub = subPath.replace(/\//g, "\\");
     m3uContent += `#EXTVLCOPT:sub-file=${normalizedSub}\n`;
+    m3uContent += `#EXTVLCOPT:input-slave=${normalizedSub}\n`;
   }
   m3uContent += `#EXTINF:-1,${cleanTitle}\n${normalizedPath}\n`;
 
@@ -48,7 +49,7 @@ export const downloadVlcM3uPlaylist = (path, title, subPath) => {
 
 /**
  * Generate and trigger downloadable .reg file
- * Automatically passes subtitle path (--sub-file=...) to VLC if configured!
+ * Automatically passes subtitle path (--sub-file=... and --input-slave=...) to VLC if configured!
  */
 export const downloadWindowsRegistryFix = () => {
   const regContent = `Windows Registry Editor Version 5.00
@@ -62,7 +63,7 @@ export const downloadWindowsRegistryFix = () => {
 [HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell\\open]
 
 [HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell\\open\\command]
-@="powershell.exe -NoProfile -WindowStyle Hidden -Command \\"$url='%1'; if($url -match 'path=(.*?)(?:&|$)'){ $p=[System.Uri]::UnescapeDataString($matches[1]); $args=@($p); if($url -match 'sub=(.*?)(?:&|$)'){ $s=[System.Uri]::UnescapeDataString($matches[1]); $args+=('--sub-file=' + $s) }; $v='C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe'; if(-not(Test-Path $v)){ $v='C:\\\\Program Files (x86)\\\\VideoLAN\\\\VLC\\\\vlc.exe' }; if(-not(Test-Path $v)){ $v='vlc.exe' }; & $v @args }\\""
+@="powershell.exe -NoProfile -WindowStyle Hidden -Command \\"$url='%1'; if($url -match 'path=(.*?)(?:&|$)'){ $p=[System.Uri]::UnescapeDataString($matches[1]); $args=@(); if($url -match 'sub=(.*?)(?:&|$)'){ $s=[System.Uri]::UnescapeDataString($matches[1]); $args+=('--sub-file=' + $s); $args+=('--input-slave=' + $s) }; $args+=$p; $v='C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe'; if(-not(Test-Path $v)){ $v='C:\\\\Program Files (x86)\\\\VideoLAN\\\\VLC\\\\vlc.exe' }; if(-not(Test-Path $v)){ $v='vlc.exe' }; & $v @args }\\""
 `;
 
   const blob = new Blob([regContent], { type: "text/plain" });
