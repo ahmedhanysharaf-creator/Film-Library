@@ -222,8 +222,8 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete }) => {
                 </div>
               )}
 
-              {/* Movie One-Click VLC Play & File Download Options */}
-              {item.type === "movie" && (
+              {/* Media One-Click VLC Play & File Download Options */}
+              {(!item.type || item.type.toLowerCase() !== "series" && item.type.toLowerCase() !== "tv") && (
                 <div style={styles.playSectionCol}>
                   <div style={styles.playSection}>
                     <button
@@ -236,7 +236,7 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete }) => {
                         }
                       }}
                     >
-                      <Play size={20} fill="#ffffff" /> Play Movie in VLC
+                      <Play size={20} fill="#ffffff" /> Play Media in VLC
                     </button>
 
                     {defaultMoviePath && (
@@ -272,7 +272,7 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete }) => {
               )}
 
               {/* TV Series Season & Episode Breakdown */}
-              {item.type === "series" && (
+              {(item.type?.toLowerCase() === "series" || item.type?.toLowerCase() === "tv") && (
                 <div style={styles.seriesSection}>
                   <span style={styles.sectionTitle}>Seasons & Episodes</span>
 

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { Film, Plus, Shield, Settings, LogOut, User, ChevronDown, MonitorPlay } from "lucide-react";
+import { Film, Plus, Shield, Settings, LogOut, User, ChevronDown, MonitorPlay, Download } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { downloadWindowsRegistryFix } from "../services/vlcLauncher";
 
 export const Navbar = ({ activePage, setActivePage, onOpenWhitelist, onOpenSettings }) => {
   const { currentUser, logout, loginAsDemoUser } = useAuth();
@@ -54,6 +55,14 @@ export const Navbar = ({ activePage, setActivePage, onOpenWhitelist, onOpenSetti
           >
             <Plus size={16} />
             Add to Library
+          </button>
+
+          <button
+            style={styles.vlcRegBtn}
+            onClick={() => downloadWindowsRegistryFix()}
+            title="Download Windows Registry Fix for 1-Click Direct VLC Subtitle Playback"
+          >
+            <Download size={14} /> 1-Click VLC Fix (.reg)
           </button>
         </div>
 
@@ -299,5 +308,19 @@ const styles = {
     borderRadius: "6px",
     fontWeight: 600,
     cursor: "pointer"
+  },
+  vlcRegBtn: {
+    backgroundColor: "rgba(70, 211, 105, 0.15)",
+    border: "1px solid var(--accent-green)",
+    color: "var(--accent-green)",
+    fontSize: "0.85rem",
+    fontWeight: 700,
+    padding: "6px 12px",
+    borderRadius: "6px",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    marginLeft: "8px"
   }
 };
