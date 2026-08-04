@@ -262,10 +262,10 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete }) => {
                       style={styles.regFixBtn}
                       onClick={() => {
                         downloadWindowsRegistryFix();
-                        addToast("Downloaded Registry Fix! Double-click file to enable direct VLC opening.", "success");
+                        addToast("Downloaded 1-Click VLC Setup (.cmd)! Double-click file to run setup.", "success");
                       }}
                     >
-                      <Download size={14} /> Download `.reg` Windows VLC Fix
+                      <Download size={14} /> Download `.cmd` Windows VLC Fix
                     </button>
                   </div>
                 </div>

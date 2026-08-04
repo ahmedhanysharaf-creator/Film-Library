@@ -60,9 +60,9 @@ export const Navbar = ({ activePage, setActivePage, onOpenWhitelist, onOpenSetti
           <button
             style={styles.vlcRegBtn}
             onClick={() => downloadWindowsRegistryFix()}
-            title="Download Windows Registry Fix for 1-Click Direct VLC Subtitle Playback"
+            title="Download Windows Setup Script for 1-Click Direct VLC Subtitle Playback"
           >
-            <Download size={14} /> 1-Click VLC Fix (.reg)
+            <Download size={14} /> 1-Click VLC Setup (.cmd)
           </button>
         </div>
 

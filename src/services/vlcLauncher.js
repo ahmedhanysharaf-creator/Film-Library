@@ -51,25 +51,35 @@ export const downloadVlcM3uPlaylist = (path, title, subPath) => {
  * Automatically passes subtitle path (--sub-file=...) to VLC if configured!
  */
 export const downloadWindowsRegistryFix = () => {
-  const regContent = `Windows Registry Editor Version 5.00
+  const cmdContent = `@echo off
+echo Installing 1-Click VLC Protocol Launcher...
 
-[HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary]
-@="URL:Film Library Protocol"
-"URL Protocol"=""
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$dir=\\"$env:LOCALAPPDATA\\\\FilmLibrary\\"; if(-not(Test-Path $dir)){ New-Item -ItemType Directory -Path $dir -Force }; $psScript=@'
+param([string]$url)
+if ($url -match 'path=(.*?)(?:&|$)') {
+    $p = [System.Uri]::UnescapeDataString($matches[1]).Replace('/', '\\\\')
+    $v = 'C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe'
+    if (-not(Test-Path $v)) { $v = 'C:\\\\Program Files (x86)\\\\VideoLAN\\\\VLC\\\\vlc.exe' }
+    if (-not(Test-Path $v)) { $v = 'vlc.exe' }
+    $argList = @()
+    if ($url -match 'sub=(.*?)(?:&|$)') {
+        $s = [System.Uri]::UnescapeDataString($matches[1]).Replace('/', '\\\\')
+        $argList += \\"--sub-file=$s\\"
+    }
+    $argList += $p
+    Start-Process -FilePath $v -ArgumentList $argList
+}
+'@; Set-Content -Path \\"$dir\\\\vlc-launcher.ps1\\" -Value $psScript -Force; $batContent='@echo off' + [Environment]::NewLine + 'powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \\"' + $dir + '\\\\vlc-launcher.ps1\\" \\"%%~1\\"'; Set-Content -Path \\"$dir\\\\vlc-launcher.bat\\" -Value $batContent -Force; reg add \\"HKCU\\\\Software\\\\Classes\\\\filmlibrary\\" /ve /t REG_SZ /d \\"URL:Film Library Protocol\\" /f >nul; reg add \\"HKCU\\\\Software\\\\Classes\\\\filmlibrary\\" /v \\"URL Protocol\\" /t REG_SZ /d \\"\\" /f >nul; reg add \\"HKCU\\\\Software\\\\Classes\\\\filmlibrary\\\\shell\\\\open\\\\command\\" /ve /t REG_SZ /d \\"\\\\\\"\\" + $dir + \\"\\\\vlc-launcher.bat\\\\\\" \\\\\\"%%1\\\\\\"\\" /f >nul"
 
-[HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell]
-
-[HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell\\open]
-
-[HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell\\open\\command]
-@="powershell.exe -NoProfile -WindowStyle Hidden -Command \\"$url='%1'; if($url -match 'path=(.*?)(?:&|$)'){ $p=[System.Uri]::UnescapeDataString($matches[1]).Replace('/', '\\\\'); $v='C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe'; if(-not(Test-Path $v)){ $v='C:\\\\Program Files (x86)\\\\VideoLAN\\\\VLC\\\\vlc.exe' }; if(-not(Test-Path $v)){ $v='vlc.exe' }; $argList=@(); if($url -match 'sub=(.*?)(?:&|$)'){ $s=[System.Uri]::UnescapeDataString($matches[1]).Replace('/', '\\\\'); $argList+=('--sub-file=\\"' + $s + '\\"') }; $argList+=('\\"' + $p + '\\"'); Start-Process -FilePath $v -ArgumentList $argList }\\""
+echo Done! 1-Click VLC Protocol setup complete.
+timeout /t 2 >nul
 `;
 
-  const blob = new Blob([regContent], { type: "text/plain" });
+  const blob = new Blob([cmdContent], { type: "text/plain" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "Register-1Click-VLC-Subtitle-Fix.reg";
+  a.download = "Fix-1Click-VLC.cmd";
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
