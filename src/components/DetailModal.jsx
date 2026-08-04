@@ -46,6 +46,7 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete }) => {
   const userPathObj = (item.user_paths || []).find((up) => up.uid === currentUser?.uid);
   const userPathsMap = userPathObj?.paths || {};
   const defaultMoviePath = userPathsMap.default || "";
+  const subPath = item.subtitle_path || userPathsMap.subtitle || "";
 
   // YouTube Embed Url converter
   const getYouTubeEmbedUrl = (url) => {
@@ -229,7 +230,7 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete }) => {
                       style={styles.mainPlayBtn}
                       onClick={() => {
                         if (defaultMoviePath) {
-                          launchInVlc(defaultMoviePath, item.title, addToast);
+                          launchInVlc(defaultMoviePath, item.title, addToast, subPath);
                         } else {
                           addToast("No local file path configured for your user.", "warning");
                         }
@@ -242,7 +243,7 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete }) => {
                       <button
                         style={styles.m3uDownloadBtn}
                         onClick={() => {
-                          downloadVlcM3uPlaylist(defaultMoviePath, item.title);
+                          downloadVlcM3uPlaylist(defaultMoviePath, item.title, subPath);
                           addToast("Downloaded VLC Playlist (.m3u)! Open file to play in VLC.", "success");
                         }}
                       >

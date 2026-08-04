@@ -190,7 +190,9 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
 
     const fileNamesList = videoFiles.map((f) => f.name).join("\n");
     setFileListText(fileNamesList);
-    addToast(`Discovered ${videoFiles.length} video file(s) in folder! Subtitles were filtered out.`, "success");
+    const subCount = files.filter((f) => SUB_EXTENSIONS.some((ext) => f.name.toLowerCase().endsWith(ext))).length;
+    const subMsg = subCount > 0 ? ` & ${subCount} subtitle track(s) (.srt)!` : "!";
+    addToast(`Discovered ${videoFiles.length} video file(s)${subMsg}`, "success");
   };
 
   const handleEpisodePathChange = (code, value) => {

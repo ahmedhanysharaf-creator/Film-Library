@@ -1,6 +1,6 @@
 /**
  * VLC Media Player Launcher Service
- * Triggers direct 1-click automatic VLC opening!
+ * Triggers direct 1-click automatic VLC opening with video path & subtitle (.srt/.ass) support!
  */
 
 export const getSecurityToken = () => {
@@ -22,13 +22,19 @@ export const copyPathToClipboard = (path, addToast) => {
 };
 
 /**
- * Generate and trigger instant .m3u playlist download for optional playback
+ * Generate and trigger instant .m3u playlist download with subtitle track embed
  */
-export const downloadVlcM3uPlaylist = (path, title) => {
+export const downloadVlcM3uPlaylist = (path, title, subPath) => {
   if (!path) return;
   const cleanTitle = (title || "Movie").replace(/[^a-zA-Z0-9_\-\s]/g, "");
   const normalizedPath = path.replace(/\//g, "\\");
-  const m3uContent = `#EXTM3U\n#EXTINF:-1,${cleanTitle}\n${normalizedPath}\n`;
+  let m3uContent = `#EXTM3U\n`;
+  if (subPath) {
+    const normalizedSub = subPath.replace(/\//g, "\\");
+    m3uContent += `#EXTVLCOPT:sub-file=${normalizedSub}\n`;
+  }
+  m3uContent += `#EXTINF:-1,${cleanTitle}\n${normalizedPath}\n`;
+
   const blob = new Blob([m3uContent], { type: "audio/x-mpegurl" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -42,7 +48,7 @@ export const downloadVlcM3uPlaylist = (path, title) => {
 
 /**
  * Generate and trigger downloadable .reg file
- * Clean, standard VLC execution without invalid flags
+ * Automatically passes subtitle path (--sub-file=...) to VLC if configured!
  */
 export const downloadWindowsRegistryFix = () => {
   const regContent = `Windows Registry Editor Version 5.00
@@ -56,14 +62,14 @@ export const downloadWindowsRegistryFix = () => {
 [HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell\\open]
 
 [HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell\\open\\command]
-@="powershell.exe -NoProfile -WindowStyle Hidden -Command \\"$url='%1'; if($url -match 'path=(.*?)(?:&|$)'){ $p=[System.Uri]::UnescapeDataString($matches[1]); if(Test-Path 'C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe'){ & 'C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe' $p } elseif(Test-Path 'C:\\\\Program Files (x86)\\\\VideoLAN\\\\VLC\\\\vlc.exe'){ & 'C:\\\\Program Files (x86)\\\\VideoLAN\\\\VLC\\\\vlc.exe' $p } else { & 'vlc.exe' $p } }\\""
+@="powershell.exe -NoProfile -WindowStyle Hidden -Command \\"$url='%1'; if($url -match 'path=(.*?)(?:&|$)'){ $p=[System.Uri]::UnescapeDataString($matches[1]); $args=@($p); if($url -match 'sub=(.*?)(?:&|$)'){ $s=[System.Uri]::UnescapeDataString($matches[1]); $args+=('--sub-file=' + $s) }; $v='C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe'; if(-not(Test-Path $v)){ $v='C:\\\\Program Files (x86)\\\\VideoLAN\\\\VLC\\\\vlc.exe' }; if(-not(Test-Path $v)){ $v='vlc.exe' }; & $v @args }\\""
 `;
 
   const blob = new Blob([regContent], { type: "text/plain" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "Register-1Click-VLC-Protocol-Fix.reg";
+  a.download = "Register-1Click-VLC-Subtitle-Fix.reg";
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -71,9 +77,9 @@ export const downloadWindowsRegistryFix = () => {
 };
 
 /**
- * Master 1-Click VLC Direct Launcher
+ * Master 1-Click VLC Direct Launcher with Subtitle Support
  */
-export const launchInVlc = (path, title, addToast) => {
+export const launchInVlc = (path, title, addToast, subPath = "") => {
   if (!path) {
     if (addToast) addToast("No local file path configured for this item.", "warning");
     return false;
@@ -82,9 +88,13 @@ export const launchInVlc = (path, title, addToast) => {
   const token = getSecurityToken();
   const encodedPath = encodeURIComponent(path);
   const encodedToken = encodeURIComponent(token);
+  const encodedSub = subPath ? encodeURIComponent(subPath) : "";
   
-  // Custom filmlibrary:// protocol URL
-  const customProtocolUrl = `filmlibrary://open?path=${encodedPath}&token=${encodedToken}`;
+  // Custom filmlibrary:// protocol URL with sub parameter
+  let customProtocolUrl = `filmlibrary://open?path=${encodedPath}&token=${encodedToken}`;
+  if (encodedSub) {
+    customProtocolUrl += `&sub=${encodedSub}`;
+  }
 
   console.log(`[VLC Launcher] Triggering direct protocol: ${customProtocolUrl}`);
 
@@ -111,7 +121,8 @@ export const launchInVlc = (path, title, addToast) => {
   }
 
   if (addToast) {
-    addToast(`Opening "${title || 'Media'}" in VLC Player...`, "success");
+    const subMsg = subPath ? " with subtitle attached!" : "...";
+    addToast(`Opening "${title || 'Media'}" in VLC Player${subMsg}`, "success");
   }
 
   return true;
