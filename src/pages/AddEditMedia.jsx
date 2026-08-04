@@ -67,6 +67,81 @@ export const extractCleanTitleFromPath = (fullPath) => {
   return extractTitleAndYearFromPath(fullPath).cleanTitle;
 };
 
+export const findBestMatchingSubtitle = (videoPath, fileList = []) => {
+  if (!videoPath) return "";
+
+  const normalizedVideoPath = videoPath.replace(/\\/g, "/");
+  const lastSlashIdx = normalizedVideoPath.lastIndexOf("/");
+  const dirPath = lastSlashIdx !== -1 ? videoPath.substring(0, lastSlashIdx + 1).replace(/\//g, "\\") : "";
+  const videoFileName = lastSlashIdx !== -1 ? normalizedVideoPath.substring(lastSlashIdx + 1) : normalizedVideoPath;
+
+  const videoExtIdx = videoFileName.lastIndexOf(".");
+  const videoBaseName = videoExtIdx !== -1 ? videoFileName.substring(0, videoExtIdx) : videoFileName;
+
+  const cleanName = (name) => {
+    return name
+      .toLowerCase()
+      .replace(/[._\-]/g, " ")
+      .replace(/\b(19\d\d|20\d\d)\b/gi, "")
+      .replace(/\b(ar|ara|arabic|en|eng|english|1080p|720p|4k|2160p|bluray|web-dl|webrip|hdrip|dvdrip|x264|x265|hevc|aac|dts|repack|remux|hdr|dual audio)\b/gi, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  };
+
+  const videoClean = cleanName(videoBaseName);
+
+  if (fileList && fileList.length > 0) {
+    const subCandidates = fileList.filter((f) => {
+      const name = typeof f === "string" ? f : f.name;
+      const lower = name.toLowerCase();
+      return SUB_EXTENSIONS.some((ext) => lower.endsWith(ext));
+    });
+
+    let bestMatch = null;
+    let highestScore = 0;
+
+    for (const subFile of subCandidates) {
+      const subName = typeof subFile === "string" ? subFile : subFile.name;
+      const subExtIdx = subName.lastIndexOf(".");
+      const subBaseName = subExtIdx !== -1 ? subName.substring(0, subExtIdx) : subName;
+
+      const subBaseClean = subBaseName.toLowerCase();
+      const vidBaseClean = videoBaseName.toLowerCase();
+
+      // Direct prefix / exact / suffix match (e.g. Blade.srt, Blade.ar.srt, Blade.en.srt, Blade_Arabic.srt)
+      if (subBaseClean === vidBaseClean ||
+          subBaseClean.startsWith(vidBaseClean) ||
+          vidBaseClean.startsWith(subBaseClean)) {
+        return dirPath ? `${dirPath}${subName}` : subName;
+      }
+
+      const subClean = cleanName(subBaseName);
+      if (subClean === videoClean && videoClean.length > 1) {
+        return dirPath ? `${dirPath}${subName}` : subName;
+      }
+
+      if (subClean.includes(videoClean) || videoClean.includes(subClean)) {
+        const score = Math.min(subClean.length, videoClean.length) / Math.max(subClean.length, videoClean.length);
+        if (score > highestScore && score >= 0.5) {
+          highestScore = score;
+          bestMatch = subName;
+        }
+      }
+    }
+
+    if (bestMatch) {
+      return dirPath ? `${dirPath}${bestMatch}` : bestMatch;
+    }
+  }
+
+  // Default auto-predicted subtitle path (.srt)
+  if (dirPath && videoBaseName) {
+    return `${dirPath}${videoBaseName}.srt`;
+  }
+
+  return "";
+};
+
 export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
   const { currentUser } = useAuth();
   const { addToast } = useToast();
@@ -153,6 +228,10 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
 
     const isVideoFile = VIDEO_EXTENSIONS.some((ext) => newPath.toLowerCase().endsWith(ext));
     if (isVideoFile) {
+      if (!subtitlePath) {
+        const autoSub = findBestMatchingSubtitle(newPath);
+        if (autoSub) setSubtitlePath(autoSub);
+      }
       const { cleanTitle, year: parsedYear } = extractTitleAndYearFromPath(newPath);
       if (cleanTitle && (!title || title === "Untitled")) {
         setTitle(cleanTitle);
@@ -296,6 +375,8 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
       try {
         const searchResults = await searchTmdb(cleanTitle, extractedYear);
 
+        const matchedSubPath = findBestMatchingSubtitle(fullItemPath);
+
         if (searchResults && searchResults.length > 0) {
           const topMatch = (extractedYear && searchResults.find((r) => r.year === extractedYear)) || searchResults[0];
           const details = await getTmdbDetails(topMatch.tmdb_id, topMatch.type);
@@ -306,7 +387,8 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
             rawFileName: rawItem,
             mediaData: {
               ...details,
-              new_paths: { default: fullItemPath }
+              subtitle_path: matchedSubPath,
+              new_paths: { default: fullItemPath, subtitle: matchedSubPath }
             }
           });
         } else {
@@ -324,7 +406,8 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
               genres: ["Cinema"],
               imdb_rating: 8.0,
               overview: `Local video file: ${fullItemPath}`,
-              new_paths: { default: fullItemPath }
+              subtitle_path: matchedSubPath,
+              new_paths: { default: fullItemPath, subtitle: matchedSubPath }
             }
           });
         }
