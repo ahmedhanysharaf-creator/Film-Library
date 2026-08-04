@@ -1,10 +1,19 @@
 import React, { useState } from "react";
-import { Star, Play, CheckCircle2, Bookmark, Monitor, Tv, Film, Edit3, Trash2 } from "lucide-react";
+import { Star, Play, CheckCircle2, Bookmark, Monitor, Tv, Film, Edit3, Trash2, CheckSquare, Square } from "lucide-react";
 import { launchInVlc } from "../services/vlcLauncher";
 import { useToast } from "../context/ToastContext";
 import { useAuth } from "../context/AuthContext";
 
-export const PosterCard = ({ item, onClick, onEdit, onDelete, isSelected = false, isDimmed = false, viewMode = "grid" }) => {
+export const PosterCard = ({ 
+  item, 
+  onClick, 
+  onEdit, 
+  onDelete, 
+  isSelected = false, 
+  isDimmed = false, 
+  viewMode = "grid",
+  onToggleSelect = null
+}) => {
   const { addToast } = useToast();
   const { currentUser } = useAuth();
   const [hovered, setHovered] = useState(false);
@@ -18,16 +27,17 @@ export const PosterCard = ({ item, onClick, onEdit, onDelete, isSelected = false
   // Check paths for current user
   const userPathObj = (item.user_paths || []).find((up) => up.uid === currentUser?.uid);
   const defaultPath = userPathObj?.paths?.default || (userPathObj?.paths ? Object.values(userPathObj.paths)[0] : "");
+  const subPath = item.subtitle_path || userPathObj?.paths?.subtitle || "";
 
   const handleQuickPlay = (e) => {
     e.stopPropagation();
     if (defaultPath) {
-      launchInVlc(defaultPath, item.title, addToast);
+      launchInVlc(defaultPath, item.title, addToast, subPath);
     } else {
       const anyUserPath = (item.user_paths || [])[0];
       const anyPath = anyUserPath?.paths?.default || (anyUserPath?.paths ? Object.values(anyUserPath.paths)[0] : "");
       if (anyPath) {
-        launchInVlc(anyPath, item.title, addToast);
+        launchInVlc(anyPath, item.title, addToast, subPath);
       } else {
         addToast(`No local file path configured for "${item.title}". Click for details.`, "warning");
       }
@@ -42,6 +52,11 @@ export const PosterCard = ({ item, onClick, onEdit, onDelete, isSelected = false
   const handleQuickDelete = (e) => {
     e.stopPropagation();
     if (onDelete) onDelete(item.id);
+  };
+
+  const handleCheckboxClick = (e) => {
+    e.stopPropagation();
+    if (onToggleSelect) onToggleSelect(item.id);
   };
 
   const cardStyle = {
@@ -61,6 +76,16 @@ export const PosterCard = ({ item, onClick, onEdit, onDelete, isSelected = false
         onClick={onClick}
         className="animate-fade"
       >
+        {onToggleSelect && (
+          <div onClick={handleCheckboxClick} style={styles.listCheckbox}>
+            {isSelected ? (
+              <CheckSquare size={20} color="var(--accent-green)" />
+            ) : (
+              <Square size={20} color="var(--text-muted)" />
+            )}
+          </div>
+        )}
+
         <img
           src={item.poster_url || "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500&auto=format&fit=crop&q=60"}
           alt={item.title}
@@ -133,8 +158,19 @@ export const PosterCard = ({ item, onClick, onEdit, onDelete, isSelected = false
           decoding="async"
         />
 
+        {/* Multi-Select Checkbox Overlay */}
+        {onToggleSelect && (
+          <div style={styles.selectCheckboxOverlay} onClick={handleCheckboxClick} title={isSelected ? "Deselect item" : "Select item"}>
+            {isSelected ? (
+              <CheckSquare size={24} color="var(--accent-green)" fill="rgba(0,0,0,0.85)" />
+            ) : (
+              <Square size={24} color="rgba(255,255,255,0.8)" fill="rgba(0,0,0,0.4)" />
+            )}
+          </div>
+        )}
+
         {/* Top Badges */}
-        <div style={styles.topBadges}>
+        <div style={{ ...styles.topBadges, left: onToggleSelect ? "42px" : "10px" }}>
           <span className={`badge ${item.type === "series" ? "badge-green" : "badge-red"}`}>
             {item.type === "series" ? <Tv size={12} /> : <Film size={12} />}
             {item.type === "series" ? "Series" : "Movie"}
@@ -229,12 +265,13 @@ const styles = {
     border: "1px solid var(--border-subtle)",
     transition: "transform 0.25s ease, opacity 0.25s ease, filter 0.25s ease, box-shadow 0.25s ease",
     willChange: "transform, opacity",
-    transform: "translateZ(0)"
+    transform: "translateZ(0)",
+    position: "relative"
   },
   cardSelected: {
     border: "2px solid var(--accent-green)",
     boxShadow: "0 0 24px rgba(70, 211, 105, 0.7)",
-    transform: "scale(1.05) translateZ(0)",
+    transform: "scale(1.03) translateZ(0)",
     zIndex: 10,
     opacity: 1,
     filter: "brightness(1.1)"
@@ -243,6 +280,18 @@ const styles = {
     opacity: 0.35,
     filter: "brightness(0.4) grayscale(0.2)",
     transform: "scale(0.98)"
+  },
+  selectCheckboxOverlay: {
+    position: "absolute",
+    top: "8px",
+    left: "8px",
+    zIndex: 12,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "2px",
+    borderRadius: "4px"
   },
   posterWrapper: {
     position: "relative",
@@ -267,7 +316,8 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    zIndex: 2
+    zIndex: 2,
+    transition: "left 0.2s ease"
   },
   statusPill: {
     position: "absolute",
@@ -428,6 +478,11 @@ const styles = {
     border: "2px solid var(--accent-green)",
     boxShadow: "0 0 16px rgba(70, 211, 105, 0.5)",
     backgroundColor: "rgba(70, 211, 105, 0.08)"
+  },
+  listCheckbox: {
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center"
   },
   listPoster: {
     width: "48px",

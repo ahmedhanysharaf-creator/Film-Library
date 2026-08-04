@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { 
-  Search, Grid, List, Filter, ArrowUpDown, Check, X, Film, Tv, Star, CheckCircle2, Bookmark, User, Globe, History, Edit3, Trash2, Calendar, HardDrive 
+  Search, Grid, List, Filter, ArrowUpDown, Check, X, Film, Tv, Star, CheckCircle2, Bookmark, User, Globe, History, Edit3, Trash2, Calendar, HardDrive, CheckSquare, Square, Layers, CheckCheck 
 } from "lucide-react";
-import { fetchLibraryItems, deleteMediaEntry } from "../services/storage";
+import { fetchLibraryItems, deleteMediaEntry, updateWatchProgress } from "../services/storage";
 import { PosterCard } from "../components/PosterCard";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
@@ -16,6 +16,10 @@ export const Library = ({ onSelectItem, onEditItem }) => {
   // Scope & Sub-view state
   const [libraryScope, setLibraryScope] = useState("all"); // "all" | "my"
   const [showHistoryView, setShowHistoryView] = useState(false); // Sub-view under "my" scope
+
+  // Multi-select & Batch Actions state
+  const [selectedItemIds, setSelectedItemIds] = useState(new Set());
+  const [isMultiSelectActive, setIsMultiSelectActive] = useState(false);
 
   // Active hover/selection state for card dimming effect
   const [activeHoverId, setActiveHoverId] = useState(null);
@@ -122,6 +126,77 @@ export const Library = ({ onSelectItem, onEditItem }) => {
     });
   }, [items, libraryScope, searchQuery, typeFilter, watchFilter, selectedGenres, genreLogic, sortBy, currentUser]);
 
+  // Multi-Select Helpers
+  const isAllSelected = filteredItems.length > 0 && filteredItems.every((item) => selectedItemIds.has(item.id));
+
+  const handleToggleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedItemIds(new Set());
+    } else {
+      const allIds = new Set(filteredItems.map((item) => item.id));
+      setSelectedItemIds(allIds);
+      setIsMultiSelectActive(true);
+    }
+  };
+
+  const handleToggleSelectItem = (id) => {
+    const next = new Set(selectedItemIds);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    setSelectedItemIds(next);
+    if (next.size > 0) setIsMultiSelectActive(true);
+  };
+
+  const handleMassDelete = async () => {
+    const idsToDelete = Array.from(selectedItemIds);
+    if (idsToDelete.length === 0) return;
+
+    if (!window.confirm(`Are you sure you want to delete all ${idsToDelete.length} selected media entry(ies) from the library?`)) {
+      return;
+    }
+
+    try {
+      addToast(`Deleting ${idsToDelete.length} items from library...`, "info");
+      for (const id of idsToDelete) {
+        await deleteMediaEntry(id);
+      }
+      addToast(`Successfully deleted ${idsToDelete.length} item(s)!`, "success");
+      setSelectedItemIds(new Set());
+      loadItems();
+    } catch (err) {
+      addToast(`Failed mass delete: ${err.message}`, "error");
+    }
+  };
+
+  const handleMassWatchStatus = async (newStatus) => {
+    const idsToUpdate = Array.from(selectedItemIds);
+    if (idsToUpdate.length === 0) return;
+
+    try {
+      addToast(`Updating watch status to "${newStatus}" for ${idsToUpdate.length} item(s)...`, "info");
+      for (const id of idsToUpdate) {
+        await updateWatchProgress(id, currentUser.uid, newStatus, []);
+      }
+      addToast(`Updated ${idsToUpdate.length} item(s) to ${newStatus}!`, "success");
+      loadItems();
+    } catch (err) {
+      addToast(`Failed mass update: ${err.message}`, "error");
+    }
+  };
+
+  const handleMassEdit = () => {
+    const selectedList = filteredItems.filter((i) => selectedItemIds.has(i.id));
+    if (selectedList.length === 1) {
+      onEditItem(selectedList[0]);
+    } else if (selectedList.length > 1) {
+      addToast("Editing first selected item in form...", "info");
+      onEditItem(selectedList[0]);
+    }
+  };
+
   return (
     <div style={styles.container} className="animate-fade">
       {/* Top Header & Toolbar */}
@@ -217,36 +292,105 @@ export const Library = ({ onSelectItem, onEditItem }) => {
                 style={styles.select}
               >
                 <option value="added">Newest Added</option>
-                <option value="title">Alphabetical A-Z</option>
-                <option value="rating">Highest IMDB Rating</option>
+                <option value="title">Title (A-Z)</option>
+                <option value="rating">Highest Rating</option>
                 <option value="year">Release Year</option>
               </select>
             </div>
 
             {/* View Mode Toggle */}
-            <div style={styles.viewToggle}>
+            <div style={styles.viewToggleGroup}>
               <button
-                style={{ ...styles.toggleBtn, ...(viewMode === "grid" ? styles.toggleActive : {}) }}
+                style={{ ...styles.viewBtn, ...(viewMode === "grid" ? styles.viewBtnActive : {}) }}
                 onClick={() => setViewMode("grid")}
-                title="Poster Grid View"
+                title="Grid View"
               >
-                <Grid size={18} />
+                <Grid size={16} />
               </button>
               <button
-                style={{ ...styles.toggleBtn, ...(viewMode === "list" ? styles.toggleActive : {}) }}
+                style={{ ...styles.viewBtn, ...(viewMode === "list" ? styles.viewBtnActive : {}) }}
                 onClick={() => setViewMode("list")}
-                title="Compact List View"
+                title="List View"
               >
-                <List size={18} />
+                <List size={16} />
               </button>
             </div>
+
+            {/* Toggle Multi-Select Mode */}
+            <button
+              style={{
+                ...styles.multiSelectToggleBtn,
+                ...(isMultiSelectActive ? styles.multiSelectToggleBtnActive : {})
+              }}
+              onClick={() => setIsMultiSelectActive(!isMultiSelectActive)}
+            >
+              <CheckCheck size={16} />
+              {isMultiSelectActive ? "Exit Select Mode" : "Select Mode"}
+            </button>
           </div>
         )}
       </div>
 
-      {/* MY UPLOAD HISTORY TIMELINE VIEW */}
-      {showHistoryView ? (
-        <div style={styles.historyCard} className="glass-panel animate-fade">
+      {/* Mass Actions Toolbar (Visible when Select Mode active or items selected) */}
+      {!showHistoryView && (isMultiSelectActive || selectedItemIds.size > 0) && (
+        <div style={styles.massActionsBar} className="animate-pop">
+          <div style={styles.massSelectGroup}>
+            <button style={styles.selectAllBtn} onClick={handleToggleSelectAll}>
+              {isAllSelected ? <CheckSquare size={18} color="var(--accent-green)" /> : <Square size={18} />}
+              {isAllSelected ? "Deselect All" : `Select All (${filteredItems.length})`}
+            </button>
+            <span style={styles.selectedCountText}>
+              <strong>{selectedItemIds.size}</strong> item(s) selected
+            </span>
+          </div>
+
+          <div style={styles.massBtnGroup}>
+            <button
+              style={styles.massWatchedBtn}
+              onClick={() => handleMassWatchStatus("watched")}
+              disabled={selectedItemIds.size === 0}
+            >
+              <CheckCircle2 size={15} /> Mark Watched ({selectedItemIds.size})
+            </button>
+
+            <button
+              style={styles.massWatchlistBtn}
+              onClick={() => handleMassWatchStatus("watchlist")}
+              disabled={selectedItemIds.size === 0}
+            >
+              <Bookmark size={15} /> Add Watchlist ({selectedItemIds.size})
+            </button>
+
+            {selectedItemIds.size > 0 && (
+              <button style={styles.massEditBtn} onClick={handleMassEdit}>
+                <Edit3 size={15} /> Edit Selected ({selectedItemIds.size})
+              </button>
+            )}
+
+            <button
+              style={styles.massDeleteBtn}
+              onClick={handleMassDelete}
+              disabled={selectedItemIds.size === 0}
+            >
+              <Trash2 size={15} /> Mass Delete ({selectedItemIds.size})
+            </button>
+
+            <button
+              style={styles.clearSelectionBtn}
+              onClick={() => {
+                setSelectedItemIds(new Set());
+                setIsMultiSelectActive(false);
+              }}
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* My Upload History Sub-View */}
+      {showHistoryView && libraryScope === "my" ? (
+        <div style={styles.historyContainer} className="glass-panel">
           <div style={styles.historyHeader}>
             <History size={24} color="var(--accent-green)" />
             <div>
@@ -403,7 +547,7 @@ export const Library = ({ onSelectItem, onEditItem }) => {
             </div>
           </div>
 
-          {/* Grid or List Display with Card Focus Highlighting Effect */}
+          {/* Grid or List Display with Card Focus Highlighting & Multi-Select Checkboxes */}
           {loading ? (
             <div style={styles.loadingState}>Loading Film Library...</div>
           ) : filteredItems.length === 0 ? (
@@ -421,7 +565,8 @@ export const Library = ({ onSelectItem, onEditItem }) => {
               {filteredItems.map((item) => {
                 const isHovered = activeHoverId === item.id;
                 const hasAnyHover = activeHoverId !== null;
-                const isDimmed = hasAnyHover && !isHovered;
+                const isItemChecked = selectedItemIds.has(item.id);
+                const isDimmed = (hasAnyHover && !isHovered) || (selectedItemIds.size > 0 && !isItemChecked);
 
                 return (
                   <div
@@ -431,12 +576,19 @@ export const Library = ({ onSelectItem, onEditItem }) => {
                   >
                     <PosterCard
                       item={item}
-                      onClick={() => onSelectItem(item)}
+                      onClick={() => {
+                        if (isMultiSelectActive || selectedItemIds.size > 0) {
+                          handleToggleSelectItem(item.id);
+                        } else {
+                          onSelectItem(item);
+                        }
+                      }}
                       onEdit={onEditItem}
                       onDelete={handleDeleteItem}
-                      isSelected={isHovered}
+                      isSelected={isItemChecked || isHovered}
                       isDimmed={isDimmed}
                       viewMode={viewMode}
+                      onToggleSelect={isMultiSelectActive || selectedItemIds.size > 0 ? handleToggleSelectItem : null}
                     />
                   </div>
                 );
@@ -478,53 +630,53 @@ const styles = {
     flexWrap: "wrap"
   },
   pageTitle: {
-    fontSize: "2rem",
+    fontSize: "2.2rem",
     fontWeight: 800,
     color: "#ffffff"
   },
   scopeTabs: {
     display: "flex",
-    backgroundColor: "var(--bg-surface)",
-    border: "1px solid var(--border-subtle)",
-    borderRadius: "10px",
-    padding: "4px"
+    backgroundColor: "var(--bg-elevated)",
+    padding: "4px",
+    borderRadius: "8px",
+    border: "1px solid var(--border-subtle)"
   },
   scopeBtn: {
-    padding: "8px 16px",
-    background: "none",
+    padding: "8px 14px",
+    backgroundColor: "transparent",
     border: "none",
+    borderRadius: "6px",
     color: "var(--text-secondary)",
-    fontSize: "0.88rem",
-    fontWeight: 700,
-    borderRadius: "8px",
+    fontSize: "0.85rem",
+    fontWeight: 600,
     cursor: "pointer",
     display: "flex",
     alignItems: "center",
-    gap: "8px",
+    gap: "6px",
     transition: "var(--transition)"
   },
   scopeActiveAll: {
-    backgroundColor: "var(--bg-elevated)",
-    color: "#ffffff"
+    backgroundColor: "var(--bg-surface)",
+    color: "#ffffff",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.4)"
   },
   scopeActiveMy: {
-    backgroundColor: "var(--bg-elevated)",
+    backgroundColor: "rgba(70,211,105,0.2)",
     color: "var(--accent-green)",
-    boxShadow: "0 2px 8px rgba(70,211,105,0.2)"
+    boxShadow: "0 2px 8px rgba(70,211,105,0.3)"
   },
   historyViewBtn: {
-    padding: "8px 16px",
+    padding: "8px 14px",
     backgroundColor: "var(--bg-elevated)",
     border: "1px solid var(--accent-green)",
     color: "var(--accent-green)",
-    fontSize: "0.88rem",
+    borderRadius: "6px",
+    fontSize: "0.85rem",
     fontWeight: 700,
-    borderRadius: "8px",
     cursor: "pointer",
     display: "flex",
     alignItems: "center",
-    gap: "8px",
-    boxShadow: "0 4px 14px rgba(70,211,105,0.2)"
+    gap: "6px"
   },
   historyViewBtnActive: {
     backgroundColor: "var(--accent-green)",
@@ -532,67 +684,67 @@ const styles = {
   },
   itemCount: {
     color: "var(--text-muted)",
-    fontSize: "0.9rem",
-    fontWeight: 500
+    fontSize: "0.9rem"
   },
   controlsRow: {
     display: "flex",
     alignItems: "center",
-    gap: "16px",
+    gap: "12px",
     flexWrap: "wrap"
   },
   searchBox: {
-    flex: 1,
-    minWidth: "260px",
     position: "relative",
-    display: "flex",
-    alignItems: "center"
+    flex: 1,
+    minWidth: "260px"
   },
   searchIcon: {
     position: "absolute",
     left: "14px",
-    pointerEvents: "none"
-  },
-  clearSearchBtn: {
-    position: "absolute",
-    right: "12px",
-    background: "none",
-    border: "none",
-    color: "var(--text-muted)",
-    cursor: "pointer"
+    top: "50%",
+    transform: "translateY(-50%)"
   },
   searchInput: {
     width: "100%",
-    padding: "10px 36px 10px 42px",
+    padding: "10px 38px 10px 42px",
     backgroundColor: "var(--bg-surface)",
     border: "1px solid var(--border-subtle)",
     borderRadius: "8px",
     color: "#ffffff",
-    fontSize: "0.95rem",
+    fontSize: "0.9rem",
     outline: "none"
+  },
+  clearSearchBtn: {
+    position: "absolute",
+    right: "12px",
+    top: "50%",
+    transform: "translateY(-50%)",
+    background: "none",
+    border: "none",
+    color: "var(--text-muted)",
+    cursor: "pointer"
   },
   segmentedGroup: {
     display: "flex",
     backgroundColor: "var(--bg-surface)",
     border: "1px solid var(--border-subtle)",
     borderRadius: "8px",
-    padding: "4px"
+    padding: "3px"
   },
   segmentBtn: {
-    padding: "6px 14px",
-    background: "none",
+    padding: "8px 14px",
+    backgroundColor: "transparent",
     border: "none",
+    borderRadius: "6px",
     color: "var(--text-secondary)",
     fontSize: "0.85rem",
     fontWeight: 600,
-    borderRadius: "6px",
     cursor: "pointer",
     display: "flex",
     alignItems: "center",
     gap: "6px"
   },
   segmentActive: {
-    backgroundColor: "var(--bg-elevated)",
+    backgroundColor: "var(--accent-red)",
     color: "#ffffff"
   },
   selectWrapper: {
@@ -608,52 +760,168 @@ const styles = {
     backgroundColor: "transparent",
     border: "none",
     color: "#ffffff",
-    fontSize: "0.88rem",
-    padding: "10px 0",
+    padding: "10px 4px",
+    fontSize: "0.85rem",
     outline: "none",
-    cursor: "pointer",
-    fontWeight: 600
+    cursor: "pointer"
   },
-  viewToggle: {
+  viewToggleGroup: {
     display: "flex",
     backgroundColor: "var(--bg-surface)",
     border: "1px solid var(--border-subtle)",
     borderRadius: "8px",
-    padding: "4px"
+    padding: "3px"
   },
-  toggleBtn: {
-    padding: "6px 10px",
-    background: "none",
+  viewBtn: {
+    padding: "8px 12px",
+    backgroundColor: "transparent",
     border: "none",
-    color: "var(--text-secondary)",
     borderRadius: "6px",
+    color: "var(--text-secondary)",
     cursor: "pointer"
   },
-  toggleActive: {
+  viewBtnActive: {
     backgroundColor: "var(--bg-elevated)",
-    color: "var(--accent-red)"
+    color: "#ffffff"
   },
-  filterBar: {
-    display: "flex",
-    alignItems: "center",
-    gap: "20px",
+  multiSelectToggleBtn: {
+    padding: "10px 14px",
     backgroundColor: "var(--bg-surface)",
     border: "1px solid var(--border-subtle)",
-    borderRadius: "12px",
-    padding: "16px 20px",
-    flexWrap: "wrap"
+    borderRadius: "8px",
+    color: "#ffffff",
+    fontWeight: 600,
+    fontSize: "0.85rem",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px"
   },
-  statusFilterRow: {
+  multiSelectToggleBtnActive: {
+    backgroundColor: "rgba(70,211,105,0.2)",
+    borderColor: "var(--accent-green)",
+    color: "var(--accent-green)"
+  },
+  massActionsBar: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "14px 20px",
+    backgroundColor: "rgba(22, 23, 29, 0.95)",
+    border: "1px solid var(--accent-green)",
+    borderRadius: "12px",
+    boxShadow: "0 8px 30px rgba(0,0,0,0.8)",
+    flexWrap: "wrap",
+    gap: "12px"
+  },
+  massSelectGroup: {
+    display: "flex",
+    alignItems: "center",
+    gap: "16px"
+  },
+  selectAllBtn: {
+    backgroundColor: "var(--bg-elevated)",
+    color: "#ffffff",
+    border: "1px solid var(--border-subtle)",
+    padding: "8px 14px",
+    borderRadius: "6px",
+    fontWeight: 700,
+    fontSize: "0.88rem",
+    cursor: "pointer",
     display: "flex",
     alignItems: "center",
     gap: "8px"
   },
+  selectedCountText: {
+    fontSize: "0.9rem",
+    color: "var(--text-primary)"
+  },
+  massBtnGroup: {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    flexWrap: "wrap"
+  },
+  massWatchedBtn: {
+    backgroundColor: "rgba(70,211,105,0.2)",
+    color: "var(--accent-green)",
+    border: "1px solid var(--accent-green)",
+    padding: "8px 14px",
+    borderRadius: "6px",
+    fontWeight: 700,
+    fontSize: "0.85rem",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px"
+  },
+  massWatchlistBtn: {
+    backgroundColor: "rgba(245,197,24,0.2)",
+    color: "var(--accent-gold)",
+    border: "1px solid var(--accent-gold)",
+    padding: "8px 14px",
+    borderRadius: "6px",
+    fontWeight: 700,
+    fontSize: "0.85rem",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px"
+  },
+  massEditBtn: {
+    backgroundColor: "var(--bg-elevated)",
+    color: "#ffffff",
+    border: "1px solid var(--border-subtle)",
+    padding: "8px 14px",
+    borderRadius: "6px",
+    fontWeight: 600,
+    fontSize: "0.85rem",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px"
+  },
+  massDeleteBtn: {
+    backgroundColor: "var(--accent-red)",
+    color: "#ffffff",
+    border: "none",
+    padding: "8px 16px",
+    borderRadius: "6px",
+    fontWeight: 800,
+    fontSize: "0.85rem",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    boxShadow: "0 4px 14px rgba(229,9,20,0.4)"
+  },
+  clearSelectionBtn: {
+    background: "none",
+    border: "none",
+    color: "var(--text-muted)",
+    cursor: "pointer",
+    padding: "4px"
+  },
+  filterBar: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "12px",
+    backgroundColor: "var(--bg-surface)",
+    padding: "16px 20px",
+    borderRadius: "12px",
+    border: "1px solid var(--border-subtle)"
+  },
+  statusFilterRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    flexWrap: "wrap"
+  },
   filterLabel: {
-    fontSize: "0.82rem",
+    fontSize: "0.85rem",
     fontWeight: 700,
     color: "var(--text-muted)",
-    textTransform: "uppercase",
-    letterSpacing: "0.5px"
+    textTransform: "uppercase"
   },
   statusFilterBtn: {
     padding: "6px 12px",
@@ -661,7 +929,7 @@ const styles = {
     border: "1px solid var(--border-subtle)",
     borderRadius: "20px",
     color: "var(--text-secondary)",
-    fontSize: "0.82rem",
+    fontSize: "0.8rem",
     fontWeight: 600,
     cursor: "pointer",
     display: "flex",
@@ -674,12 +942,11 @@ const styles = {
     borderColor: "var(--accent-red)"
   },
   dividerVertical: {
-    width: "1px",
-    height: "24px",
-    backgroundColor: "var(--border-subtle)"
+    height: "1px",
+    backgroundColor: "var(--border-subtle)",
+    width: "100%"
   },
   genreSection: {
-    flex: 1,
     display: "flex",
     flexDirection: "column",
     gap: "8px"
@@ -699,54 +966,51 @@ const styles = {
     color: "var(--text-muted)"
   },
   logicBtn: {
-    padding: "2px 8px",
-    fontSize: "0.75rem",
+    padding: "4px 8px",
     backgroundColor: "var(--bg-elevated)",
     border: "1px solid var(--border-subtle)",
     borderRadius: "4px",
     color: "var(--text-secondary)",
+    fontSize: "0.75rem",
     cursor: "pointer"
   },
   logicActive: {
     backgroundColor: "var(--accent-green)",
     color: "#000000",
-    fontWeight: 700,
-    borderColor: "var(--accent-green)"
+    fontWeight: 700
   },
   clearGenresBtn: {
+    fontSize: "0.78rem",
+    color: "var(--accent-red)",
     background: "none",
     border: "none",
-    color: "var(--accent-red)",
-    fontSize: "0.78rem",
-    cursor: "pointer",
-    fontWeight: 600
+    cursor: "pointer"
   },
   genrePillScroll: {
     display: "flex",
-    gap: "8px",
+    gap: "6px",
     overflowX: "auto",
     paddingBottom: "4px"
   },
   genrePill: {
-    padding: "4px 12px",
+    padding: "4px 10px",
     backgroundColor: "var(--bg-elevated)",
     border: "1px solid var(--border-subtle)",
-    borderRadius: "20px",
+    borderRadius: "14px",
     color: "var(--text-secondary)",
-    fontSize: "0.8rem",
-    fontWeight: 500,
+    fontSize: "0.78rem",
     cursor: "pointer",
     whiteSpace: "nowrap"
   },
   genrePillActive: {
-    backgroundColor: "rgba(229, 9, 20, 0.2)",
-    color: "var(--accent-red)",
-    borderColor: "var(--accent-red)",
+    backgroundColor: "rgba(170,59,255,0.2)",
+    color: "var(--accent-purple)",
+    borderColor: "var(--accent-purple)",
     fontWeight: 700
   },
   grid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+    gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
     gap: "24px"
   },
   listStack: {
@@ -754,44 +1018,39 @@ const styles = {
     flexDirection: "column",
     gap: "12px"
   },
-  loadingState: {
-    textAlign: "center",
-    padding: "60px",
-    color: "var(--text-muted)",
-    fontSize: "1.1rem"
-  },
   emptyState: {
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
-    padding: "60px",
-    gap: "16px",
-    color: "var(--text-muted)",
-    textAlign: "center"
+    padding: "60px 20px",
+    gap: "12px",
+    color: "var(--text-muted)"
   },
-  historyCard: {
-    padding: "32px",
-    borderRadius: "14px",
-    display: "flex",
-    flexDirection: "column",
-    gap: "24px"
+  loadingState: {
+    textAlign: "center",
+    padding: "60px",
+    color: "var(--text-muted)"
+  },
+  historyContainer: {
+    padding: "24px",
+    borderRadius: "14px"
   },
   historyHeader: {
     display: "flex",
-    alignItems: "flex-start",
-    gap: "16px"
+    alignItems: "center",
+    gap: "14px",
+    marginBottom: "20px"
   },
   historyTitle: {
-    fontSize: "1.3rem",
-    fontWeight: 800,
-    color: "#ffffff",
-    marginBottom: "4px"
+    fontSize: "1.15rem",
+    fontWeight: 700,
+    color: "#ffffff"
   },
   historySub: {
-    fontSize: "0.9rem",
+    fontSize: "0.85rem",
     color: "var(--text-secondary)",
-    lineHeight: "1.5"
+    marginTop: "2px"
   },
   historyTableWrapper: {
     overflowX: "auto"
@@ -801,77 +1060,73 @@ const styles = {
     borderCollapse: "collapse"
   },
   tableHeaderRow: {
-    borderBottom: "2px solid var(--border-subtle)"
+    borderBottom: "1px solid var(--border-subtle)",
+    textAlign: "left"
   },
   th: {
     padding: "12px 14px",
-    textAlign: "left",
-    fontSize: "0.82rem",
+    fontSize: "0.85rem",
     fontWeight: 700,
-    color: "var(--text-muted)",
-    textTransform: "uppercase"
+    color: "var(--text-muted)"
   },
   tableRow: {
-    borderBottom: "1px solid var(--border-subtle)",
-    transition: "background-color 0.2s ease"
+    borderBottom: "1px solid var(--border-subtle)"
   },
   td: {
-    padding: "14px",
-    verticalAlign: "middle"
+    padding: "12px 14px",
+    fontSize: "0.9rem"
   },
   historyPoster: {
-    width: "48px",
-    height: "70px",
-    objectFit: "cover",
-    borderRadius: "6px"
+    width: "42px",
+    height: "60px",
+    borderRadius: "4px",
+    objectFit: "cover"
   },
   historyTitleText: {
-    fontSize: "1rem",
     fontWeight: 700,
     color: "#ffffff"
   },
   historyYearText: {
-    fontSize: "0.82rem",
+    fontSize: "0.8rem",
     color: "var(--text-muted)"
   },
   historyPathText: {
-    fontSize: "0.78rem",
-    color: "var(--text-muted)",
     fontFamily: "monospace",
-    maxWidth: "280px",
+    fontSize: "0.78rem",
+    color: "var(--text-secondary)",
+    maxWidth: "320px",
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis"
   },
   historyActionGroup: {
     display: "flex",
-    alignItems: "center",
     gap: "8px"
   },
   historyEditBtn: {
     padding: "6px 12px",
     backgroundColor: "var(--bg-elevated)",
     border: "1px solid var(--border-subtle)",
+    borderRadius: "4px",
     color: "#ffffff",
-    borderRadius: "6px",
-    fontWeight: 600,
     fontSize: "0.8rem",
+    fontWeight: 600,
     cursor: "pointer",
     display: "flex",
     alignItems: "center",
-    gap: "6px"
+    gap: "4px"
   },
   historyDeleteBtn: {
     padding: "6px 12px",
     backgroundColor: "var(--bg-elevated)",
     border: "1px solid var(--border-subtle)",
+    borderRadius: "4px",
     color: "var(--accent-red)",
-    borderRadius: "6px",
-    fontWeight: 600,
     fontSize: "0.8rem",
+    fontWeight: 600,
     cursor: "pointer",
     display: "flex",
     alignItems: "center",
-    gap: "6px"
+    gap: "4px"
   }
 };
