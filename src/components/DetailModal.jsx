@@ -353,8 +353,24 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete }) => {
                       <div style={styles.userPathText}>
                         {up.paths?.default || Object.values(up.paths || {})[0] || "File path configured"}
                       </div>
+                      {up.paths?.subtitle && (
+                        <div style={{ ...styles.userPathText, marginTop: "4px", color: "var(--accent-green)" }}>
+                          💬 Subtitle: {up.paths.subtitle}
+                        </div>
+                      )}
                     </div>
                   ))}
+                  {item.subtitle_path && !(item.user_paths || []).some((up) => up.paths?.subtitle === item.subtitle_path) && (
+                    <div style={styles.userPathCard}>
+                      <div style={styles.userPathHeader}>
+                        <span style={styles.userPathName}>💬 Default Subtitle Track (.srt)</span>
+                        <span className="badge badge-green">VLC Auto-Load</span>
+                      </div>
+                      <div style={{ ...styles.userPathText, color: "var(--accent-green)" }}>
+                        {item.subtitle_path}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

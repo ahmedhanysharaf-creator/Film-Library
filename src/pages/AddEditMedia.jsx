@@ -100,6 +100,7 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
 
   const initialUserPaths = editItem?.user_paths?.find((up) => up.uid === currentUser?.uid)?.paths || {};
   const [defaultPath, setDefaultPath] = useState(initialUserPaths.default || "");
+  const [subtitlePath, setSubtitlePath] = useState(initialUserPaths.subtitle || editItem?.subtitle_path || "");
   const [episodePaths, setEpisodePaths] = useState(initialUserPaths || {});
 
   // Batch Scanner 3-Step State: "input" -> "scanning" -> "confirm"
@@ -216,7 +217,9 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
       })
       .filter((c) => c.name);
 
-    let pathsObj = type === "movie" ? { default: defaultPath } : { default: defaultPath, ...episodePaths };
+    let pathsObj = type === "movie" 
+      ? { default: defaultPath, subtitle: subtitlePath } 
+      : { default: defaultPath, subtitle: subtitlePath, ...episodePaths };
 
     const seasonsArr = Array.from({ length: parseInt(seasonCount) || 1 }).map((_, idx) => ({
       season_number: idx + 1,
@@ -243,6 +246,7 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
       seasons: seasonsArr,
       total_episodes: seasonsArr.reduce((acc, s) => acc + s.episode_count, 0),
       is_ongoing: isOngoing,
+      subtitle_path: subtitlePath,
       new_paths: pathsObj
     };
 
@@ -879,6 +883,40 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
               </span>
             </div>
 
+            <div style={styles.field}>
+              <label style={styles.label}>💬 Subtitle Track File Path (.srt / .ass / .vtt)</label>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <input
+                  type="text"
+                  value={subtitlePath}
+                  onChange={(e) => setSubtitlePath(e.target.value)}
+                  placeholder="e.g. C:\Downloads\Marvel Films\Avengers.srt"
+                  style={{ ...styles.input, flex: 1 }}
+                />
+                <label style={styles.subBrowseBtn}>
+                  Browse .srt
+                  <input
+                    type="file"
+                    accept=".srt,.ass,.vtt,.sub"
+                    style={{ display: "none" }}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const basePath = defaultPath && defaultPath.includes("\\")
+                          ? defaultPath.substring(0, defaultPath.lastIndexOf("\\") + 1)
+                          : "C:\\Users\\Ahmed\\Downloads\\";
+                        setSubtitlePath(`${basePath}${file.name}`);
+                        addToast(`Attached subtitle file: ${file.name}`, "success");
+                      }
+                    }}
+                  />
+                </label>
+              </div>
+              <span style={styles.helpText}>
+                Select or paste your local subtitle file (.srt). VLC will auto-display this subtitle track when playing!
+              </span>
+            </div>
+
             {defaultPath && !VIDEO_EXTENSIONS.some((ext) => defaultPath.toLowerCase().endsWith(ext)) && (
               <div style={styles.folderNotice}>
                 <FolderPlus size={20} color="var(--accent-green)" />
@@ -1465,6 +1503,18 @@ const styles = {
     fontSize: "0.78rem",
     color: "var(--text-muted)",
     lineHeight: "1.3"
+  },
+  subBrowseBtn: {
+    padding: "8px 14px",
+    backgroundColor: "var(--accent-green)",
+    color: "#000000",
+    borderRadius: "6px",
+    fontWeight: 700,
+    fontSize: "0.82rem",
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    whiteSpace: "nowrap"
   },
   episodeMapperSection: {
     display: "flex",
