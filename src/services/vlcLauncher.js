@@ -62,14 +62,13 @@ if ($url -match 'path=(.*?)(?:&|$)') {
     $v = 'C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe'
     if (-not(Test-Path $v)) { $v = 'C:\\\\Program Files (x86)\\\\VideoLAN\\\\VLC\\\\vlc.exe' }
     if (-not(Test-Path $v)) { $v = 'vlc.exe' }
-    $argList = @()
+    $argList = @(\\"\`\\"\$p\`\\"\\")
     if ($url -match 'sub=(.*?)(?:&|$)') {
         $s = [System.Uri]::UnescapeDataString($matches[1]).Replace('/', '\\\\')
-        $argList += \\"--sub-file=\`\\"\$s\`\\"\\"
-        $argList += \\"--sub-track=0\\"
-        $argList += \\"--sub-track-id=1\\"
+        $argList += \\":input-slave=\`\\"\$s\`\\"\\"
+        $argList += \\":sub-file=\`\\"\$s\`\\"\\"
+        $argList += \\":sub-track=0\\"
     }
-    $argList += \\"\`\\"\$p\`\\"\\"
     Start-Process -FilePath $v -ArgumentList $argList
 }
 '@; Set-Content -Path \\"$dir\\\\vlc-launcher.ps1\\" -Value $psScript -Force; $batContent='@echo off' + [Environment]::NewLine + 'powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \\"' + $dir + '\\\\vlc-launcher.ps1\\" \\"%%~1\\"'; Set-Content -Path \\"$dir\\\\vlc-launcher.bat\\" -Value $batContent -Force; reg add \\"HKCU\\\\Software\\\\Classes\\\\filmlibrary\\" /ve /t REG_SZ /d \\"URL:Film Library Protocol\\" /f >nul; reg add \\"HKCU\\\\Software\\\\Classes\\\\filmlibrary\\" /v \\"URL Protocol\\" /t REG_SZ /d \\"\\" /f >nul; reg add \\"HKCU\\\\Software\\\\Classes\\\\filmlibrary\\\\shell\\\\open\\\\command\\" /ve /t REG_SZ /d \\"\\\\\\"\\" + $dir + \\"\\\\vlc-launcher.bat\\\\\\" \\\\\\"%%1\\\\\\"\\" /f >nul"
