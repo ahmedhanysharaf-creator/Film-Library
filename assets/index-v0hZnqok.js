@@ -52,9 +52,7 @@ if ($url -match 'path=(.*?)(?:&|$)') {
     $argList = @(\\"\`\\"$p\`\\"\\")
     if ($url -match 'sub=(.*?)(?:&|$)') {
         $s = [System.Uri]::UnescapeDataString($matches[1]).Replace('/', '\\\\')
-        $argList += \\":input-slave=\`\\"$s\`\\"\\"
-        $argList += \\":sub-file=\`\\"$s\`\\"\\"
-        $argList += \\":sub-track=0\\"
+        $argList += \\"--sub-file=\`\\"$s\`\\"\\"
     }
     Start-Process -FilePath $v -ArgumentList $argList
 }
