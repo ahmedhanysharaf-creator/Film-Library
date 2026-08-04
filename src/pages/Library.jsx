@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { 
   Search, Grid, List, Filter, ArrowUpDown, Check, X, Film, Tv, Star, CheckCircle2, Bookmark, User, Globe, History, Edit3, Trash2, Calendar, HardDrive, CheckSquare, Square, Layers, CheckCheck 
 } from "lucide-react";
-import { fetchLibraryItems, deleteMediaEntry, updateWatchProgress } from "../services/storage";
+import { fetchLibraryItems, deleteMediaEntry, deleteMediaEntriesBatch, updateWatchProgress } from "../services/storage";
 import { PosterCard } from "../components/PosterCard";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
@@ -160,11 +160,10 @@ export const Library = ({ onSelectItem, onEditItem }) => {
 
     try {
       addToast(`Deleting ${idsToDelete.length} items from library...`, "info");
-      for (const id of idsToDelete) {
-        await deleteMediaEntry(id);
-      }
+      await deleteMediaEntriesBatch(idsToDelete);
       addToast(`Successfully deleted ${idsToDelete.length} item(s)!`, "success");
       setSelectedItemIds(new Set());
+      setIsMultiSelectActive(false);
       loadItems();
     } catch (err) {
       addToast(`Failed mass delete: ${err.message}`, "error");

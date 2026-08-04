@@ -369,10 +369,10 @@ export const saveMediaEntriesBatch = async (mediaDataList, currentUser, onProgre
 };
 
 /**
- * Delete media item from Library
+ * Delete single media item from Library
  */
 export const deleteMediaEntry = async (itemId) => {
-  const items = getLocalLibrary().filter((item) => item.id !== itemId);
+  const items = getLocalLibrary().filter((item) => item.id !== itemId && item.tmdb_id?.toString() !== itemId?.toString());
   saveLocalLibrary(items);
 
   if (isFirebaseConfigured() && db) {
@@ -380,6 +380,45 @@ export const deleteMediaEntry = async (itemId) => {
       await deleteDoc(doc(db, "library", itemId));
     } catch (e) {}
   }
+};
+
+/**
+ * Mass Delete Media Entries from Library (Batch operation)
+ */
+export const deleteMediaEntriesBatch = async (itemIds) => {
+  if (!itemIds || itemIds.length === 0) return 0;
+  const idSet = new Set(itemIds.map((id) => id?.toString()));
+
+  // 1. Clean LocalStorage in one single pass
+  const localItems = getLocalLibrary();
+  const remainingLocal = localItems.filter((item) => {
+    const itemIdStr = item.id?.toString();
+    const tmdbIdStr = item.tmdb_id?.toString();
+    return !idSet.has(itemIdStr) && !idSet.has(tmdbIdStr);
+  });
+  saveLocalLibrary(remainingLocal);
+
+  // 2. Batch Delete in Firestore
+  if (isFirebaseConfigured() && db) {
+    try {
+      const batch = writeBatch(db);
+      itemIds.forEach((id) => {
+        if (id && !id.toString().startsWith("local_")) {
+          const docRef = doc(db, "library", id.toString());
+          batch.delete(docRef);
+        }
+      });
+      const commitPromise = batch.commit();
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Delete batch timeout")), 2000)
+      );
+      await Promise.race([commitPromise, timeoutPromise]);
+    } catch (e) {
+      console.warn("Firestore batch delete timeout or warning:", e);
+    }
+  }
+
+  return itemIds.length;
 };
 
 /**
