@@ -52,34 +52,53 @@ export const downloadVlcM3uPlaylist = (path, title, subPath) => {
  * Automatically passes subtitle path (--sub-file=...) to VLC if configured!
  */
 export const downloadWindowsRegistryFix = () => {
-  const cmdContent = `@echo off
-echo Installing 1-Click VLC Protocol Launcher...
+  const vbsContent = `Set WshShell = CreateObject("WScript.Shell")
+Set fso = CreateObject("Scripting.FileSystemObject")
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$dir=\\"$env:LOCALAPPDATA\\\\FilmLibrary\\"; if(-not(Test-Path $dir)){ New-Item -ItemType Directory -Path $dir -Force }; $psScript=@'
-param([string]$url)
-if ($url -match 'path=(.*?)(?:&|$)') {
-    $p = [System.Uri]::UnescapeDataString($matches[1]).Replace('/', '\\\\')
-    $v = 'C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe'
-    if (-not(Test-Path $v)) { $v = 'C:\\\\Program Files (x86)\\\\VideoLAN\\\\VLC\\\\vlc.exe' }
-    if (-not(Test-Path $v)) { $v = 'vlc.exe' }
-    $argList = @(\\"\`\\"\$p\`\\"\\")
-    if ($url -match 'sub=(.*?)(?:&|$)') {
-        $s = [System.Uri]::UnescapeDataString($matches[1]).Replace('/', '\\\\')
-        $argList += \\"--sub-file=\`\\"\$s\`\\"\\"
-    }
-    Start-Process -FilePath $v -ArgumentList $argList
-}
-'@; Set-Content -Path \\"$dir\\\\vlc-launcher.ps1\\" -Value $psScript -Force; $batContent='@echo off' + [Environment]::NewLine + 'powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \\"' + $dir + '\\\\vlc-launcher.ps1\\" \\"%%~1\\"'; Set-Content -Path \\"$dir\\\\vlc-launcher.bat\\" -Value $batContent -Force; reg add \\"HKCU\\\\Software\\\\Classes\\\\filmlibrary\\" /ve /t REG_SZ /d \\"URL:Film Library Protocol\\" /f >nul; reg add \\"HKCU\\\\Software\\\\Classes\\\\filmlibrary\\" /v \\"URL Protocol\\" /t REG_SZ /d \\"\\" /f >nul; reg add \\"HKCU\\\\Software\\\\Classes\\\\filmlibrary\\\\shell\\\\open\\\\command\\" /ve /t REG_SZ /d \\"\\\\\\"\\" + $dir + \\"\\\\vlc-launcher.bat\\\\\\" \\\\\\"%%1\\\\\\"\\" /f >nul"
+appData = WshShell.ExpandEnvironmentStrings("%LOCALAPPDATA%")
+dirPath = appData & "\\FilmLibrary"
 
-echo Done! 1-Click VLC Protocol setup complete.
-timeout /t 2 >nul
+If Not fso.FolderExists(dirPath) Then
+    fso.CreateFolder(dirPath)
+End If
+
+psPath = dirPath & "\\vlc-launcher.ps1"
+batPath = dirPath & "\\vlc-launcher.bat"
+
+Set psFile = fso.CreateTextFile(psPath, True)
+psFile.WriteLine "param([string]$url)"
+psFile.WriteLine ""
+psFile.WriteLine "if ($url -match 'path=(.*?)(?:&|$)') {"
+psFile.WriteLine "    $p = [System.Uri]::UnescapeDataString($matches[1]).Replace('/', '\\')"
+psFile.WriteLine "    $v = 'C:\\Program Files\\VideoLAN\\VLC\\vlc.exe'"
+psFile.WriteLine "    if (-not (Test-Path $v)) { $v = 'C:\\Program Files (x86)\\VideoLAN\\VLC\\vlc.exe' }"
+psFile.WriteLine "    if (-not (Test-Path $v)) { $v = 'vlc.exe' }"
+psFile.WriteLine "    $argList = @(""" & """$p""" & """)"
+psFile.WriteLine "    if ($url -match 'sub=(.*?)(?:&|$)') {"
+psFile.WriteLine "        $s = [System.Uri]::UnescapeDataString($matches[1]).Replace('/', '\\')"
+psFile.WriteLine "        $argList += ""--sub-file=\`""" & """$s\`"""""
+psFile.WriteLine "    }"
+psFile.WriteLine "    Start-Process -FilePath $v -ArgumentList $argList"
+psFile.WriteLine "}"
+psFile.Close
+
+Set batFile = fso.CreateTextFile(batPath, True)
+batFile.WriteLine "@echo off"
+batFile.WriteLine "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File """ & psPath & """ ""%~1"""
+batFile.Close
+
+WshShell.RegWrite "HKCU\\Software\\Classes\\filmlibrary\\", "URL:Film Library Protocol", "REG_SZ"
+WshShell.RegWrite "HKCU\\Software\\Classes\\filmlibrary\\URL Protocol", "", "REG_SZ"
+WshShell.RegWrite "HKCU\\Software\\Classes\\filmlibrary\\shell\\open\\command\\", """" & batPath & """ ""%1""", "REG_SZ"
+
+WScript.Echo "1-Click VLC Setup Complete! You can now click Play in VLC on the website."
 `;
 
-  const blob = new Blob([cmdContent], { type: "text/plain" });
+  const blob = new Blob([vbsContent], { type: "text/plain" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "Fix-1Click-VLC.cmd";
+  a.download = "Fix-1Click-VLC.vbs";
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
