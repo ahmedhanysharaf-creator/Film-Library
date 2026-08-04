@@ -1,6 +1,6 @@
 /**
  * VLC Media Player Launcher Service
- * Triggers direct 1-click automatic VLC opening!
+ * Triggers direct 1-click automatic VLC opening with Audio Unmute & 100% Volume!
  */
 
 export const getSecurityToken = () => {
@@ -42,7 +42,7 @@ export const downloadVlcM3uPlaylist = (path, title) => {
 
 /**
  * Generate and trigger downloadable .reg file
- * Pure PowerShell single-line launcher that auto-detects VLC path and handles spaces cleanly!
+ * Launches VLC with explicit --no-volume-mute --volume=256 --audio-language=en,eng,ar flags for guaranteed sound!
  */
 export const downloadWindowsRegistryFix = () => {
   const regContent = `Windows Registry Editor Version 5.00
@@ -56,14 +56,14 @@ export const downloadWindowsRegistryFix = () => {
 [HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell\\open]
 
 [HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell\\open\\command]
-@="powershell.exe -NoProfile -WindowStyle Hidden -Command \\"$url='%1'; if($url -match 'path=(.*?)(?:&|$)'){ $p=[System.Uri]::UnescapeDataString($matches[1]); if(Test-Path 'C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe'){ & 'C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe' $p } elseif(Test-Path 'C:\\\\Program Files (x86)\\\\VideoLAN\\\\VLC\\\\vlc.exe'){ & 'C:\\\\Program Files (x86)\\\\VideoLAN\\\\VLC\\\\vlc.exe' $p } else { & 'vlc.exe' $p } }\\""
+@="powershell.exe -NoProfile -WindowStyle Hidden -Command \\"$url='%1'; if($url -match 'path=(.*?)(?:&|$)'){ $p=[System.Uri]::UnescapeDataString($matches[1]); $flags=@('--no-volume-mute', '--volume=256', '--audio-language=en,eng,ar', '--aout=directsound'); if(Test-Path 'C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe'){ & 'C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe' @flags $p } elseif(Test-Path 'C:\\\\Program Files (x86)\\\\VideoLAN\\\\VLC\\\\vlc.exe'){ & 'C:\\\\Program Files (x86)\\\\VideoLAN\\\\VLC\\\\vlc.exe' @flags $p } else { & 'vlc.exe' @flags $p } }\\""
 `;
 
   const blob = new Blob([regContent], { type: "text/plain" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "Register-1Click-VLC-Protocol-V2.reg";
+  a.download = "Register-1Click-VLC-AudioFix.reg";
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
