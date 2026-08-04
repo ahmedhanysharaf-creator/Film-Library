@@ -46,7 +46,7 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete }) => {
   const userPathObj = (item.user_paths || []).find((up) => up.uid === currentUser?.uid);
   const userPathsMap = userPathObj?.paths || {};
   const defaultMoviePath = userPathsMap.default || "";
-  const subPath = item.subtitle_path || userPathsMap.subtitle || "";
+  const subPath = item.subtitle_path || userPathsMap.subtitle || (defaultMoviePath ? defaultMoviePath.replace(/\.[^/.]+$/, ".srt") : "");
 
   // YouTube Embed Url converter
   const getYouTubeEmbedUrl = (url) => {
