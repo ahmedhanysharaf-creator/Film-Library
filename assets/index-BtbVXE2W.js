@@ -52,72 +52,19 @@ End If
 psPath = dirPath & "\\vlc-launcher.ps1"
 batPath = dirPath & "\\vlc-launcher.bat"
 
-Set psFile = fso.CreateTextFile(psPath, True)
-psFile.WriteLine "param([string]$url)"
-psFile.WriteLine ""
-psFile.WriteLine "if ($url -match 'path=(.*?)(?:&|$)') {"
-psFile.WriteLine "    $p = [System.Uri]::UnescapeDataString($matches[1]).Replace('/', '\\')"
-psFile.WriteLine "    $v = 'C:\\Program Files\\VideoLAN\\VLC\\vlc.exe'"
-psFile.WriteLine "    if (-not (Test-Path $v)) { $v = 'C:\\Program Files (x86)\\VideoLAN\\VLC\\vlc.exe' }"
-psFile.WriteLine "    if (-not (Test-Path $v)) { $v = 'vlc.exe' }"
-psFile.WriteLine "    $arg1 = '""' + $p + '""'"
-psFile.WriteLine "    $argList = @(""--no-embedded-sub"", ""--osd"", $arg1)"
-psFile.WriteLine "    $subPath = """""
-psFile.WriteLine "    if ($url -match 'sub=(.*?)(?:&|$)') {"
-psFile.WriteLine "        $subPath = [System.Uri]::UnescapeDataString($matches[1]).Replace('/', '\\')"
-psFile.WriteLine "    }"
-psFile.WriteLine "    if (-not $subPath -or -not (Test-Path $subPath)) {"
-psFile.WriteLine "        if (Test-Path $p) {"
-psFile.WriteLine "            $videoDir = [System.IO.Path]::GetDirectoryName($p)"
-psFile.WriteLine "            $videoBaseName = [System.IO.Path]::GetFileNameWithoutExtension($p)"
-psFile.WriteLine "            $candidates = @("
-psFile.WriteLine "                ""$videoDir\\$videoBaseName.srt"","
-psFile.WriteLine "                ""$videoDir\\$videoBaseName.ar.srt"","
-psFile.WriteLine "                ""$videoDir\\$videoBaseName.en.srt"","
-psFile.WriteLine "                ""$videoDir\\$videoBaseName.ass"""
-psFile.WriteLine "            )"
-psFile.WriteLine "            foreach ($cand in $candidates) {"
-psFile.WriteLine "                if (Test-Path $cand) {"
-psFile.WriteLine "                    $subPath = $cand"
-psFile.WriteLine "                    break"
-psFile.WriteLine "                }"
-psFile.WriteLine "            }"
-psFile.WriteLine "        }"
-psFile.WriteLine "    }"
-psFile.WriteLine "    if ($subPath -and (Test-Path $subPath)) {"
-psFile.WriteLine "        if ($subPath.ToLower().EndsWith("".srt"")) {"
-psFile.WriteLine "            $assCandidate = $subPath.Substring(0, $subPath.Length - 4) + "".ass"""
-psFile.WriteLine "            try {"
-psFile.WriteLine "                $srtText = [System.IO.File]::ReadAllText($subPath)"
-psFile.WriteLine "                $srtText = $srtText -replace ""[‪-‮‎‏⁦-⁩]"", """""
-psFile.WriteLine "                $assHeader = ""[Script Info]\`r\`nTitle: Subtitles\`r\`nScriptType: v4.00+\`r\`nWrapStyle: 0\`r\`nScaledBorderAndShadow: yes\`r\`n\`r\`n[V4+ Styles]\`r\`nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\`r\`nStyle: Default,Segoe UI,24,&H00FFFFFF,&H00000000,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,2,2,2,10,10,20,1\`r\`n\`r\`n[Events]\`r\`nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\`r\`n"""
-psFile.WriteLine "                $assLines = [System.Collections.Generic.List[string]]::new()"
-psFile.WriteLine "                $assLines.Add($assHeader)"
-psFile.WriteLine "                $blocks = $srtText -split ""(\r?
-){2,}"""
-psFile.WriteLine "                foreach ($block in $blocks) {"
-psFile.WriteLine "                    $lines = $block.Trim() -split ""\r?
-"""
-psFile.WriteLine "                    if ($lines.Length -ge 3) {"
-psFile.WriteLine "                        $timeLine = $lines[1]"
-psFile.WriteLine "                        if ($timeLine -match ""(d{2}:d{2}:d{2},d{3})s*-->s*(d{2}:d{2}:d{2},d{3})"") {"
-psFile.WriteLine "                            $start = $matches[1].Replace("","" , ""."").Substring(1, 10)"
-psFile.WriteLine "                            $end = $matches[2].Replace("","" , ""."").Substring(1, 10)"
-psFile.WriteLine "                            $textLines = $lines[2..($lines.Length - 1)] -join ""N"""
-psFile.WriteLine "                            $assLines.Add(""Dialogue: 0,$start,$end,Default,,0,0,0,,$textLines"")"
-psFile.WriteLine "                        }"
-psFile.WriteLine "                    }"
-psFile.WriteLine "                }"
-psFile.WriteLine "                [System.IO.File]::WriteAllLines($assCandidate, $assLines, [System.Text.Encoding]::UTF8)"
-psFile.WriteLine "                $subPath = $assCandidate"
-psFile.WriteLine "            } catch {}"
-psFile.WriteLine "        }"
-psFile.WriteLine "        $arg2 = '""--sub-file=' + $subPath + '""'"
-psFile.WriteLine "        $argList += $arg2"
-psFile.WriteLine "    }"
-psFile.WriteLine "    Start-Process -FilePath $v -ArgumentList $argList"
-psFile.WriteLine "}"
-psFile.Close
+b64 = "cGFyYW0oW3N0cmluZ10kdXJsKQoKaWYgKCR1cmwgLW1hdGNoICdwYXRoPSguKj8pKD86JnwkKScpIHsKICAgICRwID0gW1N5c3RlbS5VcmldOjpVbmVzY2FwZURhdGFTdHJpbmcoJG1hdGNoZXNbMV0pLlJlcGxhY2UoJy8nLCAnXCcpCiAgICAKICAgICR2ID0gJ0M6XFByb2dyYW0gRmlsZXNcVmlkZW9MQU5cVkxDXHZsYy5leGUnCiAgICBpZiAoLW5vdCAoVGVzdC1QYXRoICR2KSkgeyAkdiA9ICdDOlxQcm9ncmFtIEZpbGVzICh4ODYpXFZpZGVvTEFOXFZMQ1x2bGMuZXhlJyB9CiAgICBpZiAoLW5vdCAoVGVzdC1QYXRoICR2KSkgeyAkdiA9ICd2bGMuZXhlJyB9CiAgICAKICAgICRhcmcxID0gJyInICsgJHAgKyAnIicKICAgICRhcmdMaXN0ID0gQCgiLS1uby1lbWJlZGRlZC1zdWIiLCAkYXJnMSkKICAgIAogICAgJHN1YlBhdGggPSAiIgogICAgaWYgKCR1cmwgLW1hdGNoICdzdWI9KC4qPykoPzomfCQpJykgewogICAgICAgICRzdWJQYXRoID0gW1N5c3RlbS5VcmldOjpVbmVzY2FwZURhdGFTdHJpbmcoJG1hdGNoZXNbMV0pLlJlcGxhY2UoJy8nLCAnXCcpCiAgICB9CiAgICAKICAgIGlmICgtbm90ICRzdWJQYXRoIC1vciAtbm90IChUZXN0LVBhdGggJHN1YlBhdGgpKSB7CiAgICAgICAgaWYgKFRlc3QtUGF0aCAkcCkgewogICAgICAgICAgICAkdmlkZW9EaXIgPSBbU3lzdGVtLklPLlBhdGhdOjpHZXREaXJlY3RvcnlOYW1lKCRwKQogICAgICAgICAgICAkdmlkZW9CYXNlTmFtZSA9IFtTeXN0ZW0uSU8uUGF0aF06OkdldEZpbGVOYW1lV2l0aG91dEV4dGVuc2lvbigkcCkKICAgICAgICAgICAgCiAgICAgICAgICAgICRjYW5kaWRhdGVzID0gQCgKICAgICAgICAgICAgICAgICIkdmlkZW9EaXJcJHZpZGVvQmFzZU5hbWUuYXNzIiwKICAgICAgICAgICAgICAgICIkdmlkZW9EaXJcJHZpZGVvQmFzZU5hbWUuc3J0IiwKICAgICAgICAgICAgICAgICIkdmlkZW9EaXJcJHZpZGVvQmFzZU5hbWUuYXIuc3J0IiwKICAgICAgICAgICAgICAgICIkdmlkZW9EaXJcJHZpZGVvQmFzZU5hbWUuZW4uc3J0IgogICAgICAgICAgICApCiAgICAgICAgICAgIAogICAgICAgICAgICBmb3JlYWNoICgkY2FuZCBpbiAkY2FuZGlkYXRlcykgewogICAgICAgICAgICAgICAgaWYgKFRlc3QtUGF0aCAkY2FuZCkgewogICAgICAgICAgICAgICAgICAgICRzdWJQYXRoID0gJGNhbmQKICAgICAgICAgICAgICAgICAgICBicmVhawogICAgICAgICAgICAgICAgfQogICAgICAgICAgICB9CiAgICAgICAgfQogICAgfQogICAgCiAgICBpZiAoJHN1YlBhdGggLWFuZCAoVGVzdC1QYXRoICRzdWJQYXRoKSkgewogICAgICAgIGlmICgkc3ViUGF0aC5Ub0xvd2VyKCkuRW5kc1dpdGgoIi5zcnQiKSkgewogICAgICAgICAgICAkYXNzQ2FuZGlkYXRlID0gJHN1YlBhdGguU3Vic3RyaW5nKDAsICRzdWJQYXRoLkxlbmd0aCAtIDQpICsgIi5hc3MiCiAgICAgICAgICAgIHRyeSB7CiAgICAgICAgICAgICAgICAkc3J0VGV4dCA9IFtTeXN0ZW0uSU8uRmlsZV06OlJlYWRBbGxUZXh0KCRzdWJQYXRoKQogICAgICAgICAgICAgICAgJHNydFRleHQgPSAkc3J0VGV4dCAtcmVwbGFjZSAiW1x1MjAyQS1cdTIwMkVcdTIwMEVcdTIwMEZcdTIwNjYtXHUyMDY5XSIsICIiCiAgICAgICAgICAgICAgICAKICAgICAgICAgICAgICAgICRhc3NIZWFkZXIgPSAiW1NjcmlwdCBJbmZvXWByYG5UaXRsZTogU3VidGl0bGVzYHJgblNjcmlwdFR5cGU6IHY0LjAwK2ByYG5XcmFwU3R5bGU6IDBgcmBuU2NhbGVkQm9yZGVyQW5kU2hhZG93OiB5ZXNgcmBuYHJgbltWNCsgU3R5bGVzXWByYG5Gb3JtYXQ6IE5hbWUsIEZvbnRuYW1lLCBGb250c2l6ZSwgUHJpbWFyeUNvbG91ciwgU2Vjb25kYXJ5Q29sb3VyLCBPdXRsaW5lQ29sb3VyLCBCYWNrQ29sb3VyLCBCb2xkLCBJdGFsaWMsIFVuZGVybGluZSwgU3RyaWtlT3V0LCBTY2FsZVgsIFNjYWxlWSwgU3BhY2luZywgQW5nbGUsIEJvcmRlclN0eWxlLCBPdXRsaW5lLCBTaGFkb3csIEFsaWdubWVudCwgTWFyZ2luTCwgTWFyZ2luUiwgTWFyZ2luViwgRW5jb2RpbmdgcmBuU3R5bGU6IERlZmF1bHQsU2Vnb2UgVUksMjQsJkgwMEZGRkZGRiwmSDAwMDAwMDAwLCZIMDAwMDAwMDAsJkg4MDAwMDAwMCwtMSwwLDAsMCwxMDAsMTAwLDAsMCwxLDIsMiwyLDEwLDEwLDIwLDFgcmBuYHJgbltFdmVudHNdYHJgbkZvcm1hdDogTGF5ZXIsIFN0YXJ0LCBFbmQsIFN0eWxlLCBOYW1lLCBNYXJnaW5MLCBNYXJnaW5SLCBNYXJnaW5WLCBFZmZlY3QsIFRleHRgcmBuIgogICAgICAgICAgICAgICAgCiAgICAgICAgICAgICAgICAkYXNzTGluZXMgPSBbU3lzdGVtLkNvbGxlY3Rpb25zLkdlbmVyaWMuTGlzdFtzdHJpbmddXTo6bmV3KCkKICAgICAgICAgICAgICAgICRhc3NMaW5lcy5BZGQoJGFzc0hlYWRlcikKICAgICAgICAgICAgICAgIAogICAgICAgICAgICAgICAgJGJsb2NrcyA9ICRzcnRUZXh0IC1zcGxpdCAiKFxyP1xuKXsyLH0iCiAgICAgICAgICAgICAgICBmb3JlYWNoICgkYmxvY2sgaW4gJGJsb2NrcykgewogICAgICAgICAgICAgICAgICAgICRsaW5lcyA9ICRibG9jay5UcmltKCkgLXNwbGl0ICJccj9cbiIKICAgICAgICAgICAgICAgICAgICBpZiAoJGxpbmVzLkxlbmd0aCAtZ2UgMykgewogICAgICAgICAgICAgICAgICAgICAgICAkdGltZUxpbmUgPSAkbGluZXNbMV0KICAgICAgICAgICAgICAgICAgICAgICAgaWYgKCR0aW1lTGluZSAtbWF0Y2ggIihcZHsyfTpcZHsyfTpcZHsyfSxcZHszfSlccyotLT5ccyooXGR7Mn06XGR7Mn06XGR7Mn0sXGR7M30pIikgewogICAgICAgICAgICAgICAgICAgICAgICAgICAgJHN0YXJ0ID0gJG1hdGNoZXNbMV0uUmVwbGFjZSgiLCIsICIuIikuU3Vic3RyaW5nKDEsIDEwKQogICAgICAgICAgICAgICAgICAgICAgICAgICAgJGVuZCA9ICRtYXRjaGVzWzJdLlJlcGxhY2UoIiwiLCAiLiIpLlN1YnN0cmluZygxLCAxMCkKICAgICAgICAgICAgICAgICAgICAgICAgICAgICR0ZXh0TGluZXMgPSAkbGluZXNbMi4uKCRsaW5lcy5MZW5ndGggLSAxKV0gLWpvaW4gIlxOIgogICAgICAgICAgICAgICAgICAgICAgICAgICAgJGFzc0xpbmVzLkFkZCgiRGlhbG9ndWU6IDAsJHN0YXJ0LCRlbmQsRGVmYXVsdCwsMCwwLDAsLCR0ZXh0TGluZXMiKQogICAgICAgICAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgICAgICAgfQogICAgICAgICAgICAgICAgfQogICAgICAgICAgICAgICAgW1N5c3RlbS5JTy5GaWxlXTo6V3JpdGVBbGxMaW5lcygkYXNzQ2FuZGlkYXRlLCAkYXNzTGluZXMsIFtTeXN0ZW0uVGV4dC5FbmNvZGluZ106OlVURjgpCiAgICAgICAgICAgICAgICAkc3ViUGF0aCA9ICRhc3NDYW5kaWRhdGUKICAgICAgICAgICAgfSBjYXRjaCB7fQogICAgICAgIH0KICAgICAgICAKICAgICAgICAkYXJnMiA9ICciLS1zdWItZmlsZT0nICsgJHN1YlBhdGggKyAnIicKICAgICAgICAkYXJnTGlzdCArPSAkYXJnMgogICAgfQogICAgCiAgICBTdGFydC1Qcm9jZXNzIC1GaWxlUGF0aCAkdiAtQXJndW1lbnRMaXN0ICRhcmdMaXN0Cn0K"
+
+Set xmlDoc = CreateObject("MSXML2.DOMDocument.3.0")
+Set node = xmlDoc.CreateElement("base64")
+node.dataType = "bin.base64"
+node.text = b64
+
+Set stream = CreateObject("ADODB.Stream")
+stream.Type = 1
+stream.Open
+stream.Write node.nodeTypedValue
+stream.SaveToFile psPath, 2
+stream.Close
 
 Set batFile = fso.CreateTextFile(batPath, True)
 batFile.WriteLine "@echo off"
