@@ -105,6 +105,7 @@ const AppContent = () => {
           onClose={() => setSelectedItem(null)}
           onEdit={handleEdit}
           onDelete={handleDelete}
+          onItemUpdate={(updatedItem) => setSelectedItem(updatedItem)}
         />
       )}
 

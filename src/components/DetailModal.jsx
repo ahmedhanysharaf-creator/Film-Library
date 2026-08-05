@@ -8,26 +8,60 @@ import { updateWatchProgress } from "../services/storage";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 
-export const DetailModal = ({ item, onClose, onEdit, onDelete }) => {
+export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate }) => {
   const { currentUser } = useAuth();
   const { addToast } = useToast();
+
+  const uid = currentUser?.uid || "demo_user_id";
 
   const [activeSeason, setActiveSeason] = useState(1);
   const [showTrailer, setShowTrailer] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
+  // Personal watch progress state for instant reactive UI updates
+  const [localProgress, setLocalProgress] = useState(() => {
+    return (item?.user_progress || {})[uid] || { status: "unwatched", watched_episodes: [] };
+  });
+
   if (!item) return null;
 
-  // Personal watch progress
-  const userProgress = (item.user_progress || {})[currentUser?.uid || ""] || {
-    status: "unwatched",
-    watched_episodes: []
-  };
-  const watchedEpisodes = new Set(userProgress.watched_episodes || []);
+  const watchedEpisodes = new Set(localProgress.watched_episodes || []);
 
-  const handleStatusChange = async (newStatus) => {
-    await updateWatchProgress(item.id, currentUser.uid, newStatus, Array.from(watchedEpisodes));
-    addToast(`Updated status to ${newStatus}`, "success");
+  const handleStatusChange = async (targetStatus) => {
+    // Toggle status: if already active, set to "unwatched"
+    const nextStatus = localProgress.status === targetStatus ? "unwatched" : targetStatus;
+    const nextProgress = {
+      status: nextStatus,
+      watched_episodes: Array.from(watchedEpisodes)
+    };
+
+    // 1. Instant local state update for zero-latency button styling
+    setLocalProgress(nextProgress);
+
+    const updatedUserProgress = {
+      ...(item.user_progress || {}),
+      [uid]: nextProgress
+    };
+    const updatedItem = {
+      ...item,
+      user_progress: updatedUserProgress
+    };
+
+    if (onItemUpdate) {
+      onItemUpdate(updatedItem);
+    }
+
+    // 2. Persist to LocalStorage and Firestore
+    await updateWatchProgress(item.id, uid, nextStatus, Array.from(watchedEpisodes));
+
+    // 3. User Feedback Toast
+    if (nextStatus === "watchlist") {
+      addToast(`Added "${item.title}" to your Watchlist!`, "success");
+    } else if (nextStatus === "watched") {
+      addToast(`Marked "${item.title}" as Watched!`, "success");
+    } else {
+      addToast(`Removed "${item.title}" from Watchlist/Watched status`, "info");
+    }
   };
 
   const toggleEpisodeWatched = async (epCode) => {
@@ -39,11 +73,26 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete }) => {
     }
     const nextList = Array.from(nextSet);
     const newStatus = nextList.length > 0 ? "watched" : "unwatched";
-    await updateWatchProgress(item.id, currentUser.uid, newStatus, nextList);
+    
+    setLocalProgress({
+      status: newStatus,
+      watched_episodes: nextList
+    });
+
+    const updatedItem = {
+      ...item,
+      user_progress: {
+        ...(item.user_progress || {}),
+        [uid]: { status: newStatus, watched_episodes: nextList }
+      }
+    };
+    if (onItemUpdate) onItemUpdate(updatedItem);
+
+    await updateWatchProgress(item.id, uid, newStatus, nextList);
   };
 
   // Find paths for active user or any available user
-  const userPathObj = (item.user_paths || []).find((up) => up.uid === currentUser?.uid);
+  const userPathObj = (item.user_paths || []).find((up) => up.uid === uid);
   const userPathsMap = userPathObj?.paths || {};
   const defaultMoviePath = userPathsMap.default || "";
   const subPath = item.subtitle_path || userPathsMap.subtitle || (defaultMoviePath ? defaultMoviePath.replace(/\.[^/.]+$/, ".srt") : "");
@@ -108,21 +157,21 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete }) => {
                 <button
                   style={{
                     ...styles.statusBtn,
-                    ...(userProgress.status === "watched" ? styles.statusBtnActiveGreen : {})
+                    ...(localProgress.status === "watched" ? styles.statusBtnActiveGreen : {})
                   }}
                   onClick={() => handleStatusChange("watched")}
                 >
-                  <CheckCircle2 size={16} /> Watched
+                  <CheckCircle2 size={16} color={localProgress.status === "watched" ? "var(--accent-green)" : "currentColor"} /> Watched
                 </button>
 
                 <button
                   style={{
                     ...styles.statusBtn,
-                    ...(userProgress.status === "watchlist" ? styles.statusBtnActiveGold : {})
+                    ...(localProgress.status === "watchlist" ? styles.statusBtnActiveGold : {})
                   }}
                   onClick={() => handleStatusChange("watchlist")}
                 >
-                  <Bookmark size={16} /> Watchlist
+                  <Bookmark size={16} fill={localProgress.status === "watchlist" ? "#f5c518" : "none"} color={localProgress.status === "watchlist" ? "#f5c518" : "currentColor"} /> Watchlist
                 </button>
               </div>
 

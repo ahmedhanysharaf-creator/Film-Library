@@ -282,6 +282,28 @@ export const Library = ({ onSelectItem, onEditItem }) => {
               </button>
             </div>
 
+            {/* Watch Status Filter Tabs */}
+            <div style={styles.segmentedGroup}>
+              <button
+                style={{ ...styles.segmentBtn, ...(watchFilter === "all" ? styles.segmentActive : {}) }}
+                onClick={() => setWatchFilter("all")}
+              >
+                All Status
+              </button>
+              <button
+                style={{ ...styles.segmentBtn, ...(watchFilter === "watchlist" ? styles.segmentActiveGold : {}) }}
+                onClick={() => setWatchFilter("watchlist")}
+              >
+                <Bookmark size={14} fill={watchFilter === "watchlist" ? "#f5c518" : "none"} color={watchFilter === "watchlist" ? "#f5c518" : "currentColor"} /> Watchlist
+              </button>
+              <button
+                style={{ ...styles.segmentBtn, ...(watchFilter === "watched" ? styles.segmentActiveGreen : {}) }}
+                onClick={() => setWatchFilter("watched")}
+              >
+                <CheckCircle2 size={14} color={watchFilter === "watched" ? "var(--accent-green)" : "currentColor"} /> Watched
+              </button>
+            </div>
+
             {/* Sort Selector */}
             <div style={styles.selectWrapper}>
               <ArrowUpDown size={16} color="var(--text-muted)" />
@@ -745,6 +767,16 @@ const styles = {
   segmentActive: {
     backgroundColor: "var(--accent-red)",
     color: "#ffffff"
+  },
+  segmentActiveGold: {
+    backgroundColor: "rgba(245, 197, 24, 0.25)",
+    color: "var(--accent-gold)",
+    border: "1px solid var(--accent-gold)"
+  },
+  segmentActiveGreen: {
+    backgroundColor: "rgba(70, 211, 105, 0.25)",
+    color: "var(--accent-green)",
+    border: "1px solid var(--accent-green)"
   },
   selectWrapper: {
     display: "flex",
