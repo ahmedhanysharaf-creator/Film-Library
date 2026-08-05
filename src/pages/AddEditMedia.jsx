@@ -306,7 +306,9 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
     }));
 
     const mediaData = {
-      tmdb_id: tmdbId ? parseInt(tmdbId) : Date.now(),
+      ...(editItem || {}),
+      id: editItem?.id,
+      tmdb_id: tmdbId ? parseInt(tmdbId) : (editItem?.tmdb_id || Date.now()),
       type,
       title: finalTitle,
       year: parseInt(year) || new Date().getFullYear(),
@@ -824,7 +826,7 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
               <div style={styles.field}>
                 <label style={styles.label}>Poster Image URL</label>
                 <input
-                  type="url"
+                  type="text"
                   value={posterUrl}
                   onChange={(e) => setPosterUrl(e.target.value)}
                   placeholder="https://image.tmdb.org/t/p/w500/..."
@@ -834,7 +836,7 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
               <div style={styles.field}>
                 <label style={styles.label}>Backdrop Image URL</label>
                 <input
-                  type="url"
+                  type="text"
                   value={backdropUrl}
                   onChange={(e) => setBackdropUrl(e.target.value)}
                   placeholder="https://image.tmdb.org/t/p/original/..."
@@ -847,7 +849,7 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
               <div style={styles.field}>
                 <label style={styles.label}>YouTube Trailer URL</label>
                 <input
-                  type="url"
+                  type="text"
                   value={trailerUrl}
                   onChange={(e) => setTrailerUrl(e.target.value)}
                   placeholder="https://www.youtube.com/watch?v=..."

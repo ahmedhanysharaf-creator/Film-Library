@@ -205,7 +205,11 @@ export const fetchLibraryItems = async () => {
  */
 export const saveMediaEntry = async (mediaData, currentUser) => {
   const allItems = await fetchLibraryItems();
-  const existingIndex = allItems.findIndex((item) => item.tmdb_id === mediaData.tmdb_id);
+  const existingIndex = allItems.findIndex((item) => 
+    (mediaData.id && item.id === mediaData.id) ||
+    (mediaData.tmdb_id && item.tmdb_id === mediaData.tmdb_id) ||
+    (item.title && mediaData.title && item.title.toLowerCase() === mediaData.title.toLowerCase())
+  );
 
   const userPathObj = {
     uid: currentUser.uid,
