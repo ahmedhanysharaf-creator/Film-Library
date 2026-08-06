@@ -254,9 +254,10 @@ body {
 
 /* Navigation Header Tab Pills */
 .nav-link-btn {
-  background-color: rgba(255, 255, 255, 0.05) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  color: #737373 !important;
+  background: #1c1c1c !important;
+  background-color: #1c1c1c !important;
+  border: 1px solid #2a2a2a !important;
+  color: #a3a3a3 !important;
   font-size: 0.92rem;
   font-weight: 600;
   padding: 8px 16px;
@@ -268,25 +269,133 @@ body {
   transition: all 0.2s ease;
   outline: none !important;
   user-select: none;
+  -webkit-tap-highlight-color: transparent !important;
 }
 
 .nav-link-btn:hover {
-  background-color: rgba(255, 255, 255, 0.12) !important;
-  color: #b0b0b0 !important;
+  background: #262626 !important;
+  background-color: #262626 !important;
+  color: #ffffff !important;
 }
 
 .nav-link-btn:focus,
 .nav-link-btn:focus-visible,
+.nav-link-btn:focus-within,
 .nav-link-btn:active {
+  background: #1c1c1c !important;
+  background-color: #1c1c1c !important;
   outline: none !important;
   box-shadow: none !important;
 }
 
 /* Active Highlight Pill */
-.nav-link-btn.active-tab {
+.nav-link-btn.active-tab,
+.nav-link-btn.active-tab:focus,
+.nav-link-btn.active-tab:focus-visible,
+.nav-link-btn.active-tab:active,
+.nav-link-btn.active-tab:hover {
+  background: var(--accent-red) !important;
   background-color: var(--accent-red) !important;
   border-color: var(--accent-red) !important;
   color: #ffffff !important;
   font-weight: 700;
   box-shadow: 0 4px 14px rgba(229, 9, 20, 0.4) !important;
+}
+
+/* Mode Selector Tabs (Single Entry vs Batch Scanner) */
+.mode-tab-btn {
+  background-color: #1c1c1c !important;
+  background: #1c1c1c !important;
+  border: 1px solid #2a2a2a !important;
+  color: #a3a3a3 !important;
+  font-size: 0.95rem !important;
+  font-weight: 600 !important;
+  padding: 12px 18px !important;
+  border-radius: 8px !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 10px !important;
+  transition: all 0.2s ease !important;
+  outline: none !important;
+  user-select: none !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+.mode-tab-btn:hover {
+  background-color: #262626 !important;
+  background: #262626 !important;
+  color: #ffffff !important;
+}
+
+.mode-tab-btn:focus,
+.mode-tab-btn:focus-visible,
+.mode-tab-btn:focus-within,
+.mode-tab-btn:active {
+  background-color: #1c1c1c !important;
+  background: #1c1c1c !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.mode-tab-btn.mode-active,
+.mode-tab-btn.mode-active:focus,
+.mode-tab-btn.mode-active:focus-visible,
+.mode-tab-btn.mode-active:active,
+.mode-tab-btn.mode-active:hover {
+  background-color: var(--accent-red) !important;
+  background: var(--accent-red) !important;
+  border-color: var(--accent-red) !important;
+  color: #ffffff !important;
+  font-weight: 800 !important;
+  box-shadow: 0 4px 14px rgba(229, 9, 20, 0.4) !important;
+}
+
+/* Type Toggle Buttons (Movie vs TV Series) */
+.type-tab-btn {
+  background-color: #1c1c1c !important;
+  background: #1c1c1c !important;
+  border: 1px solid #2a2a2a !important;
+  color: #a3a3a3 !important;
+  font-size: 0.95rem !important;
+  font-weight: 600 !important;
+  padding: 10px 16px !important;
+  border-radius: 8px !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  transition: all 0.2s ease !important;
+  outline: none !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+.type-tab-btn:focus,
+.type-tab-btn:focus-visible,
+.type-tab-btn:active {
+  background-color: #1c1c1c !important;
+  background: #1c1c1c !important;
+  outline: none !important;
+}
+
+.type-tab-btn.type-active-red,
+.type-tab-btn.type-active-red:focus,
+.type-tab-btn.type-active-red:active {
+  background-color: var(--accent-red) !important;
+  background: var(--accent-red) !important;
+  border-color: var(--accent-red) !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+}
+
+.type-tab-btn.type-active-green,
+.type-tab-btn.type-active-green:focus,
+.type-tab-btn.type-active-green:active {
+  background-color: var(--accent-green) !important;
+  background: var(--accent-green) !important;
+  border-color: var(--accent-green) !important;
+  color: #000000 !important;
+  font-weight: 700 !important;
 }

@@ -581,7 +581,7 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
       <div style={styles.modeTabs}>
         <button
           type="button"
-          style={getModeTabStyle("single")}
+          className={`mode-tab-btn ${mode === "single" ? "mode-active" : ""}`}
           onClick={() => {
             setMode("single");
             setBatchStep("input");
@@ -592,7 +592,7 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
 
         <button
           type="button"
-          style={getModeTabStyle("batch")}
+          className={`mode-tab-btn ${mode === "batch" ? "mode-active" : ""}`}
           onClick={() => setMode("batch")}
         >
           <FolderPlus size={18} color={mode === "batch" ? "#ffffff" : "var(--accent-green)"} /> 📁 Batch Folder Scanner & Preview
@@ -803,14 +803,14 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
             <div style={styles.typeToggle}>
               <button
                 type="button"
-                style={{ ...styles.typeBtn, ...(type === "movie" ? styles.typeActiveRed : {}) }}
+                className={`type-tab-btn ${type === "movie" ? "type-active-red" : ""}`}
                 onClick={() => setType("movie")}
               >
                 <Film size={16} /> Movie
               </button>
               <button
                 type="button"
-                style={{ ...styles.typeBtn, ...(type === "series" ? styles.typeActiveGreen : {}) }}
+                className={`type-tab-btn ${type === "series" ? "type-active-green" : ""}`}
                 onClick={() => setType("series")}
               >
                 <Tv size={16} /> TV Series
