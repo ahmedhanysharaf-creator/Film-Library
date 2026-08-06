@@ -28,10 +28,7 @@ export const Navbar = ({ activePage, setActivePage, onSelectTool, onOpenWhitelis
         {/* Navigation Links */}
         <div style={styles.links}>
           <button
-            style={{
-              ...styles.linkBtn,
-              ...(activePage === "home" ? styles.linkActive : {})
-            }}
+            className={`nav-link-btn ${activePage === "home" ? "active-tab" : ""}`}
             onClick={() => {
               setToolsDropdownOpen(false);
               setActivePage("home");
@@ -41,10 +38,7 @@ export const Navbar = ({ activePage, setActivePage, onSelectTool, onOpenWhitelis
           </button>
 
           <button
-            style={{
-              ...styles.linkBtn,
-              ...(activePage === "library" ? styles.linkActive : {})
-            }}
+            className={`nav-link-btn ${activePage === "library" ? "active-tab" : ""}`}
             onClick={() => {
               setToolsDropdownOpen(false);
               setActivePage("library");
@@ -56,10 +50,7 @@ export const Navbar = ({ activePage, setActivePage, onSelectTool, onOpenWhitelis
           {/* Subtitle Tools Dropdown Menu (Option 3) */}
           <div style={styles.dropdownWrapper}>
             <button
-              style={{
-                ...styles.linkBtn,
-                ...(activePage === "tools" ? styles.linkActive : {})
-              }}
+              className={`nav-link-btn ${activePage === "tools" ? "active-tab" : ""}`}
               onClick={() => setToolsDropdownOpen(!toolsDropdownOpen)}
             >
               <Wrench size={16} />
@@ -119,10 +110,7 @@ export const Navbar = ({ activePage, setActivePage, onSelectTool, onOpenWhitelis
           </div>
 
           <button
-            style={{
-              ...styles.linkBtn,
-              ...(activePage === "add" ? styles.linkActive : {})
-            }}
+            className={`nav-link-btn ${activePage === "add" ? "active-tab" : ""}`}
             onClick={() => {
               setToolsDropdownOpen(false);
               setActivePage("add");

@@ -251,3 +251,42 @@ body {
 .animate-pop {
   animation: popIn 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
+
+/* Navigation Header Tab Pills */
+.nav-link-btn {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: #737373 !important;
+  font-size: 0.92rem;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+  outline: none !important;
+  user-select: none;
+}
+
+.nav-link-btn:hover {
+  background-color: rgba(255, 255, 255, 0.12) !important;
+  color: #b0b0b0 !important;
+}
+
+.nav-link-btn:focus,
+.nav-link-btn:focus-visible,
+.nav-link-btn:active {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Active Highlight Pill */
+.nav-link-btn.active-tab {
+  background-color: var(--accent-red) !important;
+  border-color: var(--accent-red) !important;
+  color: #ffffff !important;
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(229, 9, 20, 0.4) !important;
+}
