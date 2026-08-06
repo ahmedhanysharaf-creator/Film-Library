@@ -5,10 +5,6 @@ export const ToolsHub = ({ initialToolId = null }) => {
   const [activeToolId, setActiveToolId] = useState(initialToolId);
   const [iframeKey, setIframeKey] = useState(0);
 
-  const baseUrl = import.meta.env.BASE_URL?.endsWith("/")
-    ? import.meta.env.BASE_URL
-    : `${import.meta.env.BASE_URL || ""}/`;
-
   const tools = [
     {
       id: "subdetect",
@@ -17,7 +13,7 @@ export const ToolsHub = ({ initialToolId = null }) => {
       description: "Identify movies and series with built-in embedded subtitles locally in your browser using high-performance chunked media inspection.",
       icon: Search,
       badge: "Local Media WASM",
-      url: `${baseUrl}tools/subdetect/index.html`,
+      url: "./tools/subdetect/index.html",
       color: "#e50914"
     },
     {
@@ -27,7 +23,7 @@ export const ToolsHub = ({ initialToolId = null }) => {
       description: "Automatically search, fetch, and download Arabic subtitles for movies and series in one click using the SubDL API.",
       icon: Download,
       badge: "SubDL API",
-      url: `${baseUrl}tools/subtitle-downloader/index.html`,
+      url: "./tools/subtitle-downloader/index.html",
       color: "#3b82f6"
     },
     {
@@ -37,7 +33,7 @@ export const ToolsHub = ({ initialToolId = null }) => {
       description: "Intelligently match and rename external subtitle files to your local film and TV show episode library directly in your browser.",
       icon: FileText,
       badge: "File System Access",
-      url: `${baseUrl}tools/subtitle-matcher/index.html`,
+      url: "./tools/subtitle-matcher/index.html",
       color: "#10b981"
     }
   ];
