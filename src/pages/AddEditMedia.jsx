@@ -67,105 +67,88 @@ export const extractCleanTitleFromPath = (fullPath) => {
   return extractTitleAndYearFromPath(fullPath).cleanTitle;
 };
 
-export const parseSeasonAndEpisode = (fileNameOrPath) => {
-  if (!fileNameOrPath) return { isTv: false, season: 1, episode: null };
+export const parseTvShowFileName = (fullPathOrFileName) => {
+  if (!fullPathOrFileName) return { isTv: false, seriesTitle: "", season: 1, episode: null, year: null };
 
-  const normalized = fileNameOrPath.replace(/\\/g, "/");
+  const normalized = fullPathOrFileName.replace(/\\/g, "/");
   const parts = normalized.split("/").filter(Boolean);
   const fileName = parts.length > 0 ? parts[parts.length - 1] : normalized;
 
-  let folderSeason = null;
-  for (let i = parts.length - 2; i >= 0; i--) {
-    const sMatch = parts[i].match(/\b(?:Season|S)[\.\s_\-]*(\d{1,2})\b/i);
+  let baseName = fileName;
+  const extIdx = baseName.lastIndexOf(".");
+  if (extIdx !== -1) {
+    baseName = baseName.substring(0, extIdx);
+  }
+
+  let text = baseName.replace(/^\[[^\]]+\]\s*/g, "").replace(/\s*\[[^\]]+\]$/g, "");
+
+  let isTv = false;
+  let season = 1;
+  let episode = null;
+  let seriesTitleRaw = "";
+
+  // Regex 1: "Marvel's Daredevil - S03 - Episode 01 - Title" or "Daredevil S03E01"
+  const reg1 = /^(.+?)[.\s_–-]+S(\d{1,2})[.\s_–-]*(?:Episode|Ep|E)?[.\s_–-]*(\d{1,3})/i;
+  let match = text.match(reg1);
+
+  if (match) {
+    isTv = true;
+    seriesTitleRaw = match[1];
+    season = parseInt(match[2], 10);
+    episode = parseInt(match[3], 10);
+  } else {
+    // Regex 2: "Daredevil - 3x01" or "Daredevil 03x01"
+    const reg2 = /^(.+?)[.\s_–-]+(\d{1,2})x(\d{1,3})/i;
+    match = text.match(reg2);
+    if (match) {
+      isTv = true;
+      seriesTitleRaw = match[1];
+      season = parseInt(match[2], 10);
+      episode = parseInt(match[3], 10);
+    } else {
+      // Regex 3: "Daredevil - Season 3 Episode 1" or "Daredevil Season 03 Ep 01"
+      const reg3 = /^(.+?)[.\s_–-]+Season[.\s_–-]*(\d{1,2})[.\s_–-]*(?:Episode|Ep|E)?[.\s_–-]*(\d{1,3})/i;
+      match = text.match(reg3);
+      if (match) {
+        isTv = true;
+        seriesTitleRaw = match[1];
+        season = parseInt(match[2], 10);
+        episode = parseInt(match[3], 10);
+      } else {
+        // Regex 4: "Daredevil - Episode 01" or "Daredevil Ep 01"
+        const reg4 = /^(.+?)[.\s_–-]+(?:Episode|Ep|E)[.\s_–-]*(\d{1,3})/i;
+        match = text.match(reg4);
+        if (match) {
+          isTv = true;
+          seriesTitleRaw = match[1];
+          season = 1;
+          episode = parseInt(match[2], 10);
+        }
+      }
+    }
+  }
+
+  // Folder structure fallback e.g. "Marvel's Daredevil/Season 3/01.mkv"
+  if (!isTv && parts.length >= 2) {
+    let parentFolder = parts[parts.length - 2];
+    const sMatch = parentFolder.match(/\b(?:Season|S)[\.\s_\-]*(\d{1,2})\b/i);
     if (sMatch) {
-      folderSeason = parseInt(sMatch[1], 10);
-      break;
+      season = parseInt(sMatch[1], 10);
+      let rootFolder = parts.length >= 3 ? parts[parts.length - 3] : parentFolder;
+      if (!["downloads", "movies", "series", "tv shows", "video", "videos"].includes(rootFolder.toLowerCase())) {
+        isTv = true;
+        seriesTitleRaw = rootFolder;
+        const epMatch = fileName.match(/\b(\d{1,3})\b/);
+        if (epMatch) episode = parseInt(epMatch[1], 10);
+      }
     }
   }
 
-  // Pattern 1: S01E05, S1E5, S01.E05, s01e05
-  const patternSxE = /\bS(\d{1,2})[\.\s_\-]*E(\d{1,3})\b/i;
-  let match = fileName.match(patternSxE);
-  if (match) {
-    return {
-      isTv: true,
-      season: parseInt(match[1], 10),
-      episode: parseInt(match[2], 10)
-    };
+  if (!isTv) {
+    return { isTv: false, seriesTitle: "", season: 1, episode: null, year: null };
   }
 
-  // Pattern 2: 1x05, 01x05
-  const patternXxE = /\b(\d{1,2})x(\d{1,3})\b/i;
-  match = fileName.match(patternXxE);
-  if (match) {
-    return {
-      isTv: true,
-      season: parseInt(match[1], 10),
-      episode: parseInt(match[2], 10)
-    };
-  }
-
-  // Pattern 3: Episode 05, Ep 05, Ep.05, E05
-  const patternEpOnly = /\b(?:Episode|Ep|E)[\.\s_\-]*(\d{1,3})\b/i;
-  match = fileName.match(patternEpOnly);
-  if (match) {
-    return {
-      isTv: true,
-      season: folderSeason || 1,
-      episode: parseInt(match[1], 10)
-    };
-  }
-
-  // Pattern 4: P01, P02, Part 01, Pt 01
-  const patternPart = /\b(?:P|Part|Pt)[\.\s_\-]*(\d{1,3})\b/i;
-  match = fileName.match(patternPart);
-  if (match) {
-    return {
-      isTv: true,
-      season: folderSeason || 1,
-      episode: parseInt(match[1], 10)
-    };
-  }
-
-  // Pattern 5: Standalone number in a Season folder
-  if (folderSeason) {
-    const numMatch = fileName.match(/\b(\d{1,2})\b/);
-    if (numMatch) {
-      return {
-        isTv: true,
-        season: folderSeason,
-        episode: parseInt(numMatch[1], 10)
-      };
-    }
-  }
-
-  return { isTv: false, season: folderSeason || 1, episode: null };
-};
-
-export const extractSeriesTitleFromPath = (fullPath) => {
-  if (!fullPath) return { cleanSeriesTitle: "", year: null, isFolderSeries: false };
-
-  const normalized = fullPath.replace(/\\/g, "/");
-  const parts = normalized.split("/").filter(Boolean);
-  if (parts.length === 0) return { cleanSeriesTitle: "", year: null, isFolderSeries: false };
-
-  let candidate = parts[parts.length - 1];
-  let isFolderSeries = false;
-
-  for (let i = parts.length - 2; i >= 0; i--) {
-    const p = parts[i];
-    if (p.includes(":") || ["downloads", "movies", "series", "tv shows", "video", "videos", "english", "arabic"].includes(p.toLowerCase())) {
-      break;
-    }
-    if (/^(?:Season|S)[\.\s_\-]*\d+$/i.test(p) || /^Specials$/i.test(p)) {
-      continue;
-    }
-    candidate = p;
-    isFolderSeries = true;
-    break;
-  }
-
-  let clean = candidate;
+  let clean = seriesTitleRaw;
 
   let year = null;
   const yearMatch = clean.match(/\b(19\d\d|20\d\d)\b/);
@@ -174,29 +157,38 @@ export const extractSeriesTitleFromPath = (fullPath) => {
     clean = clean.replace(/[\[\(]?\b(19\d\d|20\d\d)\b[\]\)]?/g, " ");
   }
 
-  clean = clean.replace(/\bS\d+E\d+\b/gi, "");
-  clean = clean.replace(/\b\d+x\d+\b/gi, "");
-  clean = clean.replace(/\b(?:Season|S)\s*\d+\b/gi, "");
-
   const tags = [
     "1080p", "720p", "4k", "2160p", "bluray", "web-dl", "webrip", "hdrip", "dvdrip",
     "x264", "x265", "hevc", "aac", "dts", "repack", "remux", "hdr", "dual audio",
-    "p01", "p02", "p03", "p04", "p05", "ep01", "ep02", "ep03", "part 1", "part 2"
+    "p01", "p02", "p03", "ep01", "ep02"
   ];
   tags.forEach((tag) => {
     const reg = new RegExp(`\\b${tag}\\b`, "gi");
     clean = clean.replace(reg, "");
   });
 
-  clean = clean.replace(/^[-\s._]+/, "");
+  clean = clean.replace(/^[-\s._–]+/, "");
+  clean = clean.replace(/[-\s._–]+$/, "");
   clean = clean.replace(/[._]/g, " ");
   clean = clean.replace(/\s+/g, " ").trim();
 
   return {
-    cleanSeriesTitle: clean || candidate.trim(),
-    year,
-    isFolderSeries
+    isTv: true,
+    seriesTitle: clean || seriesTitleRaw.trim(),
+    season,
+    episode: episode || 1,
+    year
   };
+};
+
+export const parseSeasonAndEpisode = (fileNameOrPath) => {
+  const parsed = parseTvShowFileName(fileNameOrPath);
+  return { isTv: parsed.isTv, season: parsed.season, episode: parsed.episode };
+};
+
+export const extractSeriesTitleFromPath = (fullPath) => {
+  const parsed = parseTvShowFileName(fullPath);
+  return { cleanSeriesTitle: parsed.seriesTitle, year: parsed.year, isFolderSeries: parsed.isTv };
 };
 
 export const findBestMatchingSubtitle = (videoPath, fileList = []) => {
@@ -502,23 +494,22 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
         ? rawItem
         : `${baseFolder}\\${rawItem}`;
 
-      const epInfo = parseSeasonAndEpisode(rawItem);
-      const seriesInfo = extractSeriesTitleFromPath(rawItem);
+      const tvInfo = parseTvShowFileName(rawItem.includes("/") || rawItem.includes("\\") ? rawItem : fullItemPath);
 
-      if (epInfo.isTv || seriesInfo.isFolderSeries) {
-        const groupKey = seriesInfo.cleanSeriesTitle.toLowerCase();
+      if (tvInfo.isTv && tvInfo.seriesTitle) {
+        const groupKey = tvInfo.seriesTitle.toLowerCase();
         if (!seriesGroups[groupKey]) {
           seriesGroups[groupKey] = {
-            seriesTitle: seriesInfo.cleanSeriesTitle,
-            year: seriesInfo.year,
+            seriesTitle: tvInfo.seriesTitle,
+            year: tvInfo.year,
             episodes: []
           };
         }
         seriesGroups[groupKey].episodes.push({
           rawItem,
           fullItemPath,
-          season: epInfo.season,
-          episode: epInfo.episode || (seriesGroups[groupKey].episodes.length + 1)
+          season: tvInfo.season,
+          episode: tvInfo.episode || (seriesGroups[groupKey].episodes.length + 1)
         });
       } else {
         const { cleanTitle, year } = extractTitleAndYearFromPath(rawItem);
