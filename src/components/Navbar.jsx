@@ -139,6 +139,27 @@ export const Navbar = ({ activePage, setActivePage, onSelectTool, onOpenWhitelis
             <Plus size={16} color={activePage === "add" ? "#ffffff" : "#a3a3a3"} />
             Add to Library
           </button>
+
+          <button
+            style={{
+              backgroundColor: "#8b5cf6",
+              color: "#ffffff",
+              border: "1px solid #7c3aed",
+              boxShadow: "0 4px 14px rgba(139, 92, 246, 0.4)",
+              fontSize: "0.92rem",
+              fontWeight: 700,
+              padding: "8px 16px",
+              borderRadius: "20px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              outline: "none"
+            }}
+            onClick={() => alert("Hello Ahmed!")}
+          >
+            Ahmed
+          </button>
         </div>
 
         {/* User Profile & Actions */}
