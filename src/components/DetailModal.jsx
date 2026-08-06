@@ -3,7 +3,7 @@ import {
   X, Play, Star, Clock, User, Film, Tv, CheckCircle2, Bookmark, 
   Trash2, Edit3, Copy, HardDrive, Video, ExternalLink, Download 
 } from "lucide-react";
-import { launchInVlc, copyPathToClipboard, downloadVlcM3uPlaylist, downloadWindowsRegistryFix } from "../services/vlcLauncher";
+import { launchInVlc, copyPathToClipboard, downloadVlcM3uPlaylist } from "../services/vlcLauncher";
 import { updateWatchProgress } from "../services/storage";
 import { saveContinueWatchingItem, getNextEpisodeToPlay } from "../services/continueWatching";
 import { useAuth } from "../context/AuthContext";
@@ -360,22 +360,13 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate }) =
                     )}
                   </div>
 
-                  <div style={styles.secondaryPlayRow}>
-                    {defaultMoviePath && (
+                  {defaultMoviePath && (
+                    <div style={styles.secondaryPlayRow}>
                       <button style={styles.copyBtn} onClick={() => copyPathToClipboard(defaultMoviePath, addToast)}>
                         <Copy size={14} /> Copy Local File Path
                       </button>
-                    )}
-                    <button
-                      style={styles.regFixBtn}
-                      onClick={() => {
-                        downloadWindowsRegistryFix();
-                        addToast("Downloaded 1-Click VLC Setup (.vbs)! Double-click file to run setup.", "success");
-                      }}
-                    >
-                      <Download size={14} /> Download `.vbs` Windows VLC Fix
-                    </button>
-                  </div>
+                    </div>
+                  )}
                 </div>
               )}
 

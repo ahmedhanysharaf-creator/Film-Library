@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { Film, Plus, Shield, Settings, LogOut, User, ChevronDown, MonitorPlay, Download, Wrench, Search, FileText, LayoutGrid } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { downloadWindowsRegistryFix } from "../services/vlcLauncher";
 
 export const Navbar = ({ activePage, setActivePage, onSelectTool, onOpenWhitelist, onOpenSettings }) => {
   const { currentUser, logout, loginAsDemoUser } = useAuth();
@@ -139,14 +138,6 @@ export const Navbar = ({ activePage, setActivePage, onSelectTool, onOpenWhitelis
           >
             <Plus size={16} color={activePage === "add" ? "#ffffff" : "#a3a3a3"} />
             Add to Library
-          </button>
-
-          <button
-            style={styles.vlcRegBtn}
-            onClick={() => downloadWindowsRegistryFix()}
-            title="Download Windows Setup Script for 1-Click Direct VLC Subtitle Playback"
-          >
-            <Download size={14} /> 1-Click VLC Setup (.vbs)
           </button>
         </div>
 
