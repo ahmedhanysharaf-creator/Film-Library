@@ -132,6 +132,36 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate }) =
     launchInVlc(path, label, addToast, episodeSubPath);
   };
 
+  const handleUpdateLocalPathFromFile = (e, epCodeKey = "default") => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const fileRel = file.webkitRelativePath || file.name;
+    const newPath = `C:\\Users\\Ahmed\\Downloads\\${fileRel.replace(/\//g, '\\')}`;
+
+    const updatedUserPaths = [...(item.user_paths || [])];
+    const myIndex = updatedUserPaths.findIndex((up) => up.uid === uid);
+    
+    if (myIndex >= 0) {
+      updatedUserPaths[myIndex].paths = {
+        ...(updatedUserPaths[myIndex].paths || {}),
+        [epCodeKey]: newPath
+      };
+    } else {
+      updatedUserPaths.push({
+        uid,
+        display_name: currentUser?.displayName || "Ahmed",
+        paths: { [epCodeKey]: newPath }
+      });
+    }
+
+    const updatedItem = { ...item, user_paths: updatedUserPaths };
+    if (onItemUpdate) onItemUpdate(updatedItem);
+
+    addToast(`Updated path to "${newPath}"!`, "success");
+    handlePlayMedia(newPath, item.title, subPath);
+  };
+
   // YouTube Embed Url converter
   const getYouTubeEmbedUrl = (url) => {
     if (!url) return null;
