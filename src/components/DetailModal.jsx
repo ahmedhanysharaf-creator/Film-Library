@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { launchInVlc, copyPathToClipboard, downloadVlcM3uPlaylist, downloadWindowsRegistryFix } from "../services/vlcLauncher";
 import { updateWatchProgress } from "../services/storage";
+import { saveContinueWatchingItem } from "../services/continueWatching";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 
@@ -92,10 +93,44 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate }) =
   };
 
   // Find paths for active user or any available user
-  const userPathObj = (item.user_paths || []).find((up) => up.uid === uid);
+  const userPathObj = (item.user_paths || []).find((up) => up.uid === uid) || (item.user_paths || [])[0];
   const userPathsMap = userPathObj?.paths || {};
-  const defaultMoviePath = userPathsMap.default || "";
+  const defaultMoviePath = userPathsMap.default || item.default_path || "";
   const subPath = item.subtitle_path || userPathsMap.subtitle || (defaultMoviePath ? defaultMoviePath.replace(/\.[^/.]+$/, ".srt") : "");
+
+  // Robust episode path lookups
+  const getEpPath = (season, epNum) => {
+    const code1 = `S${season}E${epNum}`;
+    const code2 = `S${String(season).padStart(2, '0')}E${String(epNum).padStart(2, '0')}`;
+    return userPathsMap[code1] || userPathsMap[code2] || userPathsMap[code1.toLowerCase()] || userPathsMap[code2.toLowerCase()] || defaultMoviePath || "";
+  };
+
+  const getEpSubPath = (season, epNum) => {
+    const code1 = `S${season}E${epNum}_sub`;
+    const code2 = `S${String(season).padStart(2, '0')}E${String(epNum).padStart(2, '0')}_sub`;
+    return userPathsMap[code1] || userPathsMap[code2] || userPathsMap["subtitle"] || subPath || "";
+  };
+
+  const handlePlayMedia = (path, label, episodeSubPath = "", season = 1, epNum = 1) => {
+    if (!path) {
+      addToast("No local file path configured for your PC.", "warning");
+      return;
+    }
+
+    // Save to Continue Watching
+    saveContinueWatchingItem({
+      mediaId: item.id || item.tmdb_id,
+      title: item.title,
+      type: item.type,
+      poster_url: item.poster_url,
+      backdrop_url: item.backdrop_url,
+      season: season,
+      episode: epNum,
+      progressPct: 50
+    });
+
+    launchInVlc(path, label, addToast, episodeSubPath);
+  };
 
   // YouTube Embed Url converter
   const getYouTubeEmbedUrl = (url) => {
@@ -277,13 +312,7 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate }) =
                   <div style={styles.playSection}>
                     <button
                       style={styles.mainPlayBtn}
-                      onClick={() => {
-                        if (defaultMoviePath) {
-                          launchInVlc(defaultMoviePath, item.title, addToast, subPath);
-                        } else {
-                          addToast("No local file path configured for your user.", "warning");
-                        }
-                      }}
+                      onClick={() => handlePlayMedia(defaultMoviePath, item.title, subPath)}
                     >
                       <Play size={20} fill="#ffffff" /> Play Media in VLC
                     </button>
@@ -349,7 +378,8 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate }) =
                       const epNum = idx + 1;
                       const epCode = `S${activeSeason}E${epNum}`;
                       const isEpWatched = watchedEpisodes.has(epCode);
-                      const epPath = userPathsMap[epCode] || "";
+                      const epPath = getEpPath(activeSeason, epNum);
+                      const epSubPath = getEpSubPath(activeSeason, epNum);
 
                       return (
                         <div key={epCode} style={styles.episodeRow}>
@@ -365,14 +395,13 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate }) =
                           </div>
 
                           <div style={styles.epRight}>
-                            {epPath && (
-                              <button
-                                style={styles.epPlayBtn}
-                                onClick={() => launchInVlc(epPath, `${item.title} ${epCode}`, addToast)}
-                              >
-                                <Play size={12} fill="#000000" /> Play S{activeSeason}E{epNum}
-                              </button>
-                            )}
+                            <button
+                              style={styles.epPlayBtn}
+                              onClick={() => handlePlayMedia(epPath || defaultMoviePath, `${item.title} ${epCode}`, epSubPath, activeSeason, epNum)}
+                              title={epPath ? `Play ${epCode} in VLC` : "Play media in VLC"}
+                            >
+                              <Play size={12} fill="#000000" /> Play S{activeSeason}E{epNum}
+                            </button>
                             <button
                               style={styles.epCopyBtn}
                               onClick={() => copyPathToClipboard(epPath || defaultMoviePath, addToast)}

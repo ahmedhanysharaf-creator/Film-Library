@@ -4,6 +4,7 @@ import {
 } from "lucide-react";
 import { fetchLibraryItems, deleteMediaEntry, deleteMediaEntriesBatch, updateWatchProgress } from "../services/storage";
 import { PosterCard } from "../components/PosterCard";
+import { ContinueWatchingRow } from "../components/ContinueWatchingRow";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 
@@ -408,6 +409,9 @@ export const Library = ({ onSelectItem, onEditItem }) => {
           </div>
         </div>
       )}
+
+      {/* Netflix-style Continue Watching Row */}
+      <ContinueWatchingRow libraryItems={items} onSelectMedia={onSelectItem} />
 
       {/* My Upload History Sub-View */}
       {showHistoryView && libraryScope === "my" ? (

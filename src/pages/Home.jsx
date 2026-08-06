@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Film, Plus, Play, Tv, Star, MonitorPlay, ShieldCheck, Sparkles, FolderPlus } from "lucide-react";
 import { fetchLibraryItems } from "../services/storage";
 import { PosterCard } from "../components/PosterCard";
+import { ContinueWatchingRow } from "../components/ContinueWatchingRow";
 
 export const Home = ({ setActivePage, onSelectItem }) => {
   const [items, setItems] = useState([]);
