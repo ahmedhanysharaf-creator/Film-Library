@@ -52,7 +52,8 @@ export const downloadVlcM3uPlaylist = (path, title, subPath) => {
  * Automatically passes subtitle path (--sub-file=...) to VLC if configured!
  */
 export const downloadWindowsRegistryFix = () => {
-  const b64 = "cGFyYW0oW3N0cmluZ10kdXJsKQppZiAoJHVybCAtbWF0Y2ggJ3BhdGg9KC4qPykoPzomfCQpJykgewogICAgJHAgPSBbU3lzdGVtLlVyaV06OlVuZXNjYXBlRGF0YVN0cmluZygkbWF0Y2hlc1sxXSkuUmVwbGFjZSgnLycsICdcJykKICAgIGlmIChUZXN0LVBhdGggJHApIHsKICAgICAgICBTdGFydC1Qcm9jZXNzICRwCiAgICB9Cn0=";
+  // Upgraded PowerShell launcher script supporting brackets [1080p] & direct vlc.exe detection
+  const b64 = "cGFyYW0oW3N0cmluZ10kdXJsKQp0cnkgewogICAgaWYgKCR1cmwgLW1hdGNoICdwYXRoPSguKj8pKD86JnwtKScpIHsKICAgICAgICAkcjA9W1N5c3RlbS5VcmldOjpVTkVzY2FwZURhdGFTdHJpbmcoJG1hdGNoZXNbMV0pLlJlcGxhY2UoJy8nLCAnXCcpCiAgICAgICAgJHN1YjA9IiIKICAgICAgICBpZiAoJHVybCAtbWF0Y2ggJ3N1Yj0oLipgKSg/OiZ8JCknKSB7ICRzdWIwPVtTeXN0ZW0uVXJpXTo6VU5Fc2NhcGVEYXRhU3RyaW5nKCRtYXRjaGVzWzFdKS5SZXBsYWNlKCcvJywgJ1wnKSB9CiAgICAgICAgJHZsY1BhdGhzID0gQCgiJHtFbnY6UHJvZ3JhbUZpbGVzfVxWaWRlb0xBTlxWTENcdmxjLmV4ZSIsICIke0VudjpQcm9ncmFtRmlsZXMoeDg2KX1cVmlkZW9MQU5cVkxDXHZsYy5leGUiLCAiQzpcUHJvZ3JhbSBGaWxlc1xWaWRlb0xBTlxWTENcdmxjLmV4ZSIsICJDOlxQcm9ncmFtIEZpbGVzICh4ODYpXFZpZGVvTEFOXFZMQ1x2bGMuZXhlIikKICAgICAgICAkdmxjRXhlID0gJHZsY1BhdGhzIHwgV2hlcmUtT2JqZWN0IHsgVGVzdC1QYXRoIC1MaXRlcmFsUGF0aCAkXyB9IHwgU2VsZWN0LU9iamVjdCAtRmlyc3QgMQogICAgICAgIGlmIChUZXN0LVBhdGggLUxpdGVyYWxQYXRoICRyMCkgewogICAgICAgICAgICBpZiAoJHZsY0V4ZSkgewogICAgICAgICAgICAgICAgaWYgKCRzdWIwIC1hbmQgKFRlc3QtUGF0aCAtTGl0ZXJhbFBhdGggJHN1YjApKSB7CiAgICAgICAgICAgICAgICAgICAgU3RhcnQtUHJvY2VzcyAtRmlsZVBhdGggJHZsY0V4ZSAtQXJndW1lbnRMaXN0ICJgIiRyMGAiIiwgIi0tc3ViLWZpbGU9YCIkc3ViMGAiIgogICAgICAgICAgICAgICAgfSBlbHNlIHsKICAgICAgICAgICAgICAgICAgICBTdGFydC1Qcm9jZXNzIC1GaWxlUGF0aCAkdmxjRXhlIC1Bcmd1bWVudExpc3QgImAiJHIwYCIiCiAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgIH0gZWxzZSB7CiAgICAgICAgICAgICAgICBTdGFydC1Qcm9jZXNzIC1GaWxlUGF0aCAkcjAKICAgICAgICAgICAgfQogICAgICAgIH0KICAgIH0KfSBjYXRjaCB7fQ==";
 
   const vbsContent = `Set WshShell = CreateObject("WScript.Shell")
 Set fso = CreateObject("Scripting.FileSystemObject")
@@ -105,7 +106,7 @@ WScript.Echo "1-Click VLC Setup Complete! You can now click Play in VLC on the w
 };
 
 /**
- * Master 1-Click VLC Direct Launcher with Subtitle Support
+ * Master 1-Click VLC Direct Launcher with Subtitle Support & Instant .m3u Playlist Fallback
  */
 export const launchInVlc = (path, title, addToast, subPath = "") => {
   if (!path) {
@@ -118,7 +119,6 @@ export const launchInVlc = (path, title, addToast, subPath = "") => {
   const encodedToken = encodeURIComponent(token);
   const encodedSub = subPath ? encodeURIComponent(subPath) : "";
   
-  // Custom filmlibrary:// protocol URL with sub parameter
   let customProtocolUrl = `filmlibrary://open?path=${encodedPath}&token=${encodedToken}`;
   if (encodedSub) {
     customProtocolUrl += `&sub=${encodedSub}`;
@@ -129,7 +129,7 @@ export const launchInVlc = (path, title, addToast, subPath = "") => {
   // 1. Copy file path to clipboard
   copyPathToClipboard(path);
 
-  // 2. Trigger anchor element user gesture click (Chrome requirement)
+  // 2. Trigger custom protocol anchor element click
   try {
     const a = document.createElement("a");
     a.href = customProtocolUrl;
@@ -141,16 +141,12 @@ export const launchInVlc = (path, title, addToast, subPath = "") => {
     }, 500);
   } catch (e) {}
 
-  // 3. Fallback location trigger
-  try {
-    window.location.href = customProtocolUrl;
-  } catch (e) {
-    console.warn("Direct protocol trigger warning:", e);
-  }
+  // 3. Auto-download .m3u playlist file as instant 1-click fallback
+  downloadVlcM3uPlaylist(path, title, subPath);
 
   if (addToast) {
     const subMsg = subPath ? " with subtitle attached!" : "...";
-    addToast(`Opening "${title || 'Media'}" in VLC Player${subMsg}`, "success");
+    addToast(`Opening "${title || 'Media'}" (VLC playlist .m3u downloaded as fallback!)${subMsg}`, "success");
   }
 
   return true;
