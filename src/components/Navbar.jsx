@@ -64,7 +64,7 @@ export const Navbar = ({ activePage, setActivePage, onSelectTool, onOpenWhitelis
             >
               <Wrench size={16} />
               Subtitle Tools
-              <ChevronDown size={14} color="#a3a3a3" />
+              <ChevronDown size={14} color={activePage === "tools" ? "#ffffff" : "#737373"} />
             </button>
 
             {toolsDropdownOpen && (
@@ -282,13 +282,13 @@ const styles = {
     gap: "8px"
   },
   linkBtn: {
-    background: "none",
-    border: "none",
-    color: "var(--text-secondary)",
+    background: "transparent",
+    border: "1px solid transparent",
+    color: "#737373",
     fontSize: "0.95rem",
     fontWeight: 600,
     padding: "8px 16px",
-    borderRadius: "6px",
+    borderRadius: "8px",
     cursor: "pointer",
     display: "flex",
     alignItems: "center",
@@ -297,7 +297,10 @@ const styles = {
   },
   linkActive: {
     color: "#ffffff",
-    backgroundColor: "var(--bg-hover)"
+    backgroundColor: "rgba(229, 9, 20, 0.2)",
+    borderColor: "rgba(229, 9, 20, 0.5)",
+    boxShadow: "0 2px 10px rgba(229, 9, 20, 0.3)",
+    fontWeight: 700
   },
   profileSection: {
     position: "relative"
