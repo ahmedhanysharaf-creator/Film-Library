@@ -559,21 +559,21 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
       <div style={styles.modeTabs}>
         <button
           type="button"
-          style={{ ...styles.modeTabBtn, ...(mode === "single" ? styles.modeTabActive : {}) }}
+          style={getModeTabStyle("single")}
           onClick={() => {
             setMode("single");
             setBatchStep("input");
           }}
         >
-          <Film size={18} /> Single Entry Mode
+          <Film size={18} color={mode === "single" ? "#ffffff" : "#a3a3a3"} /> Single Entry Mode
         </button>
 
         <button
           type="button"
-          style={{ ...styles.modeTabBtn, ...(mode === "batch" ? styles.modeTabActive : {}) }}
+          style={getModeTabStyle("batch")}
           onClick={() => setMode("batch")}
         >
-          <FolderPlus size={18} color="var(--accent-green)" /> 📁 Batch Folder Scanner & Preview
+          <FolderPlus size={18} color={mode === "batch" ? "#ffffff" : "var(--accent-green)"} /> 📁 Batch Folder Scanner & Preview
         </button>
       </div>
 
