@@ -282,13 +282,13 @@ const styles = {
     gap: "8px"
   },
   linkBtn: {
-    background: "transparent",
-    border: "1px solid transparent",
-    color: "#737373",
-    fontSize: "0.95rem",
+    backgroundColor: "rgba(255, 255, 255, 0.07)",
+    border: "1px solid rgba(255, 255, 255, 0.1)",
+    color: "#a3a3a3",
+    fontSize: "0.92rem",
     fontWeight: 600,
     padding: "8px 16px",
-    borderRadius: "8px",
+    borderRadius: "20px",
     cursor: "pointer",
     display: "flex",
     alignItems: "center",
@@ -297,9 +297,9 @@ const styles = {
   },
   linkActive: {
     color: "#ffffff",
-    backgroundColor: "rgba(229, 9, 20, 0.2)",
-    borderColor: "rgba(229, 9, 20, 0.5)",
-    boxShadow: "0 2px 10px rgba(229, 9, 20, 0.3)",
+    backgroundColor: "var(--accent-red)",
+    borderColor: "var(--accent-red)",
+    boxShadow: "0 4px 14px rgba(229, 9, 20, 0.4)",
     fontWeight: 700
   },
   profileSection: {
