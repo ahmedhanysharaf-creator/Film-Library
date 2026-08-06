@@ -12,6 +12,27 @@ export const Navbar = ({ activePage, setActivePage, onSelectTool, onOpenWhitelis
   const rawName = currentUser?.displayName || currentUser?.email?.split("@")[0] || "Ahmed Hany";
   const formattedName = rawName.toLowerCase().includes("ahmed") ? "Ahmed Hany" : rawName;
 
+  // Helper for 100% deterministic tab button styles
+  const getTabStyle = (pageName) => {
+    const isActive = activePage === pageName;
+    return {
+      backgroundColor: isActive ? "var(--accent-red)" : "rgba(255, 255, 255, 0.08)",
+      color: isActive ? "#ffffff" : "#a3a3a3",
+      border: isActive ? "1px solid var(--accent-red)" : "1px solid rgba(255, 255, 255, 0.12)",
+      boxShadow: isActive ? "0 4px 14px rgba(229, 9, 20, 0.4)" : "none",
+      fontSize: "0.92rem",
+      fontWeight: isActive ? 700 : 600,
+      padding: "8px 16px",
+      borderRadius: "20px",
+      cursor: "pointer",
+      display: "flex",
+      alignItems: "center",
+      gap: "6px",
+      transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+      outline: "none"
+    };
+  };
+
   return (
     <nav style={styles.nav} className="glass-panel">
       <div style={styles.container}>
@@ -28,7 +49,7 @@ export const Navbar = ({ activePage, setActivePage, onSelectTool, onOpenWhitelis
         {/* Navigation Links */}
         <div style={styles.links}>
           <button
-            className={`nav-link-btn ${activePage === "home" ? "active-tab" : ""}`}
+            style={getTabStyle("home")}
             onClick={() => {
               setToolsDropdownOpen(false);
               setActivePage("home");
@@ -38,7 +59,7 @@ export const Navbar = ({ activePage, setActivePage, onSelectTool, onOpenWhitelis
           </button>
 
           <button
-            className={`nav-link-btn ${activePage === "library" ? "active-tab" : ""}`}
+            style={getTabStyle("library")}
             onClick={() => {
               setToolsDropdownOpen(false);
               setActivePage("library");
@@ -50,12 +71,12 @@ export const Navbar = ({ activePage, setActivePage, onSelectTool, onOpenWhitelis
           {/* Subtitle Tools Dropdown Menu (Option 3) */}
           <div style={styles.dropdownWrapper}>
             <button
-              className={`nav-link-btn ${activePage === "tools" ? "active-tab" : ""}`}
+              style={getTabStyle("tools")}
               onClick={() => setToolsDropdownOpen(!toolsDropdownOpen)}
             >
-              <Wrench size={16} />
+              <Wrench size={16} color={activePage === "tools" ? "#ffffff" : "#a3a3a3"} />
               Subtitle Tools
-              <ChevronDown size={14} color={activePage === "tools" ? "#ffffff" : "#737373"} />
+              <ChevronDown size={14} color={activePage === "tools" ? "#ffffff" : "#a3a3a3"} />
             </button>
 
             {toolsDropdownOpen && (
@@ -110,13 +131,13 @@ export const Navbar = ({ activePage, setActivePage, onSelectTool, onOpenWhitelis
           </div>
 
           <button
-            className={`nav-link-btn ${activePage === "add" ? "active-tab" : ""}`}
+            style={getTabStyle("add")}
             onClick={() => {
               setToolsDropdownOpen(false);
               setActivePage("add");
             }}
           >
-            <Plus size={16} />
+            <Plus size={16} color={activePage === "add" ? "#ffffff" : "#a3a3a3"} />
             Add to Library
           </button>
 
