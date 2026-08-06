@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Subtitle Downloader — Arabic</title>
+  <meta name="description" content="Automatically download Arabic subtitles for all your movies in one click using the SubDL API." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-base:       #0d0f14;
+      --bg-card:       #13161e;
+      --bg-elevated:   #1a1d28;
+      --bg-input:      #1e2130;
+      --border:        rgba(255,255,255,0.07);
+      --border-accent: rgba(99,179,237,0.35);
+      --accent:        #63b3ed;
+      --accent-glow:   rgba(99,179,237,0.18);
+      --accent-2:      #7c6af7;
+      --success:       #48bb78;
+      --warning:       #f6ad55;
+      --error:         #fc8181;
+      --text-primary:  #edf2f7;
+      --text-secondary:#a0aec0;
+      --text-muted:    #4a5568;
+      --radius:        12px;
+      --radius-sm:     8px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg-base);
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 0 16px 60px;
+      background-image:
+        radial-gradient(ellipse 80% 40% at 50% -10%, rgba(99,179,237,0.08) 0%, transparent 70%),
+        radial-gradient(ellipse 60% 30% at 80% 80%, rgba(124,106,247,0.06) 0%, transparent 70%);
+    }
+
+    /* HEADER */
+    header {
+      width: 100%;
+      max-width: 820px;
+      padding: 52px 0 36px;
+      text-align: center;
+    }
+
+    .logo-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-accent);
+      border-radius: 50px;
+      padding: 6px 18px 6px 12px;
+      margin-bottom: 24px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+    .logo-badge .dot {
+      width: 8px; height: 8px;
+      background: var(--accent);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%,100%{ box-shadow: 0 0 0 0 rgba(99,179,237,0.5); }
+      50%    { box-shadow: 0 0 0 6px rgba(99,179,237,0);  }
+    }
+
+    h1 {
+      font-size: clamp(28px, 5vw, 48px);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      background: linear-gradient(135deg, #edf2f7 30%, var(--accent) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 14px;
+    }
+
+    .tagline {
+      font-size: 16px;
+      color: var(--text-secondary);
+      max-width: 480px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+
+    /* MAIN CARD */
+    main {
+      width: 100%;
+      max-width: 820px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      transition: border-color 0.3s;
+    }
+    .card:hover { border-color: rgba(255,255,255,0.12); }
+
+    .card-header {
+      padding: 18px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .card-icon {
+      width: 36px; height: 36px;
+      border-radius: var(--radius-sm);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    .card-icon.blue  { background: rgba(99,179,237,0.12); }
+    .card-icon.purple{ background: rgba(124,106,247,0.12); }
+    .card-icon.green { background: rgba(72,187,120,0.12); }
+
+    .card-title { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+    .card-sub   { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+    .card-body { padding: 24px; }
+
+    /* FOLDER SELECTION */
+    .folder-area {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    #btn-select-folder {
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 22px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      color: #fff;
+      font-weight: 600;
+      font-size: 14px;
+      border: none;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
+      box-shadow: 0 4px 20px rgba(99,179,237,0.25);
+    }
+    #btn-select-folder:hover {
+      opacity: 0.9;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 28px rgba(99,179,237,0.35);
+    }
+    #btn-select-folder:active { transform: translateY(0); }
+    #btn-select-folder:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    #folder-info { flex: 1; min-width: 0; }
+    #folder-name {
+      font-size: 14px; font-weight: 500;
+      color: var(--text-primary);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    #folder-count { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+
+    /* DOWNLOAD BUTTON */
+    #btn-download {
+      width: 100%;
+      padding: 15px;
+      background: linear-gradient(135deg, #48bb78, #38a169);
+      color: #fff;
+      font-weight: 700;
+      font-size: 16px;
+      border: none;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
+      box-shadow: 0 4px 20px rgba(72,187,120,0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+    #btn-download:disabled {
+      background: var(--bg-elevated);
+      color: var(--text-muted);
+      cursor: not-allowed;
+      box-shadow: none;
+      transform: none;
+    }
+    #btn-download:not(:disabled):hover {
+      opacity: 0.92;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 28px rgba(72,187,120,0.4);
+    }
+    #btn-download:not(:disabled):active { transform: translateY(0); }
+
+    /* PROGRESS */
+    #progress-section { display: none; }
+
+    .progress-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      font-size: 13px;
+    }
+    .progress-label .current-film {
+      color: var(--text-secondary);
+      max-width: 65%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .progress-label .progress-count {
+      color: var(--accent);
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .progress-track {
+      height: 6px;
+      background: var(--bg-elevated);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      border-radius: 99px;
+      transition: width 0.4s ease;
+      box-shadow: 0 0 12px rgba(99,179,237,0.4);
+    }
+
+    /* SUMMARY BANNER */
+    #summary-banner {
+      padding: 16px 24px;
+      border-radius: var(--radius-sm);
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      font-size: 14px;
+      font-weight: 500;
+      display: none;
+      align-items: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    #summary-banner.visible { display: flex; }
+    .summary-stat { display: flex; align-items: center; gap: 6px; flex-direction: column; }
+    .summary-stat .val { font-weight: 700; font-size: 28px; line-height: 1; }
+    .summary-stat.saved  .val { color: var(--success); }
+    .summary-stat.missed .val { color: var(--warning); }
+    .summary-stat.erred  .val { color: var(--error);   }
+    .summary-label { font-size: 12px; color: var(--text-muted); }
+    .summary-done-text {
+      flex: 1;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    /* RESULTS TABLE */
+    #results-section { display: none; }
+
+    .table-wrap {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    thead {
+      background: var(--bg-elevated);
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    th {
+      padding: 11px 16px;
+      text-align: left;
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    td {
+      padding: 11px 16px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-secondary);
+      vertical-align: middle;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr.row-new td { animation: rowIn 0.3s ease; }
+    @keyframes rowIn {
+      from { opacity: 0; transform: translateY(-6px); }
+      to   { opacity: 1; transform: translateY(0);   }
+    }
+    tbody tr:hover { background: rgba(255,255,255,0.02); }
+
+    td.col-num   { color: var(--text-muted); width: 44px; font-variant-numeric: tabular-nums; }
+    td.col-name  { color: var(--text-secondary); font-weight: 400; word-break: break-all; max-width: 240px; }
+    td.col-parsed{ color: var(--text-primary); }
+    td.col-status{ white-space: nowrap; font-weight: 500; }
+
+    .analyzer-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .badge-title {
+      font-weight: 600;
+      color: var(--accent);
+      background: rgba(99,179,237,0.1);
+      border: 1px solid rgba(99,179,237,0.25);
+      padding: 3px 10px;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    .badge-year {
+      font-size: 11px;
+      font-weight: 600;
+      background: rgba(124,106,247,0.18);
+      color: #a799ff;
+      border: 1px solid rgba(124,106,247,0.35);
+      padding: 2px 8px;
+      border-radius: 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+    }
+    .smart-feature-banner {
+      background: rgba(124,106,247,0.08);
+      border: 1px solid rgba(124,106,247,0.25);
+      border-radius: var(--radius-sm);
+      padding: 10px 16px;
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-top: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      line-height: 1.4;
+    }
+    .smart-feature-banner strong {
+      color: var(--text-primary);
+    }
+
+    .status-saved      { color: var(--success); }
+    .status-notfound   { color: var(--warning); }
+    .status-error      { color: var(--error);   }
+    .status-processing { color: var(--accent); display: flex; align-items: center; gap: 6px; }
+
+    .spinner {
+      width: 12px; height: 12px;
+      border: 2px solid rgba(99,179,237,0.2);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+
+    /* SETTINGS */
+    details.settings {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+    details.settings summary {
+      padding: 14px 20px;
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--text-muted);
+      user-select: none;
+      transition: color 0.2s;
+    }
+    details.settings summary:hover { color: var(--text-secondary); }
+    details.settings summary::marker,
+    details.settings summary::-webkit-details-marker { display: none; }
+    .settings-chevron { margin-left: auto; transition: transform 0.25s; font-size: 11px; }
+    details.settings[open] .settings-chevron { transform: rotate(180deg); }
+
+    .settings-body {
+      padding: 0 20px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field label { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+    .field input {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 10px 14px;
+      color: var(--text-primary);
+      font-family: 'Inter', monospace;
+      font-size: 13px;
+      width: 100%;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .field input:focus {
+      border-color: var(--border-accent);
+      box-shadow: 0 0 0 3px rgba(99,179,237,0.18);
+    }
+
+    /* FOOTER */
+    footer {
+      margin-top: 48px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    /* RESPONSIVE */
+    @media (max-width: 540px) {
+      header { padding: 36px 0 28px; }
+      .card-body { padding: 16px; }
+      .folder-area { flex-direction: column; align-items: flex-start; }
+      #btn-select-folder { width: 100%; justify-content: center; }
+    }
+  </style>
+</head>
+
+<body>
+
+<header>
+  <div class="logo-badge">
+    <span class="dot"></span>
+    Arabic Subtitle Downloader
+  </div>
+  <h1>Download Arabic Subtitles<br/>for All Your Movies</h1>
+  <p class="tagline">Select your movie folder and we'll automatically find and save Arabic subtitles for every film inside.</p>
+</header>
+
+<main>
+
+  <!-- Folder Selection -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon blue">📁</div>
+      <div>
+        <div class="card-title">Movie Folder</div>
+        <div class="card-sub">Select the folder containing your video files</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="folder-area">
+        <button id="btn-select-folder">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          Select Movie Folder
+        </button>
+        <div id="folder-info">
+          <div id="folder-name" style="color:var(--text-muted);">No folder selected</div>
+          <div id="folder-count"></div>
+        </div>
+      </div>
+      <div class="smart-feature-banner">
+        <span>✨</span>
+        <div><strong>Smart Film Analysis Enabled:</strong> Automatically analyzes filenames to extract exact Title &amp; Year (e.g. <code>M02 - (1998) - Blade</code> ➔ <code>Blade (1998)</code>).</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Download Button -->
+  <button id="btn-download" disabled>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"/></svg>
+    Download Subtitles
+  </button>
+
+  <!-- Progress Card -->
+  <div class="card" id="progress-section">
+    <div class="card-header">
+      <div class="card-icon blue">⚡</div>
+      <div>
+        <div class="card-title">Processing</div>
+        <div class="card-sub" id="progress-subtext">Starting…</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="progress-label">
+        <span class="current-film" id="current-film-label">—</span>
+        <span class="progress-count" id="progress-count-label">0 / 0</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Summary Banner -->
+  <div id="summary-banner">
+    <div class="summary-done-text">🎉 All done!</div>
+    <div class="summary-stat saved">
+      <span class="val" id="sum-saved">0</span>
+      <span class="summary-label">Saved</span>
+    </div>
+    <div class="summary-stat missed">
+      <span class="val" id="sum-notfound">0</span>
+      <span class="summary-label">Not Found</span>
+    </div>
+    <div class="summary-stat erred">
+      <span class="val" id="sum-errors">0</span>
+      <span class="summary-label">Errors</span>
+    </div>
+  </div>
+
+  <!-- Results Table -->
+  <div class="card" id="results-section">
+    <div class="card-header">
+      <div class="card-icon green">📋</div>
+      <div>
+        <div class="card-title">Results</div>
+        <div class="card-sub" id="results-sub">Live updating…</div>
+      </div>
+    </div>
+    <div class="card-body" style="padding:0;">
+      <div class="table-wrap">
+        <table id="results-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Original File</th>
+              <th>Extracted Film Info</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="results-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings -->
+  <details class="settings" id="settings-panel">
+    <summary>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93A10 10 0 0 0 4.93 4.93C3.1 6.7 2 9.2 2 12s1.1 5.3 2.93 7.07A10 10 0 0 0 19.07 19.07 10 10 0 0 0 21.07 12a10 10 0 0 0-2-7.07z"/></svg>
+      Settings
+      <span class="settings-chevron">▾</span>
+    </summary>
+    <div class="settings-body">
+      <div class="field">
+        <label for="api-key-input">SubDL API Key</label>
+        <input type="text" id="api-key-input" value="subdl_w7NLRSIewBJBDJfKTHby-sBjwqqPzfRPNLTIWuGza0c" spellcheck="false" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label for="delay-input">Delay Between Requests (ms)</label>
+        <input type="number" id="delay-input" value="500" min="100" max="5000" step="100" />
+      </div>
+    </div>
+  </details>
+
+</main>
+
+<footer>
+  <p>Powered by <a href="https://subdl.com" target="_blank" rel="noopener">SubDL</a> &nbsp;·&nbsp; Works in Chrome &amp; Edge &nbsp;·&nbsp; No data leaves your browser</p>
+</footer>
+
+<script>
+(() => {
+  'use strict';
+
+  const VIDEO_EXTENSIONS = ['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.m4v', '.flv', '.webm'];
+  const CORS_PROXY = 'https://corsproxy.io/?';
+
+  let dirHandle  = null;
+  let videoFiles = [];
+  let isRunning  = false;
+
+  const $ = id => document.getElementById(id);
+
+  const btnSelectFolder  = $('btn-select-folder');
+  const btnDownload      = $('btn-download');
+  const folderName       = $('folder-name');
+  const folderCount      = $('folder-count');
+  const progressSection  = $('progress-section');
+  const progressFill     = $('progress-fill');
+  const progressCount    = $('progress-count-label');
+  const progressSubtext  = $('progress-subtext');
+  const currentFilmLabel = $('current-film-label');
+  const resultsSection   = $('results-section');
+  const resultsSub       = $('results-sub');
+  const resultsTbody     = $('results-tbody');
+  const summaryBanner    = $('summary-banner');
+  const sumSaved         = $('sum-saved');
+  const sumNotFound      = $('sum-notfound');
+  const sumErrors        = $('sum-errors');
+  const apiKeyInput      = $('api-key-input');
+  const delayInput       = $('delay-input');
+
+  // Check browser capability
+  if (!('showDirectoryPicker' in window)) {
+    folderName.textContent = '⚠️ File System Access API requires Google Chrome or Microsoft Edge on Desktop.';
+    folderName.style.color = 'var(--warning)';
+  }
+
+  // ── Select Folder ─────────────────────────────────────────────────
+  btnSelectFolder.addEventListener('click', async () => {
+    if (isRunning) return;
+    try {
+      dirHandle  = await window.showDirectoryPicker({ mode: 'readwrite' });
+      videoFiles = [];
+
+      for await (const [name, handle] of dirHandle.entries()) {
+        if (handle.kind !== 'file') continue;
+        const ext = name.substring(name.lastIndexOf('.')).toLowerCase();
+        if (VIDEO_EXTENSIONS.includes(ext)) {
+          videoFiles.push({ name, handle });
+        }
+      }
+
+      videoFiles.sort((a, b) => a.name.localeCompare(b.name));
+
+      folderName.textContent  = dirHandle.name;
+      folderName.style.color  = 'var(--text-primary)';
+
+      if (videoFiles.length === 0) {
+        folderCount.textContent  = 'No video files found in this folder.';
+        btnDownload.disabled = true;
+      } else {
+        folderCount.textContent = `${videoFiles.length} video file${videoFiles.length !== 1 ? 's' : ''} found — ready to download`;
+        btnDownload.disabled = false;
+      }
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        folderName.textContent  = 'Error accessing folder. Please try again.';
+        folderName.style.color  = 'var(--error)';
+      }
+    }
+  });
+
+  // ── Download All ──────────────────────────────────────────────────
+  btnDownload.addEventListener('click', async () => {
+    if (isRunning || videoFiles.length === 0) return;
+    isRunning = true;
+    btnDownload.disabled     = true;
+    btnSelectFolder.disabled = true;
+
+    const apiKey = apiKeyInput.value.trim();
+    const delay  = Math.max(100, parseInt(delayInput.value, 10) || 500);
+    const total  = videoFiles.length;
+    let saved = 0, notFound = 0, errors = 0;
+
+    // Reset UI
+    resultsTbody.innerHTML = '';
+    summaryBanner.classList.remove('visible');
+    progressSection.style.display = 'block';
+    resultsSection.style.display  = 'block';
+    setProgress(0, total, 'Starting…');
+    resultsSub.textContent = 'Live updating…';
+
+    for (let i = 0; i < total; i++) {
+      const file         = videoFiles[i];
+      const baseName     = file.name.lastIndexOf('.') !== -1 
+                            ? file.name.substring(0, file.name.lastIndexOf('.')) 
+                            : file.name;
+      const subtitleName = baseName + '.srt';
+      const parsedInfo   = parseMovieInfo(file.name);
+
+      setProgress(i, total, `${file.name} ➔ ${parsedInfo.extractedName}`);
+      const row = addRow(i + 1, file.name, parsedInfo, 'processing');
+
+      try {
+        // 1. Search SubDL with multi-tiered strategy using parsed info
+        const searchData = await searchSubDL(apiKey, parsedInfo, baseName);
+
+        if (!searchData || !searchData.status || !Array.isArray(searchData.subtitles) || searchData.subtitles.length === 0) {
+          notFound++;
+          updateRow(row, 'notfound');
+          await sleep(delay);
+          continue;
+        }
+
+        // 2. Select best matching subtitle (prefer .zip)
+        const zipSub = searchData.subtitles.find(s => (s.url && s.url.includes('.zip')) || (s.name && s.name.toLowerCase().endsWith('.zip'))) || searchData.subtitles[0];
+
+        if (!zipSub || !zipSub.url) {
+          notFound++;
+          updateRow(row, 'notfound');
+          await sleep(delay);
+          continue;
+        }
+
+        const downloadUrl = zipSub.url.startsWith('http') 
+          ? zipSub.url 
+          : (zipSub.url.startsWith('/') ? `https://dl.subdl.com${zipSub.url}` : `https://dl.subdl.com/${zipSub.url}`);
+
+        // 3. Fetch zip directly (dl.subdl.com supports CORS natively)
+        let zipRes;
+        try {
+          zipRes = await fetch(downloadUrl);
+        } catch (e) {
+          zipRes = await fetch(CORS_PROXY + encodeURIComponent(downloadUrl));
+        }
+
+        if (!zipRes.ok) throw new Error(`Download HTTP ${zipRes.status}`);
+        const arrayBuffer = await zipRes.arrayBuffer();
+
+        // 4. Extract first .srt from zip using JSZip
+        const zip = await JSZip.loadAsync(arrayBuffer);
+        let srtContent = null;
+        for (const [filename, zipEntry] of Object.entries(zip.files)) {
+          if (filename.toLowerCase().endsWith('.srt')) {
+            srtContent = await zipEntry.async('string');
+            break;
+          }
+        }
+
+        if (!srtContent) throw new Error('No .srt file found inside zip');
+
+        // 5. Write subtitle file directly into the movie folder
+        const fileHandle = await dirHandle.getFileHandle(subtitleName, { create: true });
+        const writable   = await fileHandle.createWritable();
+        await writable.write(srtContent);
+        await writable.close();
+
+        saved++;
+        updateRow(row, 'saved');
+      } catch (err) {
+        console.error(`[${file.name}]`, err.message);
+        errors++;
+        updateRow(row, 'error');
+      }
+
+      await sleep(delay);
+    }
+
+    // All done
+    setProgress(total, total, 'Complete!');
+    progressSubtext.textContent = 'All done!';
+
+    sumSaved.textContent    = saved;
+    sumNotFound.textContent = notFound;
+    sumErrors.textContent   = errors;
+    summaryBanner.classList.add('visible');
+    resultsSub.textContent  = `${saved} saved · ${notFound} not found · ${errors} errors`;
+    summaryBanner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    btnDownload.disabled     = false;
+    btnSelectFolder.disabled = false;
+    isRunning = false;
+  });
+
+  // ── Smart Film Filename Parser & Search Engine ────────────────────
+  function cleanPart(str) {
+    if (!str) return '';
+    return str
+      .replace(/^m\d+[\s\.\_\-\:]*/i, '')                   // remove "M02 - " or "M12 -"
+      .replace(/^[\s\.\_\-\:\#\d]+(?=[\s\.\_\-\:\#]|$)/, '')   // remove leading track/index numbers
+      .replace(/[\.\_]/g, ' ')                                // replace dots/underscores with spaces
+      .replace(/[\(\)\{\}\[\]]/g, ' ')                        // remove brackets
+      .replace(/\s+/g, ' ')                                   // collapse spaces
+      .trim()
+      .replace(/^[\-\:\.\_]+|[\-\:\.\_]+$/g, '')              // trim leading/trailing dashes/colons/dots
+      .trim();
+  }
+
+  function parseMovieInfo(filename) {
+    let cleanName = filename.trim();
+    cleanName = cleanName.replace(/\.(mp4|mkv|avi|mov|wmv|m4v|flv|webm)$/i, '').trim();
+
+    let year = null;
+    const yearMatch = cleanName.match(/(?:[\s\.\_\-\[\(\{\/]|^)(19\d{2}|20\d{2})(?:[\s\.\_\-\]\)\}\/]|$)/);
+    if (yearMatch) {
+      year = yearMatch[1];
+    }
+
+    let cleaned = cleanName;
+    cleaned = cleaned.replace(/\[[^\]]*\]/g, ' ');
+    cleaned = cleaned.replace(/\([^\)]*\)/g, (match) => {
+      if (year && match.includes(year)) return match;
+      return ' ';
+    });
+
+    const noiseRegex = /\b(1080p|720p|480p|2160p|4k|uhd|bluray|bdrip|brrip|web-dl|webrip|dvdrip|h264|x264|h265|x265|hevc|aac|xvid|ac3|5\.1|yts|yify|rarbg|10bit|remux|hdr|extended|unrated|director'?s? cut)\b/gi;
+    cleaned = cleaned.replace(noiseRegex, ' ');
+
+    if (year) {
+      const yearIdx = cleaned.search(new RegExp(`(?:[\\s\\.\\_\\-\\[\\(\\{]|^)${year}(?:[\\s\\.\\_\\-\\]\\)\\}]|$)`));
+      if (yearIdx !== -1) {
+        const beforeYear = cleaned.substring(0, yearIdx);
+        const afterYear = cleaned.substring(yearIdx + year.length);
+
+        const cleanBefore = cleanPart(beforeYear);
+        const cleanAfter = cleanPart(afterYear);
+
+        if (cleanAfter.length > 0 && (cleanBefore.length === 0 || /^m?\d+$/i.test(cleanBefore))) {
+          cleaned = cleanAfter;
+        } else if (cleanBefore.length > 0) {
+          cleaned = cleanBefore;
+        } else {
+          cleaned = cleanAfter || cleanBefore;
+        }
+      }
+    } else {
+      cleaned = cleanPart(cleaned);
+    }
+
+    cleaned = cleanPart(cleaned);
+
+    const title = cleaned || cleanName;
+    const extractedName = year ? `${title} (${year})` : title;
+
+    return {
+      filename,
+      title,
+      year,
+      extractedName
+    };
+  }
+
+  async function searchSubDL(apiKey, parsedInfo, rawBaseName) {
+    const searchTerms = [];
+
+    if (parsedInfo.title) {
+      searchTerms.push({ name: parsedInfo.title, year: parsedInfo.year });
+
+      // If title contains dashes like "X2 - X-Men United", try sub-parts
+      if (parsedInfo.title.includes('-')) {
+        const parts = parsedInfo.title.split('-').map(p => p.trim()).filter(Boolean);
+        parts.forEach(p => searchTerms.push({ name: p, year: parsedInfo.year }));
+      }
+
+      // Normalize X2 -> X-Men 2
+      if (/\bx2\b/i.test(parsedInfo.title)) {
+        searchTerms.push({ name: parsedInfo.title.replace(/\bx2\b/i, 'X-Men 2'), year: parsedInfo.year });
+        searchTerms.push({ name: 'X-Men 2', year: parsedInfo.year });
+      }
+
+      if (parsedInfo.year) {
+        searchTerms.push({ name: parsedInfo.extractedName, year: null });
+        searchTerms.push({ name: parsedInfo.title, year: null });
+      }
+    }
+
+    if (!parsedInfo.title || parsedInfo.title !== rawBaseName) {
+      searchTerms.push({ name: rawBaseName, year: null });
+    }
+
+    // Deduplicate search terms
+    const seen = new Set();
+    const uniqueTerms = searchTerms.filter(t => {
+      const key = `${t.name}::${t.year || ''}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    for (const term of uniqueTerms) {
+      try {
+        let url = `https://api.subdl.com/api/v1/subtitles/?api_key=${encodeURIComponent(apiKey)}&film_name=${encodeURIComponent(term.name)}&languages=AR&subs_per_page=10&type=movie`;
+        if (term.year) {
+          url += `&year=${encodeURIComponent(term.year)}`;
+        }
+
+        let res;
+        try {
+          res = await fetch(url);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        } catch (e) {
+          res = await fetch(CORS_PROXY + encodeURIComponent(url));
+        }
+        if (!res.ok) continue;
+        const data = await res.json();
+        if (data && data.status && Array.isArray(data.subtitles) && data.subtitles.length > 0) {
+          return data;
+        }
+      } catch (e) {
+        // try next fallback term
+      }
+    }
+    return null;
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  function setProgress(done, total, filmName) {
+    const pct = total > 0 ? (done / total) * 100 : 0;
+    progressFill.style.width     = pct + '%';
+    progressCount.textContent    = `${done} / ${total}`;
+    currentFilmLabel.textContent = filmName || '—';
+    if (done < total) {
+      progressSubtext.textContent = 'Processing…';
+    }
+  }
+
+  function addRow(num, fileName, parsedInfo, status) {
+    const tr = document.createElement('tr');
+    tr.className = 'row-new';
+
+    const yearBadge = parsedInfo && parsedInfo.year 
+      ? `<span class="badge-year">📅 ${escHtml(parsedInfo.year)}</span>` 
+      : '';
+    const titleText = parsedInfo && parsedInfo.title ? parsedInfo.title : fileName;
+
+    tr.innerHTML = `
+      <td class="col-num">${num}</td>
+      <td class="col-name">${escHtml(fileName)}</td>
+      <td class="col-parsed">
+        <div class="analyzer-info">
+          <span class="badge-title">🎬 ${escHtml(titleText)}</span>
+          ${yearBadge}
+        </div>
+      </td>
+      <td class="col-status">${statusHtml(status)}</td>
+    `;
+    resultsTbody.appendChild(tr);
+    tr.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    return tr;
+  }
+
+  function updateRow(tr, status) {
+    tr.querySelector('.col-status').innerHTML = statusHtml(status);
+  }
+
+  function statusHtml(status) {
+    switch (status) {
+      case 'processing': return `<span class="status-processing"><span class="spinner"></span> Processing…</span>`;
+      case 'saved':      return `<span class="status-saved">✅ Saved</span>`;
+      case 'notfound':   return `<span class="status-notfound">⏭️ Not Found</span>`;
+      case 'error':      return `<span class="status-error">❌ Error</span>`;
+      default:           return '';
+    }
+  }
+
+  function escHtml(str) {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+})();
+</script>
+
+</body>
+</html>

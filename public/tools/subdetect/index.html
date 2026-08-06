@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SubDetect — Embedded Subtitle Inspector for Movies & Series</title>
+  <meta name="description" content="Identify movies and series with built-in embedded subtitles locally in your browser using high-performance chunked media inspection.">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  
+  <!-- Fonts & Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  
+  <!-- MediaInfo WebAssembly Library -->
+  <script src="https://cdn.jsdelivr.net/npm/mediainfo.js@0.3.3/dist/umd/index.min.js"></script>
+
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="css/styles.css?v=18.0">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Navigation Header -->
+    <header class="app-header">
+      <div class="logo-area">
+        <div class="logo-icon">
+          <i class="fa-solid fa-closed-captioning"></i>
+        </div>
+        <div class="logo-text">
+          <h1>SubDetect <span class="badge-pro">PRO</span></h1>
+          <p class="tagline">Local Embedded Subtitle Detector & Media Inspector</p>
+        </div>
+      </div>
+      
+      <div class="header-actions">
+        <button id="engineToggleBtn" class="btn btn-outline btn-sm" title="Engine Status">
+          <i class="fa-solid fa-microchip text-accent"></i> Engine: <span id="activeEngineLabel">MediaInfo WASM</span>
+        </button>
+        <button id="resetAppBtn" class="btn btn-ghost btn-sm" title="Clear current library">
+          <i class="fa-solid fa-rotate-left"></i> Reset
+        </button>
+      </div>
+    </header>
+
+    <!-- Recommendation Banner -->
+    <section class="tech-insight-banner" id="techInsightBanner">
+      <div class="banner-content">
+        <div class="banner-badge">
+          <i class="fa-solid fa-bolt"></i> Hardcoded Subtitle Engine
+        </div>
+        <div class="banner-text">
+          <p><strong>Burned-in Subtitles (Hardsubs)</strong> are baked directly into the video image frames and contain 0 header text tracks. Use our local <strong>Python + FFmpeg Hardsub Scanner</strong> (<code style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 4px; color: var(--accent);">run_scanner.bat</code>) in your project directory to visually scan all <code>.mkv</code> & <code>.mp4</code> movies and automatically move subtitled movies into <code>Subtitled_Movies\</code>.</p>
+        </div>
+      </div>
+      <button class="banner-close-btn" id="closeBannerBtn" aria-label="Close insight banner">&times;</button>
+    </section>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      
+      <!-- Dropzone & Initial State -->
+      <section class="dropzone-section" id="dropzoneSection">
+        <div class="dropzone-card" id="dropzoneCard">
+          <input type="file" id="folderInput" webkitdirectory directory multiple class="hidden-input">
+          <input type="file" id="fileInput" multiple accept=".mkv,.mp4,.m4v,.avi,.webm,.ts,.mov" class="hidden-input">
+          
+          <div class="dropzone-illustration">
+            <div class="glow-ring"></div>
+            <div class="icon-stack">
+              <i class="fa-solid fa-folder-open primary-icon"></i>
+              <i class="fa-solid fa-film secondary-icon"></i>
+            </div>
+          </div>
+          
+          <h2>Drop your Movies or Series Folder here</h2>
+          <p class="dropzone-subtitle">Select a folder containing `.mkv`, `.mp4`, `.avi`, `.webm`, or `.ts` video files</p>
+          
+          <div class="dropzone-btn-group">
+            <button class="btn btn-primary btn-lg" id="selectFolderBtn">
+              <i class="fa-solid fa-folder-plus"></i> Select Folder
+            </button>
+            <button class="btn btn-secondary btn-lg" id="selectFilesBtn">
+              <i class="fa-solid fa-file-video"></i> Select Files
+            </button>
+          </div>
+          
+          <div class="dropzone-features">
+            <span><i class="fa-solid fa-shield-halved text-success"></i> 100% Private & Local</span>
+            <span><i class="fa-solid fa-bolt text-warning"></i> Lightning Fast (Chunked Header Read)</span>
+            <span><i class="fa-solid fa-list-check text-accent"></i> Detects SRT, ASS/SSA, PGS & Languages</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Scanning Progress Bar (Hidden initially) -->
+      <section class="scan-progress-section hidden" id="progressSection">
+        <div class="card progress-card">
+          <div class="progress-header">
+            <div class="progress-info">
+              <h3 id="progressTitle"><i class="fa-solid fa-spinner fa-spin text-accent"></i> Scanning Media Files...</h3>
+              <p id="progressSubtext">Processing file 0 of 0</p>
+            </div>
+            <div class="progress-counter">
+              <span id="progressPercent">0%</span>
+            </div>
+          </div>
+          
+          <div class="progress-bar-container">
+            <div class="progress-bar-fill" id="progressBarFill" style="width: 0%;"></div>
+          </div>
+          
+          <div class="scan-live-file">
+            <i class="fa-solid fa-file-code text-muted"></i> <span id="currentScanningFile" class="truncate-text">Preparing scanner engine...</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Results View Dashboard (Hidden until files scanned) -->
+      <section class="dashboard-section hidden" id="dashboardSection">
+        
+        <!-- Summary Stats Cards -->
+        <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
+          <div class="stat-card">
+            <div class="stat-icon bg-primary-soft">
+              <i class="fa-solid fa-film text-primary"></i>
+            </div>
+            <div class="stat-data">
+              <span class="stat-value" id="statTotalFiles">0</span>
+              <span class="stat-label">Total Movies</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon bg-success-soft">
+              <i class="fa-solid fa-circle-check text-success"></i>
+            </div>
+            <div class="stat-data">
+              <span class="stat-value text-success" id="statSubtitledCount">0</span>
+              <span class="stat-label">Movies with Built-in Subtitles</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon bg-danger-soft">
+              <i class="fa-solid fa-circle-xmark text-danger"></i>
+            </div>
+            <div class="stat-data">
+              <span class="stat-value text-danger" id="statNoSubCount">0</span>
+              <span class="stat-label">Movies with No Subtitles</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Controls Toolbar -->
+        <div class="toolbar-card">
+          <div class="search-box">
+            <i class="fa-solid fa-magnifying-glass search-icon"></i>
+            <input type="text" id="searchInput" placeholder="Search movies by title or filename...">
+            <button class="clear-search-btn hidden" id="clearSearchBtn">&times;</button>
+          </div>
+
+          <div class="filter-group">
+            <span class="filter-label"><i class="fa-solid fa-filter"></i> Filter:</span>
+            <button class="filter-chip active" data-filter="all">All Movies (<span id="countAll">0</span>)</button>
+            <button class="filter-chip chip-success" data-filter="has-subs">Built-in Subtitles (<span id="countHasSubs">0</span>)</button>
+            <button class="filter-chip chip-danger" data-filter="no-subs">No Subtitles (<span id="countNoSubs">0</span>)</button>
+          </div>
+
+          <div class="action-tools">
+            <div class="dropdown">
+              <button class="btn btn-outline btn-sm dropdown-trigger" id="exportDropdownBtn">
+                <i class="fa-solid fa-download"></i> Export / Organize <i class="fa-solid fa-chevron-down"></i>
+              </button>
+              <div class="dropdown-menu" id="exportMenu">
+                <button class="dropdown-item" id="openOrganizeModalBtn"><i class="fa-solid fa-folder-gear text-success"></i> Custom Target Folder Organizer...</button>
+                <button class="dropdown-item" id="exportCsvBtn"><i class="fa-solid fa-file-csv text-accent"></i> Export Metadata (CSV)</button>
+                <button class="dropdown-item" id="exportJsonBtn"><i class="fa-solid fa-file-code text-warning"></i> Export Metadata (JSON)</button>
+              </div>
+            </div>
+
+            <div class="view-toggle">
+              <button class="view-btn active" id="viewGridBtn" title="Grid View"><i class="fa-solid fa-grip"></i></button>
+              <button class="view-btn" id="viewTableBtn" title="Table View"><i class="fa-solid fa-list"></i></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Grid View Container -->
+        <div class="media-grid" id="mediaGrid">
+          <!-- Dynamically populated media cards -->
+        </div>
+
+        <!-- Table View Container (Hidden by default) -->
+        <div class="table-container hidden" id="tableContainer">
+          <table class="media-table">
+            <thead>
+              <tr>
+                <th>File Name & Path</th>
+                <th>Container</th>
+                <th>Built-in Subtitles</th>
+                <th>Languages</th>
+                <th>Sub Formats</th>
+                <th>Size</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="mediaTableBody">
+              <!-- Dynamically populated table rows -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Empty Filter Result Message -->
+        <div class="empty-state hidden" id="emptyState">
+          <i class="fa-solid fa-film-slash text-muted"></i>
+          <h3>No matching media found</h3>
+          <p>Try clearing your search query or switching filters.</p>
+        </div>
+
+      </section>
+    </main>
+
+    <!-- Subtitle Track Detail Modal Inspector -->
+    <div class="modal-backdrop hidden" id="modalBackdrop">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div class="modal-title-area">
+            <h2 id="modalMediaTitle">Media Inspection Details</h2>
+            <span class="modal-path-subtitle" id="modalMediaPath">C:\Path\To\Movie.mkv</span>
+          </div>
+          <button class="modal-close-btn" id="closeModalBtn">&times;</button>
+        </div>
+
+        <div class="modal-body">
+          
+          <!-- Summary Header Pills -->
+          <div class="modal-summary-pills" id="modalSummaryPills">
+            <!-- Dynamic pills (e.g. MKV, 4K, 3 Subtitle Tracks) -->
+          </div>
+
+          <!-- Embedded Subtitle Tracks List -->
+          <div class="modal-section">
+            <h3 class="modal-section-title"><i class="fa-solid fa-closed-captioning text-accent"></i> Embedded Subtitle Tracks</h3>
+            <div class="subtitle-tracks-list" id="modalSubtitleTracksList">
+              <!-- Dynamic list of tracks -->
+            </div>
+          </div>
+
+          <!-- Technical Container Info -->
+          <div class="modal-section">
+            <h3 class="modal-section-title"><i class="fa-solid fa-sliders text-primary"></i> Technical Media Streams</h3>
+            <div class="tech-specs-grid" id="modalTechSpecsGrid">
+              <!-- Dynamic technical details (video codec, audio tracks, duration) -->
+            </div>
+          </div>
+
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn btn-secondary" id="modalCloseFooterBtn">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Custom Target Folder Organizer Modal -->
+    <div class="modal-backdrop hidden" id="organizeModalBackdrop">
+      <div class="modal-card" style="max-width: 580px;">
+        <div class="modal-header">
+          <div class="modal-title-area">
+            <h2><i class="fa-solid fa-folder-gear text-accent"></i> Custom Target Folder Organizer</h2>
+            <span class="modal-path-subtitle">Choose movie category, destination path, and file action</span>
+          </div>
+          <button class="modal-close-btn" id="closeOrganizeModalBtn">&times;</button>
+        </div>
+
+        <div class="modal-body" style="display: flex; flex-direction: column; gap: 1.25rem;">
+          <!-- 1. Category Selection -->
+          <div class="form-group">
+            <label class="form-label"><strong>1. Select Movie Category to Organize:</strong></label>
+            <div class="radio-card-group">
+              <label class="radio-card active" id="radioCardHasSubs">
+                <input type="radio" name="organizeCategory" value="has-subs" checked style="display:none;">
+                <div class="radio-card-content">
+                  <i class="fa-solid fa-circle-check text-success" style="font-size: 1.5rem;"></i>
+                  <div>
+                    <strong>Movies with Built-in Subtitles</strong>
+                    <p style="margin-top: 2px; font-size: 0.8rem; color: var(--text-secondary);"><span id="modalCountHasSubs" style="color: var(--success); font-weight: 700;">0</span> movies with burned-in frame text</p>
+                  </div>
+                </div>
+              </label>
+
+              <label class="radio-card" id="radioCardNoSubs">
+                <input type="radio" name="organizeCategory" value="no-subs" style="display:none;">
+                <div class="radio-card-content">
+                  <i class="fa-solid fa-circle-xmark text-danger" style="font-size: 1.5rem;"></i>
+                  <div>
+                    <strong>Movies with No Subtitles</strong>
+                    <p style="margin-top: 2px; font-size: 0.8rem; color: var(--text-secondary);"><span id="modalCountNoSubs" style="color: var(--danger); font-weight: 700;">0</span> movies found</p>
+                  </div>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <!-- 2. Custom Destination Directory Path -->
+          <div class="form-group">
+            <label class="form-label" for="destFolderPath"><strong>2. Enter Destination Folder Path or Name:</strong></label>
+            <div class="input-with-icon">
+              <i class="fa-solid fa-folder-open text-accent"></i>
+              <input type="text" id="destFolderPath" class="form-input" value="Subtitled_Movies" placeholder="e.g. C:\MyMovies\Subtitled or Subtitled_Movies">
+            </div>
+            <p class="form-hint">Enter a full directory path (e.g. <code>C:\TargetFolder</code>) or a folder name to create inside the media directory.</p>
+          </div>
+
+          <!-- 3. Operation Action Mode -->
+          <div class="form-group">
+            <label class="form-label"><strong>3. Select Action Mode:</strong></label>
+            <div class="radio-inline-group">
+              <label class="inline-radio-label">
+                <input type="radio" name="organizeAction" value="move" checked>
+                <span><strong>Move Files</strong> (Relocate to target folder)</span>
+              </label>
+              <label class="inline-radio-label">
+                <input type="radio" name="organizeAction" value="copy">
+                <span><strong>Copy Files</strong> (Keep originals intact)</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer" style="justify-content: space-between;">
+          <button class="btn btn-secondary" id="cancelOrganizeBtn">Cancel</button>
+          <button class="btn btn-primary" id="downloadOrganizeScriptBtn"><i class="fa-solid fa-circle-check"></i> Done</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <p>SubDetect &bull; High-Performance Browser Media Identifier &bull; 100% Client-Side Privacy</p>
+    </footer>
+  </div>
+
+  <!-- Application Scripts -->
+  <script src="js/ebml-mp4-parser.js?v=25.0"></script>
+  <script src="js/mediainfo-parser.js?v=25.0"></script>
+  <script src="js/scanner.js?v=25.0"></script>
+  <script src="js/app.js?v=25.0"></script>
+</body>
+</html>

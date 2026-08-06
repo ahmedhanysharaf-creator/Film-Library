@@ -1,11 +1,12 @@
 import React, { useState } from "react";
-import { Film, Plus, Shield, Settings, LogOut, User, ChevronDown, MonitorPlay, Download } from "lucide-react";
+import { Film, Plus, Shield, Settings, LogOut, User, ChevronDown, MonitorPlay, Download, Wrench, Search, FileText, LayoutGrid } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { downloadWindowsRegistryFix } from "../services/vlcLauncher";
 
-export const Navbar = ({ activePage, setActivePage, onOpenWhitelist, onOpenSettings }) => {
+export const Navbar = ({ activePage, setActivePage, onSelectTool, onOpenWhitelist, onOpenSettings }) => {
   const { currentUser, logout, loginAsDemoUser } = useAuth();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [toolsDropdownOpen, setToolsDropdownOpen] = useState(false);
 
   // Clean formatted user display name
   const rawName = currentUser?.displayName || currentUser?.email?.split("@")[0] || "Ahmed Hany";
@@ -31,7 +32,10 @@ export const Navbar = ({ activePage, setActivePage, onOpenWhitelist, onOpenSetti
               ...styles.linkBtn,
               ...(activePage === "home" ? styles.linkActive : {})
             }}
-            onClick={() => setActivePage("home")}
+            onClick={() => {
+              setToolsDropdownOpen(false);
+              setActivePage("home");
+            }}
           >
             Home
           </button>
@@ -41,17 +45,88 @@ export const Navbar = ({ activePage, setActivePage, onOpenWhitelist, onOpenSetti
               ...styles.linkBtn,
               ...(activePage === "library" ? styles.linkActive : {})
             }}
-            onClick={() => setActivePage("library")}
+            onClick={() => {
+              setToolsDropdownOpen(false);
+              setActivePage("library");
+            }}
           >
             The Library
           </button>
+
+          {/* Subtitle Tools Dropdown Menu (Option 3) */}
+          <div style={styles.dropdownWrapper}>
+            <button
+              style={{
+                ...styles.linkBtn,
+                ...(activePage === "tools" ? styles.linkActive : {})
+              }}
+              onClick={() => setToolsDropdownOpen(!toolsDropdownOpen)}
+            >
+              <Wrench size={16} />
+              Subtitle Tools
+              <ChevronDown size={14} color="#a3a3a3" />
+            </button>
+
+            {toolsDropdownOpen && (
+              <div style={styles.toolsDropdownMenu} className="animate-pop">
+                <button
+                  style={styles.menuItem}
+                  onClick={() => {
+                    setToolsDropdownOpen(false);
+                    onSelectTool ? onSelectTool(null) : setActivePage("tools");
+                  }}
+                >
+                  <LayoutGrid size={16} color="var(--accent-red)" />
+                  Tools Hub Dashboard
+                </button>
+
+                <div style={styles.divider} />
+
+                <button
+                  style={styles.menuItem}
+                  onClick={() => {
+                    setToolsDropdownOpen(false);
+                    onSelectTool ? onSelectTool("subdetect") : setActivePage("tools");
+                  }}
+                >
+                  <Search size={16} color="#e50914" />
+                  SubDetect Pro
+                </button>
+
+                <button
+                  style={styles.menuItem}
+                  onClick={() => {
+                    setToolsDropdownOpen(false);
+                    onSelectTool ? onSelectTool("downloader") : setActivePage("tools");
+                  }}
+                >
+                  <Download size={16} color="#3b82f6" />
+                  Subtitle Downloader
+                </button>
+
+                <button
+                  style={styles.menuItem}
+                  onClick={() => {
+                    setToolsDropdownOpen(false);
+                    onSelectTool ? onSelectTool("matcher") : setActivePage("tools");
+                  }}
+                >
+                  <FileText size={16} color="#10b981" />
+                  Subtitle Matcher
+                </button>
+              </div>
+            )}
+          </div>
 
           <button
             style={{
               ...styles.linkBtn,
               ...(activePage === "add" ? styles.linkActive : {})
             }}
-            onClick={() => setActivePage("add")}
+            onClick={() => {
+              setToolsDropdownOpen(false);
+              setActivePage("add");
+            }}
           >
             <Plus size={16} />
             Add to Library
@@ -322,5 +397,17 @@ const styles = {
     alignItems: "center",
     gap: "6px",
     marginLeft: "8px"
+  },
+  toolsDropdownMenu: {
+    position: "absolute",
+    top: "calc(100% + 8px)",
+    left: 0,
+    width: "230px",
+    backgroundColor: "var(--bg-surface)",
+    border: "1px solid var(--border-subtle)",
+    borderRadius: "12px",
+    padding: "8px",
+    boxShadow: "var(--shadow-md)",
+    zIndex: 110
   }
 };

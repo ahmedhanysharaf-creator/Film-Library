@@ -10,6 +10,7 @@ import { SettingsModal } from "./components/SettingsModal";
 import { Home } from "./pages/Home";
 import { Library } from "./pages/Library";
 import { AddEditMedia } from "./pages/AddEditMedia";
+import { ToolsHub } from "./pages/ToolsHub";
 import { Login } from "./pages/Login";
 import { deleteMediaEntry } from "./services/storage";
 
@@ -17,7 +18,8 @@ const AppContent = () => {
   const { currentUser, isWhitelisted, loading } = useAuth();
   const { addToast } = useToast();
 
-  const [activePage, setActivePage] = useState("home"); // "home" | "library" | "add" | "login"
+  const [activePage, setActivePage] = useState("home"); // "home" | "library" | "add" | "tools" | "login"
+  const [selectedToolId, setSelectedToolId] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
   const [editItem, setEditItem] = useState(null);
 
@@ -54,6 +56,12 @@ const AppContent = () => {
     }
   };
 
+  const handleSelectTool = (toolId = null) => {
+    setEditItem(null);
+    setSelectedToolId(toolId);
+    setActivePage("tools");
+  };
+
   return (
     <div className="app-container">
       {/* Top Navbar */}
@@ -61,8 +69,10 @@ const AppContent = () => {
         activePage={activePage}
         setActivePage={(page) => {
           setEditItem(null);
+          if (page !== "tools") setSelectedToolId(null);
           setActivePage(page);
         }}
+        onSelectTool={handleSelectTool}
         onOpenWhitelist={() => setShowWhitelist(true)}
         onOpenSettings={() => setShowSettings(true)}
       />
@@ -81,6 +91,10 @@ const AppContent = () => {
             onSelectItem={(item) => setSelectedItem(item)}
             onEditItem={handleEdit}
           />
+        )}
+
+        {activePage === "tools" && (
+          <ToolsHub key={selectedToolId || "all"} initialToolId={selectedToolId} />
         )}
 
         {activePage === "add" && (
