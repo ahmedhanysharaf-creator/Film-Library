@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import { launchInVlc, copyPathToClipboard, downloadVlcM3uPlaylist, downloadWindowsRegistryFix } from "../services/vlcLauncher";
 import { updateWatchProgress } from "../services/storage";
-import { saveContinueWatchingItem } from "../services/continueWatching";
+import { saveContinueWatchingItem, getNextEpisodeToPlay } from "../services/continueWatching";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 
@@ -380,25 +380,39 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate }) =
               )}
 
               {/* TV Series Season & Episode Breakdown */}
-              {(item.type?.toLowerCase() === "series" || item.type?.toLowerCase() === "tv") && (
-                <div style={styles.seriesSection}>
-                  <span style={styles.sectionTitle}>Seasons & Episodes</span>
+              {(item.type?.toLowerCase() === "series" || item.type?.toLowerCase() === "tv") && (() => {
+                const nextInfo = getNextEpisodeToPlay(item, uid);
+                const nextEpPath = getEpPath(nextInfo.season, nextInfo.episode);
+                const nextEpSubPath = getEpSubPath(nextInfo.season, nextInfo.episode);
 
-                  {/* Season Tabs */}
-                  <div style={styles.seasonTabs}>
-                    {(item.seasons || [{ season_number: 1, episode_count: 10 }]).map((s) => (
+                return (
+                  <div style={styles.seriesSection}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px", gap: "12px", flexWrap: "wrap" }}>
+                      <span style={styles.sectionTitle}>Seasons & Episodes</span>
+
                       <button
-                        key={s.season_number}
-                        style={{
-                          ...styles.seasonTab,
-                          ...(activeSeason === s.season_number ? styles.seasonTabActive : {})
-                        }}
-                        onClick={() => setActiveSeason(s.season_number)}
+                        style={styles.mainPlayBtn}
+                        onClick={() => handlePlayMedia(nextEpPath || defaultMoviePath, `${item.title} ${nextInfo.epCode}`, nextEpSubPath, nextInfo.season, nextInfo.episode)}
                       >
-                        Season {s.season_number}
+                        <Play size={18} fill="#ffffff" /> Play {nextInfo.epCode} (Next Episode)
                       </button>
-                    ))}
-                  </div>
+                    </div>
+
+                    {/* Season Tabs */}
+                    <div style={styles.seasonTabs}>
+                      {(item.seasons || [{ season_number: 1, episode_count: 10 }]).map((s) => (
+                        <button
+                          key={s.season_number}
+                          style={{
+                            ...styles.seasonTab,
+                            ...(activeSeason === s.season_number ? styles.seasonTabActive : {})
+                          }}
+                          onClick={() => setActiveSeason(s.season_number)}
+                        >
+                          Season {s.season_number}
+                        </button>
+                      ))}
+                    </div>
 
                   {/* Episode List */}
                   <div style={styles.episodeList}>
@@ -444,7 +458,8 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate }) =
                     })}
                   </div>
                 </div>
-              )}
+              );
+            })()}
 
               {/* Consolidated Multi-User File Paths */}
               <div style={styles.userPathsSection}>

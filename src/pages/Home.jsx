@@ -96,6 +96,9 @@ export const Home = ({ setActivePage, onSelectItem }) => {
           </div>
         </div>
 
+        {/* Netflix-style Continue Watching Section */}
+        <ContinueWatchingRow libraryItems={items} onSelectMedia={onSelectItem} setActivePage={setActivePage} />
+
         {/* Recently Added Section */}
         <div style={styles.section}>
           <div style={styles.sectionHeader}>

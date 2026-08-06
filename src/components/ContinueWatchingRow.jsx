@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Play, Edit3, Trash2, X, Check, Tv, Film } from "lucide-react";
+import { Play, Edit3, Trash2, X, Check, Tv, Film, Sparkles, Clock } from "lucide-react";
 import { 
   getContinueWatchingList, 
   removeContinueWatchingItem, 
@@ -9,7 +9,7 @@ import { launchInVlc } from "../services/vlcLauncher";
 import { useToast } from "../context/ToastContext";
 import { useAuth } from "../context/AuthContext";
 
-export const ContinueWatchingRow = ({ libraryItems = [], onSelectMedia }) => {
+export const ContinueWatchingRow = ({ libraryItems = [], onSelectMedia, setActivePage }) => {
   const { addToast } = useToast();
   const { currentUser } = useAuth();
   const [list, setList] = useState([]);
@@ -29,8 +29,6 @@ export const ContinueWatchingRow = ({ libraryItems = [], onSelectMedia }) => {
     };
   }, []);
 
-  if (list.length === 0) return null;
-
   const handlePlayItem = (cwItem) => {
     const matchedMedia = libraryItems.find((m) => m.id === cwItem.mediaId || m.tmdb_id === cwItem.mediaId);
     
@@ -47,8 +45,8 @@ export const ContinueWatchingRow = ({ libraryItems = [], onSelectMedia }) => {
         const code1 = `S${s}E${e}`;
         const code2 = `S${String(s).padStart(2, '0')}E${String(e).padStart(2, '0')}`;
         
-        path = pathsMap[code1] || pathsMap[code2] || pathsMap[code1.toLowerCase()] || pathsMap[code2.toLowerCase()] || pathsMap["default"] || "";
-        subPath = pathsMap[`${code1}_sub`] || pathsMap[`${code2}_sub`] || pathsMap["subtitle"] || "";
+        path = pathsMap[code1] || pathsMap[code2] || pathsMap[code1.toLowerCase()] || pathsMap[code2.toLowerCase()] || pathsMap["default"] || matchedMedia.default_path || "";
+        subPath = pathsMap[`${code1}_sub`] || pathsMap[`${code2}_sub`] || pathsMap["subtitle"] || matchedMedia.subtitle_path || "";
       } else {
         path = pathsMap["default"] || matchedMedia.default_path || "";
         subPath = pathsMap["subtitle"] || matchedMedia.subtitle_path || "";
@@ -89,77 +87,101 @@ export const ContinueWatchingRow = ({ libraryItems = [], onSelectMedia }) => {
     <div style={styles.container} className="animate-fade">
       <div style={styles.header}>
         <div style={styles.headerTitleGroup}>
-          <Play size={20} color="var(--accent-red)" fill="var(--accent-red)" />
-          <h2 style={styles.title}>Continue Watching</h2>
+          <div style={styles.iconCircle}>
+            <Play size={18} color="#ffffff" fill="#ffffff" />
+          </div>
+          <div>
+            <h2 style={styles.title}>Continue Watching</h2>
+            <span style={styles.subtitle}>Netflix-style User Watch Progress</span>
+          </div>
         </div>
         <span style={styles.countBadge}>{list.length} item(s) in progress</span>
       </div>
 
-      <div style={styles.grid}>
-        {list.map((cw) => {
-          const matchedMedia = libraryItems.find((m) => m.id === cw.mediaId || m.tmdb_id === cw.mediaId);
-          return (
-            <div
-              key={cw.mediaId}
-              style={styles.card}
-              onClick={() => matchedMedia ? onSelectMedia(matchedMedia) : null}
-            >
-              <div style={styles.posterContainer}>
-                <img
-                  src={cw.backdropUrl || cw.posterUrl || "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500&auto=format&fit=crop&q=60"}
-                  alt={cw.title}
-                  style={styles.backdropImg}
-                  loading="lazy"
-                />
-                
-                {/* Netflix-style Play Overlay Button */}
-                <div style={styles.playOverlay}>
+      {list.length === 0 ? (
+        <div style={styles.emptyContainer} className="glass-panel">
+          <div style={styles.emptyContent}>
+            <Clock size={36} color="var(--accent-red)" />
+            <div style={styles.emptyTextGroup}>
+              <h4 style={styles.emptyTitle}>No Media in Progress Yet</h4>
+              <p style={styles.emptyDesc}>
+                Whenever you click <strong>Play</strong> on any movie or TV series episode, your active watch position (e.g. <strong>S2E4</strong>) will automatically show up here so you can continue where you left off!
+              </p>
+            </div>
+            {setActivePage && (
+              <button style={styles.browseBtn} onClick={() => setActivePage("library")}>
+                <Film size={16} /> Explore Library to Play
+              </button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div style={styles.grid}>
+          {list.map((cw) => {
+            const matchedMedia = libraryItems.find((m) => m.id === cw.mediaId || m.tmdb_id === cw.mediaId);
+            return (
+              <div
+                key={cw.mediaId}
+                style={styles.card}
+                onClick={() => matchedMedia ? onSelectMedia(matchedMedia) : null}
+              >
+                <div style={styles.posterContainer}>
+                  <img
+                    src={cw.backdropUrl || cw.posterUrl || "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500&auto=format&fit=crop&q=60"}
+                    alt={cw.title}
+                    style={styles.backdropImg}
+                    loading="lazy"
+                  />
+                  
+                  {/* Netflix-style Play Overlay Button */}
+                  <div style={styles.playOverlay}>
+                    <button
+                      type="button"
+                      style={styles.overlayPlayBtn}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handlePlayItem(cw);
+                      }}
+                      title="Play Now in VLC"
+                    >
+                      <Play size={22} fill="#ffffff" color="#ffffff" style={{ marginLeft: "3px" }} />
+                    </button>
+                  </div>
+
+                  {/* Edit Button Badge */}
                   <button
                     type="button"
-                    style={styles.overlayPlayBtn}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handlePlayItem(cw);
-                    }}
-                    title="Play Now in VLC"
+                    style={styles.editBadgeBtn}
+                    onClick={(e) => handleOpenEditModal(cw, e)}
+                    title="Edit Watch Progress"
                   >
-                    <Play size={22} fill="#ffffff" color="#ffffff" style={{ marginLeft: "3px" }} />
+                    <Edit3 size={14} color="#ffffff" />
                   </button>
-                </div>
 
-                {/* Edit Button Badge */}
-                <button
-                  type="button"
-                  style={styles.editBadgeBtn}
-                  onClick={(e) => handleOpenEditModal(cw, e)}
-                  title="Edit Watch Progress"
-                >
-                  <Edit3 size={14} color="#ffffff" />
-                </button>
+                  {/* Season & Episode Badge */}
+                  {cw.epCode && (
+                    <div style={styles.epBadge}>
+                      {cw.epCode}
+                    </div>
+                  )}
 
-                {/* Season & Episode Badge */}
-                {cw.epCode && (
-                  <div style={styles.epBadge}>
-                    {cw.epCode}
+                  {/* Bottom Red Progress Bar */}
+                  <div style={styles.progressTrack}>
+                    <div style={{ ...styles.progressBar, width: `${cw.progressPct || 50}%` }} />
                   </div>
-                )}
+                </div>
 
-                {/* Bottom Red Progress Bar */}
-                <div style={styles.progressTrack}>
-                  <div style={{ ...styles.progressBar, width: `${cw.progressPct || 50}%` }} />
+                <div style={styles.cardInfo}>
+                  <h3 style={styles.cardTitle}>{cw.title}</h3>
+                  <span style={styles.cardSub}>
+                    {cw.epCode ? `Season ${cw.season} • Episode ${cw.episode}` : "Movie in progress"}
+                  </span>
                 </div>
               </div>
-
-              <div style={styles.cardInfo}>
-                <h3 style={styles.cardTitle}>{cw.title}</h3>
-                <span style={styles.cardSub}>
-                  {cw.epCode ? `Season ${cw.season} • Episode ${cw.episode}` : "Movie in progress"}
-                </span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Edit Continue Watching Modal */}
       {editingItem && (
@@ -234,7 +256,7 @@ export const ContinueWatchingRow = ({ libraryItems = [], onSelectMedia }) => {
 
 const styles = {
   container: {
-    margin: "12px 0 24px 0",
+    margin: "12px 0 28px 0",
     display: "flex",
     flexDirection: "column",
     gap: "16px"
@@ -247,20 +269,75 @@ const styles = {
   headerTitleGroup: {
     display: "flex",
     alignItems: "center",
-    gap: "10px"
+    gap: "12px"
+  },
+  iconCircle: {
+    width: "36px",
+    height: "36px",
+    borderRadius: "50%",
+    backgroundColor: "var(--accent-red)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    boxShadow: "0 4px 12px rgba(229, 9, 20, 0.4)"
   },
   title: {
-    fontSize: "1.4rem",
+    fontSize: "1.35rem",
     fontWeight: 800,
     color: "#ffffff"
+  },
+  subtitle: {
+    fontSize: "0.8rem",
+    color: "var(--text-secondary)"
   },
   countBadge: {
     fontSize: "0.82rem",
     color: "var(--text-muted)",
     backgroundColor: "var(--bg-elevated)",
-    padding: "4px 10px",
+    padding: "4px 12px",
     borderRadius: "20px",
     border: "1px solid var(--border-subtle)"
+  },
+  emptyContainer: {
+    padding: "24px",
+    borderRadius: "14px",
+    border: "1px dashed rgba(229, 9, 20, 0.4)",
+    backgroundColor: "rgba(28, 28, 28, 0.6)"
+  },
+  emptyContent: {
+    display: "flex",
+    alignItems: "center",
+    gap: "20px"
+  },
+  emptyTextGroup: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    gap: "4px"
+  },
+  emptyTitle: {
+    fontSize: "1.05rem",
+    fontWeight: 700,
+    color: "#ffffff"
+  },
+  emptyDesc: {
+    fontSize: "0.85rem",
+    color: "var(--text-secondary)",
+    lineHeight: 1.4
+  },
+  browseBtn: {
+    padding: "10px 18px",
+    backgroundColor: "var(--accent-red)",
+    color: "#ffffff",
+    border: "none",
+    borderRadius: "8px",
+    fontWeight: 700,
+    fontSize: "0.85rem",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    whiteSpace: "nowrap"
   },
   grid: {
     display: "grid",
