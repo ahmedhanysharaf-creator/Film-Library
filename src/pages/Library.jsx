@@ -199,6 +199,9 @@ export const Library = ({ onSelectItem, onEditItem }) => {
 
   return (
     <div style={styles.container} className="animate-fade">
+      {/* Netflix-style Continue Watching Section */}
+      <ContinueWatchingRow libraryItems={items} onSelectMedia={onSelectItem} />
+
       {/* Top Header & Toolbar */}
       <div style={styles.topBar}>
         <div style={styles.titleSection}>
@@ -409,9 +412,6 @@ export const Library = ({ onSelectItem, onEditItem }) => {
           </div>
         </div>
       )}
-
-      {/* Netflix-style Continue Watching Row */}
-      <ContinueWatchingRow libraryItems={items} onSelectMedia={onSelectItem} />
 
       {/* My Upload History Sub-View */}
       {showHistoryView && libraryScope === "my" ? (
