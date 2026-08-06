@@ -67,6 +67,138 @@ export const extractCleanTitleFromPath = (fullPath) => {
   return extractTitleAndYearFromPath(fullPath).cleanTitle;
 };
 
+export const parseSeasonAndEpisode = (fileNameOrPath) => {
+  if (!fileNameOrPath) return { isTv: false, season: 1, episode: null };
+
+  const normalized = fileNameOrPath.replace(/\\/g, "/");
+  const parts = normalized.split("/").filter(Boolean);
+  const fileName = parts.length > 0 ? parts[parts.length - 1] : normalized;
+
+  let folderSeason = null;
+  for (let i = parts.length - 2; i >= 0; i--) {
+    const sMatch = parts[i].match(/\b(?:Season|S)[\.\s_\-]*(\d{1,2})\b/i);
+    if (sMatch) {
+      folderSeason = parseInt(sMatch[1], 10);
+      break;
+    }
+  }
+
+  // Pattern 1: S01E05, S1E5, S01.E05, s01e05
+  const patternSxE = /\bS(\d{1,2})[\.\s_\-]*E(\d{1,3})\b/i;
+  let match = fileName.match(patternSxE);
+  if (match) {
+    return {
+      isTv: true,
+      season: parseInt(match[1], 10),
+      episode: parseInt(match[2], 10)
+    };
+  }
+
+  // Pattern 2: 1x05, 01x05
+  const patternXxE = /\b(\d{1,2})x(\d{1,3})\b/i;
+  match = fileName.match(patternXxE);
+  if (match) {
+    return {
+      isTv: true,
+      season: parseInt(match[1], 10),
+      episode: parseInt(match[2], 10)
+    };
+  }
+
+  // Pattern 3: Episode 05, Ep 05, Ep.05, E05
+  const patternEpOnly = /\b(?:Episode|Ep|E)[\.\s_\-]*(\d{1,3})\b/i;
+  match = fileName.match(patternEpOnly);
+  if (match) {
+    return {
+      isTv: true,
+      season: folderSeason || 1,
+      episode: parseInt(match[1], 10)
+    };
+  }
+
+  // Pattern 4: P01, P02, Part 01, Pt 01
+  const patternPart = /\b(?:P|Part|Pt)[\.\s_\-]*(\d{1,3})\b/i;
+  match = fileName.match(patternPart);
+  if (match) {
+    return {
+      isTv: true,
+      season: folderSeason || 1,
+      episode: parseInt(match[1], 10)
+    };
+  }
+
+  // Pattern 5: Standalone number in a Season folder
+  if (folderSeason) {
+    const numMatch = fileName.match(/\b(\d{1,2})\b/);
+    if (numMatch) {
+      return {
+        isTv: true,
+        season: folderSeason,
+        episode: parseInt(numMatch[1], 10)
+      };
+    }
+  }
+
+  return { isTv: false, season: folderSeason || 1, episode: null };
+};
+
+export const extractSeriesTitleFromPath = (fullPath) => {
+  if (!fullPath) return { cleanSeriesTitle: "", year: null, isFolderSeries: false };
+
+  const normalized = fullPath.replace(/\\/g, "/");
+  const parts = normalized.split("/").filter(Boolean);
+  if (parts.length === 0) return { cleanSeriesTitle: "", year: null, isFolderSeries: false };
+
+  let candidate = parts[parts.length - 1];
+  let isFolderSeries = false;
+
+  for (let i = parts.length - 2; i >= 0; i--) {
+    const p = parts[i];
+    if (p.includes(":") || ["downloads", "movies", "series", "tv shows", "video", "videos", "english", "arabic"].includes(p.toLowerCase())) {
+      break;
+    }
+    if (/^(?:Season|S)[\.\s_\-]*\d+$/i.test(p) || /^Specials$/i.test(p)) {
+      continue;
+    }
+    candidate = p;
+    isFolderSeries = true;
+    break;
+  }
+
+  let clean = candidate;
+
+  let year = null;
+  const yearMatch = clean.match(/\b(19\d\d|20\d\d)\b/);
+  if (yearMatch) {
+    year = parseInt(yearMatch[1], 10);
+    clean = clean.replace(/[\[\(]?\b(19\d\d|20\d\d)\b[\]\)]?/g, " ");
+  }
+
+  clean = clean.replace(/\bS\d+E\d+\b/gi, "");
+  clean = clean.replace(/\b\d+x\d+\b/gi, "");
+  clean = clean.replace(/\b(?:Season|S)\s*\d+\b/gi, "");
+
+  const tags = [
+    "1080p", "720p", "4k", "2160p", "bluray", "web-dl", "webrip", "hdrip", "dvdrip",
+    "x264", "x265", "hevc", "aac", "dts", "repack", "remux", "hdr", "dual audio",
+    "p01", "p02", "p03", "p04", "p05", "ep01", "ep02", "ep03", "part 1", "part 2"
+  ];
+  tags.forEach((tag) => {
+    const reg = new RegExp(`\\b${tag}\\b`, "gi");
+    clean = clean.replace(reg, "");
+  });
+
+  clean = clean.replace(/^[-\s._]+/, "");
+  clean = clean.replace(/[._]/g, " ");
+  clean = clean.replace(/\s+/g, " ").trim();
+
+  return {
+    cleanSeriesTitle: clean || candidate.trim(),
+    year,
+    isFolderSeries
+  };
+};
+
 export const findBestMatchingSubtitle = (videoPath, fileList = []) => {
   if (!videoPath) return "";
 
@@ -340,7 +472,7 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
     }
   };
 
-  // Step 1 -> Step 2: Start Batch Scanning
+  // Step 1 -> Step 2: Smart Batch Scanning (Groups TV Series subfolders into 1 Card!)
   const handleStartBatchScan = async (e) => {
     e.preventDefault();
 
@@ -359,62 +491,179 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
     setBatchStep("scanning");
 
     const baseFolder = folderPath.trim().replace(/\\$/g, "");
-    const results = [];
+    
+    // Group files into TV Series vs Standalone Movies
+    const seriesGroups = {};
+    const movieItems = [];
 
     for (let i = 0; i < videoItems.length; i++) {
       const rawItem = videoItems[i];
-
       const fullItemPath = rawItem.includes(":") || rawItem.startsWith("\\")
         ? rawItem
         : `${baseFolder}\\${rawItem}`;
 
-      const { cleanTitle, year: extractedYear } = extractTitleAndYearFromPath(rawItem);
-      if (!cleanTitle) continue;
+      const epInfo = parseSeasonAndEpisode(rawItem);
+      const seriesInfo = extractSeriesTitleFromPath(rawItem);
 
-      const progressLabel = extractedYear ? `"${cleanTitle}" (${extractedYear})` : `"${cleanTitle}"`;
-      setScanProgress(`Scanning (${i + 1}/${videoItems.length}): Fetching metadata for ${progressLabel}...`);
+      if (epInfo.isTv || seriesInfo.isFolderSeries) {
+        const groupKey = seriesInfo.cleanSeriesTitle.toLowerCase();
+        if (!seriesGroups[groupKey]) {
+          seriesGroups[groupKey] = {
+            seriesTitle: seriesInfo.cleanSeriesTitle,
+            year: seriesInfo.year,
+            episodes: []
+          };
+        }
+        seriesGroups[groupKey].episodes.push({
+          rawItem,
+          fullItemPath,
+          season: epInfo.season,
+          episode: epInfo.episode || (seriesGroups[groupKey].episodes.length + 1)
+        });
+      } else {
+        const { cleanTitle, year } = extractTitleAndYearFromPath(rawItem);
+        movieItems.push({
+          rawItem,
+          fullItemPath,
+          cleanTitle,
+          year
+        });
+      }
+    }
+
+    const results = [];
+
+    // Process TV Series Groups (Fetches TMDB ONCE for the whole series!)
+    const seriesKeys = Object.keys(seriesGroups);
+    for (let i = 0; i < seriesKeys.length; i++) {
+      const group = seriesGroups[seriesKeys[i]];
+      setScanProgress(`Scanning TV Series (${i + 1}/${seriesKeys.length}): Fetching metadata for "${group.seriesTitle}"...`);
 
       try {
-        const searchResults = await searchTmdb(cleanTitle, extractedYear);
+        const searchResults = await searchTmdb(group.seriesTitle, group.year, "series");
+        const topMatch = (group.year && searchResults?.find((r) => r.year === group.year)) || searchResults?.[0];
 
-        const matchedSubPath = findBestMatchingSubtitle(fullItemPath);
+        let details = null;
+        if (topMatch) {
+          details = await getTmdbDetails(topMatch.tmdb_id, "series");
+        }
 
-        if (searchResults && searchResults.length > 0) {
-          const topMatch = (extractedYear && searchResults.find((r) => r.year === extractedYear)) || searchResults[0];
-          const details = await getTmdbDetails(topMatch.tmdb_id, topMatch.type);
-          
+        // Map all episode paths (S1E1, S1E2...) into new_paths
+        const episodePathsMap = {};
+        let maxSeason = 1;
+        const seasonEpCounts = {};
+
+        group.episodes.forEach((ep) => {
+          const epCode = `S${ep.season}E${ep.episode}`;
+          const subPath = findBestMatchingSubtitle(ep.fullItemPath);
+          episodePathsMap[epCode] = ep.fullItemPath;
+          if (subPath) {
+            episodePathsMap[`${epCode}_sub`] = subPath;
+          }
+
+          if (ep.season > maxSeason) maxSeason = ep.season;
+          seasonEpCounts[ep.season] = Math.max(seasonEpCounts[ep.season] || 0, ep.episode);
+        });
+
+        const firstEpPath = group.episodes[0].fullItemPath;
+        const firstEpSub = findBestMatchingSubtitle(firstEpPath);
+        episodePathsMap["default"] = firstEpPath;
+        episodePathsMap["subtitle"] = firstEpSub;
+
+        const seasonsArr = Array.from({ length: maxSeason }).map((_, idx) => ({
+          season_number: idx + 1,
+          episode_count: seasonEpCounts[idx + 1] || 10
+        }));
+
+        if (details) {
           results.push({
             selected: true,
-            filePath: fullItemPath,
-            rawFileName: rawItem,
+            filePath: firstEpPath,
+            rawFileName: `${group.seriesTitle} (${group.episodes.length} episode files detected)`,
+            episodesCount: group.episodes.length,
             mediaData: {
               ...details,
-              subtitle_path: matchedSubPath,
-              new_paths: { default: fullItemPath, subtitle: matchedSubPath }
+              type: "series",
+              seasons: seasonsArr,
+              total_episodes: group.episodes.length,
+              subtitle_path: firstEpSub,
+              new_paths: episodePathsMap
             }
           });
         } else {
           results.push({
             selected: true,
-            filePath: fullItemPath,
-            rawFileName: rawItem,
+            filePath: firstEpPath,
+            rawFileName: `${group.seriesTitle} (${group.episodes.length} episode files detected)`,
+            episodesCount: group.episodes.length,
             mediaData: {
               tmdb_id: Date.now() + Math.floor(Math.random() * 10000),
-              type: "movie",
-              title: cleanTitle,
-              year: extractedYear || new Date().getFullYear(),
+              type: "series",
+              title: group.seriesTitle,
+              year: group.year || new Date().getFullYear(),
               poster_url: "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500&auto=format&fit=crop&q=60",
               backdrop_url: "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=1920&auto=format&fit=crop&q=80",
-              genres: ["Cinema"],
-              imdb_rating: 8.0,
-              overview: `Local video file: ${fullItemPath}`,
-              subtitle_path: matchedSubPath,
-              new_paths: { default: fullItemPath, subtitle: matchedSubPath }
+              genres: ["TV Series"],
+              imdb_rating: 8.5,
+              overview: `Local TV Series folder with ${group.episodes.length} episode files.`,
+              seasons: seasonsArr,
+              total_episodes: group.episodes.length,
+              subtitle_path: firstEpSub,
+              new_paths: episodePathsMap
             }
           });
         }
       } catch (err) {
-        console.error(`Error scanning ${cleanTitle}:`, err);
+        console.error(`Error scanning series ${group.seriesTitle}:`, err);
+      }
+    }
+
+    // Process Standalone Movies
+    for (let i = 0; i < movieItems.length; i++) {
+      const item = movieItems[i];
+      setScanProgress(`Scanning Movies (${i + 1}/${movieItems.length}): Fetching metadata for "${item.cleanTitle}"...`);
+
+      try {
+        const searchResults = await searchTmdb(item.cleanTitle, item.year, "movie");
+        const topMatch = (item.year && searchResults?.find((r) => r.year === item.year)) || searchResults?.[0];
+
+        const matchedSubPath = findBestMatchingSubtitle(item.fullItemPath);
+
+        if (topMatch) {
+          const details = await getTmdbDetails(topMatch.tmdb_id, "movie");
+          results.push({
+            selected: true,
+            filePath: item.fullItemPath,
+            rawFileName: item.rawItem,
+            mediaData: {
+              ...details,
+              type: "movie",
+              subtitle_path: matchedSubPath,
+              new_paths: { default: item.fullItemPath, subtitle: matchedSubPath }
+            }
+          });
+        } else {
+          results.push({
+            selected: true,
+            filePath: item.fullItemPath,
+            rawFileName: item.rawItem,
+            mediaData: {
+              tmdb_id: Date.now() + Math.floor(Math.random() * 10000),
+              type: "movie",
+              title: item.cleanTitle,
+              year: item.year || new Date().getFullYear(),
+              poster_url: "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500&auto=format&fit=crop&q=60",
+              backdrop_url: "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=1920&auto=format&fit=crop&q=80",
+              genres: ["Cinema"],
+              imdb_rating: 8.0,
+              overview: `Local video file: ${item.fullItemPath}`,
+              subtitle_path: matchedSubPath,
+              new_paths: { default: item.fullItemPath, subtitle: matchedSubPath }
+            }
+          });
+        }
+      } catch (err) {
+        console.error(`Error scanning movie ${item.cleanTitle}:`, err);
       }
     }
 
