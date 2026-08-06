@@ -123,24 +123,36 @@ export const parseTvShowFileName = (fullPathOrFileName) => {
           seriesTitleRaw = match[1];
           season = 1;
           episode = parseInt(match[2], 10);
+        } else {
+          // Regex 5: "Daredevil 301" or "Daredevil 101" (Season 3 Ep 01, Season 1 Ep 01)
+          const reg5 = /^(.+?)[.\s_–-]+(\d{1})(\d{2})\b/i;
+          match = text.match(reg5);
+          if (match) {
+            isTv = true;
+            seriesTitleRaw = match[1];
+            season = parseInt(match[2], 10);
+            episode = parseInt(match[3], 10);
+          }
         }
       }
     }
   }
 
-  // Folder structure fallback e.g. "Marvel's Daredevil/Season 3/01.mkv"
+  // Folder structure fallback e.g. "Marvel's Daredevil/Season 3/01.mkv" or "Marvel's Daredevil/01.mkv"
   if (!isTv && parts.length >= 2) {
-    let parentFolder = parts[parts.length - 2];
-    const sMatch = parentFolder.match(/\b(?:Season|S)[\.\s_\-]*(\d{1,2})\b/i);
-    if (sMatch) {
-      season = parseInt(sMatch[1], 10);
-      let rootFolder = parts.length >= 3 ? parts[parts.length - 3] : parentFolder;
-      if (!["downloads", "movies", "series", "tv shows", "video", "videos"].includes(rootFolder.toLowerCase())) {
-        isTv = true;
-        seriesTitleRaw = rootFolder;
-        const epMatch = fileName.match(/\b(\d{1,3})\b/);
-        if (epMatch) episode = parseInt(epMatch[1], 10);
+    for (let i = parts.length - 2; i >= 0; i--) {
+      const p = parts[i];
+      if (p.includes(":") || ["downloads", "movies", "series", "tv shows", "video", "videos"].includes(p.toLowerCase())) {
+        break;
       }
+      if (/^(?:Season|S)[\.\s_\-]*\d+$/i.test(p) || /^Specials$/i.test(p)) {
+        continue;
+      }
+      isTv = true;
+      seriesTitleRaw = p;
+      const epMatch = fileName.match(/\b(\d{1,3})\b/);
+      if (epMatch) episode = parseInt(epMatch[1], 10);
+      break;
     }
   }
 
