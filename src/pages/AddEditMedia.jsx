@@ -1209,9 +1209,10 @@ const styles = {
     transition: "var(--transition)"
   },
   modeTabActive: {
-    backgroundColor: "var(--bg-elevated)",
+    backgroundColor: "var(--accent-red)",
     color: "#ffffff",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.5)"
+    boxShadow: "0 4px 14px rgba(229, 9, 20, 0.4)",
+    fontWeight: 800
   },
   batchCard: {
     borderRadius: "14px",
