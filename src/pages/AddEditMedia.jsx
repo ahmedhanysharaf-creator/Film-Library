@@ -494,6 +494,28 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
     }
   };
 
+  const getModeTabStyle = (tabMode) => {
+    const isActive = mode === tabMode;
+    return {
+      flex: 1,
+      padding: "12px 18px",
+      backgroundColor: isActive ? "var(--accent-red)" : "#1c1c1c",
+      color: isActive ? "#ffffff" : "#a3a3a3",
+      border: isActive ? "1px solid var(--accent-red)" : "1px solid #2a2a2a",
+      boxShadow: isActive ? "0 4px 14px rgba(229, 9, 20, 0.4)" : "none",
+      fontWeight: isActive ? 800 : 600,
+      fontSize: "0.95rem",
+      borderRadius: "8px",
+      cursor: "pointer",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: "10px",
+      transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+      outline: "none"
+    };
+  };
+
   return (
     <div style={styles.container} className="animate-fade">
       {/* Live Batch Saving Overlay Modal */}
@@ -1070,6 +1092,28 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
       )}
     </div>
   );
+};
+
+const getModeTabStyle = (tabMode) => {
+  const isActive = mode === tabMode;
+  return {
+    flex: 1,
+    padding: "12px 18px",
+    backgroundColor: isActive ? "var(--accent-red)" : "#1c1c1c",
+    color: isActive ? "#ffffff" : "#a3a3a3",
+    border: isActive ? "1px solid var(--accent-red)" : "1px solid #2a2a2a",
+    boxShadow: isActive ? "0 4px 14px rgba(229, 9, 20, 0.4)" : "none",
+    fontWeight: isActive ? 800 : 600,
+    fontSize: "0.95rem",
+    borderRadius: "8px",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "10px",
+    transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+    outline: "none"
+  };
 };
 
 const styles = {

@@ -16,9 +16,9 @@ export const Navbar = ({ activePage, setActivePage, onSelectTool, onOpenWhitelis
   const getTabStyle = (pageName) => {
     const isActive = activePage === pageName;
     return {
-      backgroundColor: isActive ? "var(--accent-red)" : "rgba(255, 255, 255, 0.08)",
+      backgroundColor: isActive ? "var(--accent-red)" : "#1c1c1c",
       color: isActive ? "#ffffff" : "#a3a3a3",
-      border: isActive ? "1px solid var(--accent-red)" : "1px solid rgba(255, 255, 255, 0.12)",
+      border: isActive ? "1px solid var(--accent-red)" : "1px solid #2a2a2a",
       boxShadow: isActive ? "0 4px 14px rgba(229, 9, 20, 0.4)" : "none",
       fontSize: "0.92rem",
       fontWeight: isActive ? 700 : 600,
