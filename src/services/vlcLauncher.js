@@ -36,41 +36,29 @@ export const cleanLocalPath = (rawPath) => {
 };
 
 /**
- * Downloads a 1-click Windows Registry / Batch installer script
+ * Downloads a 1-click Windows Registry (.reg) installer script
  * Registers filmlibrary:// protocol on Windows to open media directly in VLC without downloading .m3u files!
  */
 export const downloadWindowsRegistryFix = () => {
-  const batContent = `@echo off
-title Film Library - 1-Click Direct VLC Setup
-echo =======================================================
-echo   Film Library: 1-Click Direct VLC Protocol Setup
-echo =======================================================
-echo.
-echo Registering 'filmlibrary://' protocol in Windows Registry...
-echo.
+  const regContent = `Windows Registry Editor Version 5.00
 
-set "VLC_PATH=C:\\Program Files\\VideoLAN\\VLC\\vlc.exe"
-if not exist "%VLC_PATH%" (
-    set "VLC_PATH=C:\\Program Files (x86)\\VideoLAN\\VLC\\vlc.exe"
-)
+[HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary]
+@="URL:Film Library Protocol"
+"URL Protocol"=""
 
-reg add "HKCU\\Software\\Classes\\filmlibrary" /ve /d "URL:Film Library Protocol" /f >nul
-reg add "HKCU\\Software\\Classes\\filmlibrary" /v "URL Protocol" /d "" /f >nul
-reg add "HKCU\\Software\\Classes\\filmlibrary\\shell\\open\\command" /ve /d "powershell -windowstyle hidden -command \"$u='%1'; $raw=($u -split 'path=')[1] -split '&'; $p=[System.Uri]::UnescapeDataString($raw[0]); start '%VLC_PATH%' -ArgumentList ('\"' + $p + '\"')\"" /f >nul
+[HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell]
 
-echo =======================================================
-echo SUCCESS! Direct 1-Click VLC Playback is registered!
-echo Clicking "Play in VLC" will now open movies directly in VLC.
-echo =======================================================
-echo.
-pause
+[HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell\\open]
+
+[HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell\\open\\command]
+@="powershell -windowstyle hidden -command \\"$u='%1'; $p=[System.Uri]::UnescapeDataString(($u -split 'path=')[1] -split '&'); if (Test-Path 'C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe') { start 'C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe' -ArgumentList ('\\\\\\\"' + $p + '\\\\\\\"') } else { start 'C:\\\\Program Files (x86)\\\\VideoLAN\\\\VLC\\\\vlc.exe' -ArgumentList ('\\\\\\\"' + $p + '\\\\\\\"') }\\""
 `;
 
-  const blob = new Blob([batContent], { type: "text/plain" });
+  const blob = new Blob([regContent], { type: "application/x-msregedit" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "Setup_Direct_VLC_1Click.bat";
+  a.download = "Register_1Click_VLC_Player.reg";
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
