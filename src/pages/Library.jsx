@@ -259,7 +259,7 @@ export const Library = ({ onSelectItem, onEditItem }) => {
                 alignItems: "center",
                 gap: "6px"
               }}
-              onClick={() => exportMasterM3uPlaylist(items, addToast)}
+              onClick={() => exportMasterM3uPlaylist(items, addToast, currentUser?.uid)}
               title="Download a single Master Playlist file containing all movies & TV episodes for VLC"
             >
               <List size={14} /> Export Master Playlist (.m3u)

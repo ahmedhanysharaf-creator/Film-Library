@@ -101,9 +101,86 @@ export const launchInVlc = (path, title, addToast, subPath = "") => {
 };
 
 /**
+ * Resolves local file paths and subtitles for movies and series episodes across all schema structures
+ */
+export const getItemPathsAndSubtitles = (item, currentUserUid = "") => {
+  const result = [];
+  if (!item) return result;
+
+  // Find userPathObj matching currentUser, or fallback to first userPathObj in item.user_paths
+  const userPathObj =
+    (item.user_paths || []).find((up) => currentUserUid && up.uid === currentUserUid) ||
+    (item.user_paths || [])[0] ||
+    {};
+
+  const pathsMap = userPathObj.paths || item.paths || {};
+  const globalSub = userPathObj.subPath || item.subPath || item.subtitle_path || "";
+
+  if (item.type === "movie") {
+    const moviePath =
+      pathsMap.default ||
+      pathsMap.movie ||
+      item.localPath ||
+      item.path ||
+      item.local_path ||
+      (typeof pathsMap === "object" ? Object.values(pathsMap)[0] : "") ||
+      "";
+
+    if (moviePath) {
+      result.push({
+        title: item.title || "Movie",
+        path: moviePath,
+        subPath: globalSub
+      });
+    }
+  } else if (item.type === "series") {
+    const allEpKeys = new Set([
+      ...Object.keys(pathsMap),
+      ...Object.keys(item.episodes || {})
+    ]);
+
+    allEpKeys.forEach((epKey) => {
+      if (epKey === "default" || epKey === "movie") return;
+
+      const pathVal =
+        pathsMap[epKey] ||
+        (typeof item.episodes?.[epKey] === "string"
+          ? item.episodes[epKey]
+          : item.episodes?.[epKey]?.path || item.episodes?.[epKey]?.localPath);
+
+      const subVal =
+        (typeof item.episodes?.[epKey] === "object" ? item.episodes[epKey]?.subPath : "") ||
+        globalSub;
+
+      if (pathVal) {
+        result.push({
+          title: `${item.title || "Series"} - ${epKey}`,
+          path: pathVal,
+          subPath: subVal || ""
+        });
+      }
+    });
+
+    // Fallback if series has a single default path configured
+    if (result.length === 0) {
+      const defaultSeriesPath = pathsMap.default || item.localPath || item.path || "";
+      if (defaultSeriesPath) {
+        result.push({
+          title: item.title || "Series",
+          path: defaultSeriesPath,
+          subPath: globalSub
+        });
+      }
+    }
+  }
+
+  return result;
+};
+
+/**
  * Generates and downloads a Master .m3u playlist containing ALL movies & TV series episodes in the library
  */
-export const exportMasterM3uPlaylist = (mediaItems, addToast) => {
+export const exportMasterM3uPlaylist = (mediaItems, addToast, currentUserUid = "") => {
   if (!mediaItems || mediaItems.length === 0) {
     if (addToast) addToast("No items found in your library to export.", "warning");
     return;
@@ -113,37 +190,19 @@ export const exportMasterM3uPlaylist = (mediaItems, addToast) => {
   let itemCounter = 0;
 
   mediaItems.forEach((item) => {
-    if (item.type === "movie" && item.localPath) {
-      const cleanPath = cleanLocalPath(item.localPath);
-      const cleanSub = cleanLocalPath(item.subPath);
-      const cleanTitle = (item.title || "Movie").replace(/[^a-zA-Z0-9_\-\s]/g, "");
+    const entries = getItemPathsAndSubtitles(item, currentUserUid);
+    entries.forEach((entry) => {
+      const cleanPath = cleanLocalPath(entry.path);
+      const cleanSub = cleanLocalPath(entry.subPath);
+      const cleanTitle = (entry.title || "Media").replace(/[^a-zA-Z0-9_\-\s]/g, "");
 
       if (cleanSub) {
         m3uContent += `#EXTVLCOPT:sub-file=${cleanSub}\n`;
         m3uContent += `#EXTVLCOPT:sub-track=0\n`;
       }
-      m3uContent += `#EXTINF:-1,Movie: ${cleanTitle}\n${cleanPath}\n\n`;
+      m3uContent += `#EXTINF:-1,${cleanTitle}\n${cleanPath}\n\n`;
       itemCounter++;
-    } else if (item.type === "series" && item.episodes) {
-      const cleanTitle = (item.title || "Series").replace(/[^a-zA-Z0-9_\-\s]/g, "");
-      Object.keys(item.episodes).forEach((epCode) => {
-        const ep = item.episodes[epCode];
-        const epPath = typeof ep === "string" ? ep : ep?.path;
-        const epSub = typeof ep === "object" ? ep?.subPath : "";
-
-        if (epPath) {
-          const cleanEpPath = cleanLocalPath(epPath);
-          const cleanEpSub = cleanLocalPath(epSub);
-
-          if (cleanEpSub) {
-            m3uContent += `#EXTVLCOPT:sub-file=${cleanEpSub}\n`;
-            m3uContent += `#EXTVLCOPT:sub-track=0\n`;
-          }
-          m3uContent += `#EXTINF:-1,${cleanTitle} - ${epCode}\n${cleanEpPath}\n\n`;
-          itemCounter++;
-        }
-      });
-    }
+    });
   });
 
   if (itemCounter === 0) {
