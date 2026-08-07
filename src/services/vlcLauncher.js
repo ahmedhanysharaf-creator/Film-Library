@@ -1,6 +1,6 @@
 /**
  * VLC Media Player Launcher Service
- * Direct 1-Click VLC playback using custom Base64 URI protocol (filmlibrary://)
+ * Native .m3u Playlist launcher and Master Library Playlist exporter
  */
 
 export const getSecurityToken = () => {
@@ -10,6 +10,11 @@ export const getSecurityToken = () => {
 export const setSecurityToken = (token) => {
   localStorage.setItem("filmlibrary_security_token", token);
 };
+
+export const downloadWindowsRegistryFix = () => {};
+
+const SUBTITLE_EXTENSIONS = [".srt", ".ass", ".vtt", ".sub"];
+const isSubtitleFile = (p) => p && typeof p === "string" && SUBTITLE_EXTENSIONS.some((ext) => p.toLowerCase().endsWith(ext));
 
 /**
  * Normalizes and decodes raw paths, removing file:///, %20, %27, etc.
@@ -35,48 +40,6 @@ export const cleanLocalPath = (rawPath) => {
   return path.replace(/\//g, "\\");
 };
 
-/**
- * Safely Base64 encodes UTF-8 path strings to prevent URL parsing errors
- */
-export const encodePathB64 = (str) => {
-  if (!str) return "";
-  try {
-    return btoa(unescape(encodeURIComponent(str)));
-  } catch (e) {
-    return "";
-  }
-};
-
-/**
- * Downloads a 1-click Windows Registry (.reg) installer script
- * Registers filmlibrary:// protocol on Windows to open media directly in VLC automatically!
- */
-export const downloadWindowsRegistryFix = () => {
-  const regContent = `Windows Registry Editor Version 5.00
-
-[HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary]
-@="URL:Film Library Protocol"
-"URL Protocol"=""
-
-[HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell]
-
-[HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell\\open]
-
-[HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell\\open\\command]
-@="powershell -windowstyle hidden -command \\"$u='%1'; $pB64=[regex]::Match($u, 'p=([^&]+)').Groups[1].Value; $sB64=[regex]::Match($u, 's=([^&]+)').Groups[1].Value; if ($pB64) { $p=[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($pB64)); $s=if ($sB64) { [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($sB64)) } else { '' }; $vlc=if (Test-Path 'C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe') { 'C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe' } else { 'C:\\\\Program Files (x86)\\\\VideoLAN\\\\VLC\\\\vlc.exe' }; if ($s -and (Test-Path -LiteralPath $s)) { Start-Process $vlc -ArgumentList ('\\\\\\\"' + $p + '\\\\\\\"'), ('--sub-file=\\\\\\\"' + $s + '\\\\\\\"') } else { Start-Process $vlc -ArgumentList ('\\\\\\\"' + $p + '\\\\\\\"') } }\\""
-`;
-
-  const blob = new Blob([regContent], { type: "application/x-msregedit" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "Register_1Click_VLC_Player.reg";
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-};
-
 export const copyPathToClipboard = (path, addToast) => {
   if (!path) return;
   const cleanPath = cleanLocalPath(path);
@@ -90,7 +53,7 @@ export const copyPathToClipboard = (path, addToast) => {
 };
 
 /**
- * Generate and trigger instant .m3u playlist download (Fallback Option)
+ * Generate and trigger instant .m3u playlist download with clean Windows path & subtitle track embed
  */
 export const downloadVlcM3uPlaylist = (path, title, subPath) => {
   if (!path) return;
@@ -118,7 +81,7 @@ export const downloadVlcM3uPlaylist = (path, title, subPath) => {
 };
 
 /**
- * Master Direct Automatic VLC Launcher (No .m3u file downloads!)
+ * Master Direct VLC Launcher via Instant .m3u Playlist
  */
 export const launchInVlc = (path, title, addToast, subPath = "") => {
   if (!path) {
@@ -132,16 +95,12 @@ export const launchInVlc = (path, title, addToast, subPath = "") => {
   // 1. Copy clean path to clipboard
   copyPathToClipboard(cleanPath);
 
-  // 2. Base64 encode clean paths for 100% robust protocol URL (zero string corruption)
-  const pB64 = encodePathB64(cleanPath);
-  const sB64 = encodePathB64(cleanSub);
-
-  const protocolUri = `filmlibrary://play?p=${encodeURIComponent(pB64)}${sB64 ? `&s=${encodeURIComponent(sB64)}` : ""}`;
-  window.location.href = protocolUri;
+  // 2. Download clean .m3u playlist file for instant automatic VLC opening
+  downloadVlcM3uPlaylist(cleanPath, title, cleanSub);
 
   if (addToast) {
     const subMsg = cleanSub ? " with subtitle attached!" : "...";
-    addToast(`Opening "${title || 'Media'}" automatically in VLC!${subMsg}`, "success");
+    addToast(`Opening "${title || 'Media'}" in VLC Player!${subMsg}`, "success");
   }
 
   return true;
@@ -173,7 +132,7 @@ export const getItemPathsAndSubtitles = (item, currentUserUid = "") => {
       (typeof pathsMap === "object" ? Object.values(pathsMap)[0] : "") ||
       "";
 
-    if (moviePath) {
+    if (moviePath && !isSubtitleFile(moviePath)) {
       result.push({
         title: item.title || "Movie",
         path: moviePath,
@@ -187,7 +146,7 @@ export const getItemPathsAndSubtitles = (item, currentUserUid = "") => {
     ]);
 
     allEpKeys.forEach((epKey) => {
-      if (epKey === "subtitle") return;
+      if (epKey === "subtitle" || epKey.endsWith("_sub")) return;
 
       const pathVal =
         pathsMap[epKey] ||
@@ -195,7 +154,7 @@ export const getItemPathsAndSubtitles = (item, currentUserUid = "") => {
           ? item.episodes[epKey]
           : item.episodes?.[epKey]?.path || item.episodes?.[epKey]?.localPath);
 
-      if (pathVal && typeof pathVal === "string") {
+      if (pathVal && typeof pathVal === "string" && !isSubtitleFile(pathVal)) {
         const subVal =
           (typeof item.episodes?.[epKey] === "object" ? item.episodes[epKey]?.subPath : "") ||
           pathsMap[`${epKey}_sub`] ||
@@ -214,7 +173,7 @@ export const getItemPathsAndSubtitles = (item, currentUserUid = "") => {
     // Fallback if series has a single default path configured
     if (result.length === 0) {
       const defaultSeriesPath = pathsMap.default || item.localPath || item.path || "";
-      if (defaultSeriesPath) {
+      if (defaultSeriesPath && !isSubtitleFile(defaultSeriesPath)) {
         result.push({
           title: item.title || "Series",
           path: defaultSeriesPath,
