@@ -78,7 +78,7 @@ export const downloadVlcM3uPlaylist = (path, title, subPath) => {
 };
 
 /**
- * Master Direct VLC Launcher via Instant .m3u Playlist
+ * Master Direct VLC Launcher (No file downloads!)
  */
 export const launchInVlc = (path, title, addToast, subPath = "") => {
   if (!path) {
@@ -86,15 +86,20 @@ export const launchInVlc = (path, title, addToast, subPath = "") => {
     return false;
   }
 
-  // 1. Copy decoded path to clipboard
-  copyPathToClipboard(path);
+  const cleanPath = cleanLocalPath(path);
+  const cleanSub = cleanLocalPath(subPath);
 
-  // 2. Generate & download clean .m3u playlist for instant VLC opening
-  downloadVlcM3uPlaylist(path, title, subPath);
+  // 1. Copy decoded path to clipboard
+  copyPathToClipboard(cleanPath);
+
+  // 2. Trigger custom URI protocol scheme (if registered)
+  const token = getSecurityToken();
+  const protocolUri = `filmlibrary://open?path=${encodeURIComponent(cleanPath)}${cleanSub ? `&sub=${encodeURIComponent(cleanSub)}` : ''}&token=${encodeURIComponent(token)}`;
+  window.location.href = protocolUri;
 
   if (addToast) {
-    const subMsg = subPath ? " with subtitle attached!" : "...";
-    addToast(`Opening "${title || 'Media'}" in VLC Player!${subMsg}`, "success");
+    const subMsg = cleanSub ? " with subtitle attached!" : "...";
+    addToast(`Copied file path & launched "${title || 'Media'}"!${subMsg}`, "success");
   }
 
   return true;
