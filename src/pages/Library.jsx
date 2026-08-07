@@ -3,6 +3,7 @@ import {
   Search, Grid, List, Filter, ArrowUpDown, Check, X, Film, Tv, Star, CheckCircle2, Bookmark, User, Globe, History, Edit3, Trash2, Calendar, HardDrive, CheckSquare, Square, Layers, CheckCheck 
 } from "lucide-react";
 import { fetchLibraryItems, deleteMediaEntry, deleteMediaEntriesBatch, updateWatchProgress } from "../services/storage";
+import { exportMasterM3uPlaylist } from "../services/vlcLauncher";
 import { PosterCard } from "../components/PosterCard";
 import { ContinueWatchingRow } from "../components/ContinueWatchingRow";
 import { useAuth } from "../context/AuthContext";
@@ -242,7 +243,28 @@ export const Library = ({ onSelectItem, onEditItem }) => {
             )}
           </div>
 
-          <span style={styles.itemCount}>Showing {filteredItems.length} of {items.length} items</span>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+            <span style={styles.itemCount}>Showing {filteredItems.length} of {items.length} items</span>
+            <button
+              style={{
+                backgroundColor: "rgba(59, 130, 246, 0.15)",
+                border: "1px solid #3b82f6",
+                color: "#3b82f6",
+                borderRadius: "6px",
+                padding: "6px 12px",
+                fontSize: "0.82rem",
+                fontWeight: 700,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px"
+              }}
+              onClick={() => exportMasterM3uPlaylist(items, addToast)}
+              title="Download a single Master Playlist file containing all movies & TV episodes for VLC"
+            >
+              <List size={14} /> Export Master Playlist (.m3u)
+            </button>
+          </div>
         </div>
 
         {!showHistoryView && (

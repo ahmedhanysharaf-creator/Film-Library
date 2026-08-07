@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { X, Settings, Key, ShieldCheck, Database, Save, Download, Tv } from "lucide-react";
-import { getSecurityToken, setSecurityToken, downloadWindowsRegistryFix } from "../services/vlcLauncher";
+import { X, Settings, Key, ShieldCheck, Database, Save, Download, Tv, List } from "lucide-react";
+import { getSecurityToken, setSecurityToken, downloadWindowsRegistryFix, exportMasterM3uPlaylist } from "../services/vlcLauncher";
+import { fetchLibraryItems } from "../services/storage";
 import { getTmdbApiKey, setTmdbApiKey } from "../services/tmdb";
 import { useToast } from "../context/ToastContext";
 
@@ -53,6 +54,26 @@ export const SettingsModal = ({ onClose }) => {
         </div>
 
         <form onSubmit={handleSave} style={styles.form}>
+          {/* Export Master Library Playlist (.m3u) */}
+          <div style={{ ...styles.vlcSetupBox, backgroundColor: "rgba(59, 130, 246, 0.1)", borderColor: "#3b82f6" }}>
+            <List size={24} color="#3b82f6" />
+            <div style={{ flex: 1 }}>
+              <div style={styles.vlcSetupTitle}>Export Master VLC Playlist</div>
+              <p style={styles.vlcSetupSub}>
+                Export a single `.m3u` playlist containing all your movies & TV series episodes for instant access in VLC!
+              </p>
+            </div>
+            <button
+              type="button"
+              style={{ ...styles.downloadRegBtn, backgroundColor: "#3b82f6", color: "#ffffff" }}
+              onClick={async () => {
+                const items = await fetchLibraryItems();
+                exportMasterM3uPlaylist(items, addToast);
+              }}
+            >
+              <Download size={14} /> Export Master `.m3u`
+            </button>
+          </div>
           {/* Windows VLC 1-Click Protocol Setup */}
           <div style={styles.vlcSetupBox}>
             <Tv size={24} color="var(--accent-green)" />

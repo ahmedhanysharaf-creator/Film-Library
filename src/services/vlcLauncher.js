@@ -1,6 +1,6 @@
 /**
  * VLC Media Player Launcher Service
- * Direct 1-Click VLC playback using custom URI protocol (filmlibrary://)
+ * Instant .m3u playlist launcher and Master Library Playlist exporter
  */
 
 export const getSecurityToken = () => {
@@ -10,6 +10,8 @@ export const getSecurityToken = () => {
 export const setSecurityToken = (token) => {
   localStorage.setItem("filmlibrary_security_token", token);
 };
+
+export const downloadWindowsRegistryFix = () => {};
 
 /**
  * Normalizes and decodes raw paths, removing file:///, %20, %27, etc.
@@ -35,36 +37,6 @@ export const cleanLocalPath = (rawPath) => {
   return path.replace(/\//g, "\\");
 };
 
-/**
- * Downloads a 1-click Windows Registry (.reg) installer script
- * Registers filmlibrary:// protocol on Windows to open media directly in VLC without downloading .m3u files!
- */
-export const downloadWindowsRegistryFix = () => {
-  const regContent = `Windows Registry Editor Version 5.00
-
-[HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary]
-@="URL:Film Library Protocol"
-"URL Protocol"=""
-
-[HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell]
-
-[HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell\\open]
-
-[HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell\\open\\command]
-@="powershell -windowstyle hidden -command \\"$u='%1'; $p=[System.Uri]::UnescapeDataString(($u -split 'path=')[1] -split '&'); if (Test-Path 'C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe') { start 'C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe' -ArgumentList ('\\\\\\\"' + $p + '\\\\\\\"') } else { start 'C:\\\\Program Files (x86)\\\\VideoLAN\\\\VLC\\\\vlc.exe' -ArgumentList ('\\\\\\\"' + $p + '\\\\\\\"') }\\""
-`;
-
-  const blob = new Blob([regContent], { type: "application/x-msregedit" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "Register_1Click_VLC_Player.reg";
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-};
-
 export const copyPathToClipboard = (path, addToast) => {
   if (!path) return;
   const cleanPath = cleanLocalPath(path);
@@ -78,7 +50,7 @@ export const copyPathToClipboard = (path, addToast) => {
 };
 
 /**
- * Generate and trigger instant .m3u playlist download (Fallback Option)
+ * Generate and trigger instant .m3u playlist download with clean Windows path & subtitle track embed
  */
 export const downloadVlcM3uPlaylist = (path, title, subPath) => {
   if (!path) return;
@@ -106,7 +78,7 @@ export const downloadVlcM3uPlaylist = (path, title, subPath) => {
 };
 
 /**
- * Master Direct VLC Launcher (No .m3u download!)
+ * Master Direct VLC Launcher via Instant .m3u Playlist
  */
 export const launchInVlc = (path, title, addToast, subPath = "") => {
   if (!path) {
@@ -114,22 +86,82 @@ export const launchInVlc = (path, title, addToast, subPath = "") => {
     return false;
   }
 
-  const cleanPath = cleanLocalPath(path);
-  const cleanSub = cleanLocalPath(subPath);
-
   // 1. Copy decoded path to clipboard
-  copyPathToClipboard(cleanPath);
+  copyPathToClipboard(path);
 
-  // 2. Direct 1-Click Launch via URI Protocol scheme (No file download!)
-  const token = getSecurityToken();
-  const protocolUri = `filmlibrary://open?path=${encodeURIComponent(cleanPath)}${cleanSub ? `&sub=${encodeURIComponent(cleanSub)}` : ''}&token=${encodeURIComponent(token)}`;
-
-  // Trigger direct protocol link launch
-  window.location.href = protocolUri;
+  // 2. Generate & download clean .m3u playlist for instant VLC opening
+  downloadVlcM3uPlaylist(path, title, subPath);
 
   if (addToast) {
-    addToast(`Launching "${title || 'Media'}" directly in VLC...`, "success");
+    const subMsg = subPath ? " with subtitle attached!" : "...";
+    addToast(`Opening "${title || 'Media'}" in VLC Player!${subMsg}`, "success");
   }
 
   return true;
+};
+
+/**
+ * Generates and downloads a Master .m3u playlist containing ALL movies & TV series episodes in the library
+ */
+export const exportMasterM3uPlaylist = (mediaItems, addToast) => {
+  if (!mediaItems || mediaItems.length === 0) {
+    if (addToast) addToast("No items found in your library to export.", "warning");
+    return;
+  }
+
+  let m3uContent = `#EXTM3U\n`;
+  let itemCounter = 0;
+
+  mediaItems.forEach((item) => {
+    if (item.type === "movie" && item.localPath) {
+      const cleanPath = cleanLocalPath(item.localPath);
+      const cleanSub = cleanLocalPath(item.subPath);
+      const cleanTitle = (item.title || "Movie").replace(/[^a-zA-Z0-9_\-\s]/g, "");
+
+      if (cleanSub) {
+        m3uContent += `#EXTVLCOPT:sub-file=${cleanSub}\n`;
+        m3uContent += `#EXTVLCOPT:sub-track=0\n`;
+      }
+      m3uContent += `#EXTINF:-1,Movie: ${cleanTitle}\n${cleanPath}\n\n`;
+      itemCounter++;
+    } else if (item.type === "series" && item.episodes) {
+      const cleanTitle = (item.title || "Series").replace(/[^a-zA-Z0-9_\-\s]/g, "");
+      Object.keys(item.episodes).forEach((epCode) => {
+        const ep = item.episodes[epCode];
+        const epPath = typeof ep === "string" ? ep : ep?.path;
+        const epSub = typeof ep === "object" ? ep?.subPath : "";
+
+        if (epPath) {
+          const cleanEpPath = cleanLocalPath(epPath);
+          const cleanEpSub = cleanLocalPath(epSub);
+
+          if (cleanEpSub) {
+            m3uContent += `#EXTVLCOPT:sub-file=${cleanEpSub}\n`;
+            m3uContent += `#EXTVLCOPT:sub-track=0\n`;
+          }
+          m3uContent += `#EXTINF:-1,${cleanTitle} - ${epCode}\n${cleanEpPath}\n\n`;
+          itemCounter++;
+        }
+      });
+    }
+  });
+
+  if (itemCounter === 0) {
+    if (addToast) addToast("No local media paths configured in library items.", "warning");
+    return;
+  }
+
+  const blob = new Blob([m3uContent], { type: "audio/x-mpegurl" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "Film_Library_Master_Playlist.m3u";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  if (addToast) {
+    addToast(`Exported Master VLC Playlist with ${itemCounter} media entries!`, "success");
+  }
 };
