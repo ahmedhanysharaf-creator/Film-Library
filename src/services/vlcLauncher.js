@@ -1,6 +1,6 @@
 /**
  * VLC Media Player Launcher Service
- * Generates clean, unencoded .m3u playlists that VLC Media Player opens instantly on Windows/Mac/Linux!
+ * Direct 1-Click VLC playback using custom URI protocol (filmlibrary://)
  */
 
 export const getSecurityToken = () => {
@@ -11,7 +11,47 @@ export const setSecurityToken = (token) => {
   localStorage.setItem("filmlibrary_security_token", token);
 };
 
-export const downloadWindowsRegistryFix = () => {};
+/**
+ * Downloads a 1-click Windows Registry / Batch installer script
+ * Registers filmlibrary:// protocol on Windows to open media directly in VLC without downloading .m3u files!
+ */
+export const downloadWindowsRegistryFix = () => {
+  const batContent = `@echo off
+title Film Library - 1-Click Direct VLC Setup
+echo =======================================================
+echo   Film Library: 1-Click Direct VLC Protocol Setup
+echo =======================================================
+echo.
+echo Registering 'filmlibrary://' protocol in Windows Registry...
+echo.
+
+set "VLC_PATH=C:\\Program Files\\VideoLAN\\VLC\\vlc.exe"
+if not exist "%VLC_PATH%" (
+    set "VLC_PATH=C:\\Program Files (x86)\\VideoLAN\\VLC\\vlc.exe"
+)
+
+reg add "HKCU\\Software\\Classes\\filmlibrary" /ve /d "URL:Film Library Protocol" /f >nul
+reg add "HKCU\\Software\\Classes\\filmlibrary" /v "URL Protocol" /d "" /f >nul
+reg add "HKCU\\Software\\Classes\\filmlibrary\\shell\\open\\command" /ve /d "cmd /c for /f \"tokens=2 delims==\" %%a in (\"%%1\") do start \"\" \"%VLC_PATH%\" \"%%a\"" /f >nul
+
+echo =======================================================
+echo SUCCESS! Direct 1-Click VLC Playback is registered!
+echo Clicking "Play in VLC" will now open movies directly in VLC.
+echo =======================================================
+echo.
+pause
+`;
+
+  const blob = new Blob([batContent], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "Setup_Direct_VLC_1Click.bat";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
 
 export const copyPathToClipboard = (path, addToast) => {
   if (!path) return;
@@ -29,8 +69,7 @@ export const copyPathToClipboard = (path, addToast) => {
 };
 
 /**
- * Generate and trigger instant .m3u playlist download with subtitle track embed
- * Decodes URL-encoded paths (e.g. Marvel%20Series -> Marvel Series) so VLC opens real files on disk!
+ * Generate and trigger instant .m3u playlist download (Fallback Option)
  */
 export const downloadVlcM3uPlaylist = (path, title, subPath) => {
   if (!path) return;
@@ -72,7 +111,7 @@ export const downloadVlcM3uPlaylist = (path, title, subPath) => {
 };
 
 /**
- * Master 1-Click VLC Direct Launcher
+ * Master Direct VLC Launcher (No .m3u download!)
  */
 export const launchInVlc = (path, title, addToast, subPath = "") => {
   if (!path) {
@@ -80,15 +119,34 @@ export const launchInVlc = (path, title, addToast, subPath = "") => {
     return false;
   }
 
-  // 1. Copy decoded clean path to clipboard
+  let cleanPath = path;
+  try {
+    cleanPath = decodeURIComponent(path).replace(/\//g, "\\");
+  } catch (e) {
+    cleanPath = path.replace(/\//g, "\\");
+  }
+
+  let cleanSub = "";
+  if (subPath) {
+    try {
+      cleanSub = decodeURIComponent(subPath).replace(/\//g, "\\");
+    } catch (e) {
+      cleanSub = subPath.replace(/\//g, "\\");
+    }
+  }
+
+  // 1. Copy decoded path to clipboard
   copyPathToClipboard(path);
 
-  // 2. Download clean .m3u playlist file for instant VLC opening
-  downloadVlcM3uPlaylist(path, title, subPath);
+  // 2. Direct 1-Click Launch via URI Protocol scheme (No file download!)
+  const token = getSecurityToken();
+  const protocolUri = `filmlibrary://open?path=${encodeURIComponent(cleanPath)}${cleanSub ? `&sub=${encodeURIComponent(cleanSub)}` : ''}&token=${encodeURIComponent(token)}`;
+
+  // Trigger direct protocol link launch
+  window.location.href = protocolUri;
 
   if (addToast) {
-    const subMsg = subPath ? " with subtitle attached!" : "...";
-    addToast(`Opening "${title || 'Media'}" in VLC Player (Playlist downloaded!)${subMsg}`, "success");
+    addToast(`Launching "${title || 'Media'}" directly in VLC...`, "success");
   }
 
   return true;
