@@ -5,7 +5,7 @@ import {
   removeContinueWatchingItem, 
   updateContinueWatchingProgress 
 } from "../services/continueWatching";
-import { launchInVlc } from "../services/vlcLauncher";
+import { launchInVlc, resolveMediaPaths } from "../services/vlcLauncher";
 import { useToast } from "../context/ToastContext";
 import { useAuth } from "../context/AuthContext";
 
@@ -16,6 +16,8 @@ export const ContinueWatchingRow = ({ libraryItems = [], onSelectMedia, setActiv
   const [editingItem, setEditingItem] = useState(null);
   const [editSeason, setEditSeason] = useState(1);
   const [editEpisode, setEditEpisode] = useState(1);
+
+  const uid = currentUser?.uid || "demo_user_id";
 
   const loadList = () => {
     setList(getContinueWatchingList());
@@ -36,26 +38,17 @@ export const ContinueWatchingRow = ({ libraryItems = [], onSelectMedia, setActiv
     let subPath = "";
 
     if (matchedMedia) {
-      const userPathObj = (matchedMedia.user_paths || []).find((up) => up.uid === currentUser?.uid) || matchedMedia.user_paths?.[0];
-      const pathsMap = userPathObj?.paths || {};
-
-      if (matchedMedia.type === "series" || matchedMedia.type === "tv") {
-        const s = cwItem.season || 1;
-        const e = cwItem.episode || 1;
-        const code1 = `S${s}E${e}`;
-        const code2 = `S${String(s).padStart(2, '0')}E${String(e).padStart(2, '0')}`;
-        
-        path = pathsMap[code1] || pathsMap[code2] || pathsMap[code1.toLowerCase()] || pathsMap[code2.toLowerCase()] || pathsMap["default"] || matchedMedia.default_path || "";
-        subPath = pathsMap[`${code1}_sub`] || pathsMap[`${code2}_sub`] || pathsMap["subtitle"] || matchedMedia.subtitle_path || "";
-      } else {
-        path = pathsMap["default"] || matchedMedia.default_path || "";
-        subPath = pathsMap["subtitle"] || matchedMedia.subtitle_path || "";
-      }
+      const isSeries = matchedMedia.type?.toLowerCase() === "series" || matchedMedia.type?.toLowerCase() === "tv";
+      const s = cwItem.season || 1;
+      const e = cwItem.episode || 1;
+      const resolved = resolveMediaPaths(matchedMedia, uid, isSeries ? s : 1, isSeries ? e : 1);
+      path = resolved.path;
+      subPath = resolved.subPath;
     }
 
     if (path) {
       const label = cwItem.epCode ? `${cwItem.title} (${cwItem.epCode})` : cwItem.title;
-      launchInVlc(path, label, addToast, subPath);
+      launchInVlc(path, label, addToast, subPath, matchedMedia?.type);
     } else if (matchedMedia) {
       onSelectMedia(matchedMedia);
     } else {

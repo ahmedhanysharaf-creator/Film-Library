@@ -3,7 +3,7 @@ import {
   X, Play, Star, Clock, User, Film, Tv, CheckCircle2, Bookmark, 
   Trash2, Edit3, Copy, HardDrive, Video, ExternalLink, Download 
 } from "lucide-react";
-import { launchInVlc, copyPathToClipboard, downloadVlcM3uPlaylist } from "../services/vlcLauncher";
+import { launchInVlc, copyPathToClipboard, downloadVlcM3uPlaylist, resolveMediaPaths } from "../services/vlcLauncher";
 import { updateWatchProgress } from "../services/storage";
 import { saveContinueWatchingItem, getNextEpisodeToPlay } from "../services/continueWatching";
 import { useAuth } from "../context/AuthContext";
@@ -92,48 +92,17 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate }) =
     await updateWatchProgress(item.id, uid, newStatus, nextList);
   };
 
-  // Find paths for active user or any available user
-  const userPathObj = (item.user_paths || []).find((up) => up.uid === uid) || (item.user_paths || [])[0];
-  const userPathsMap = userPathObj?.paths || {};
-  const defaultMoviePath = userPathsMap.default || item.default_path || "";
-  const subPath = item.subtitle_path || userPathsMap.subtitle || (defaultMoviePath ? defaultMoviePath.replace(/\.[^/.]+$/, ".srt") : "");
+  // Universal media path resolution
+  const { path: defaultMoviePath, subPath } = resolveMediaPaths(item, uid);
 
-  // Robust episode path lookups
   const getEpPath = (season, epNum) => {
-    const sStr = String(season);
-    const sPadded = String(season).padStart(2, '0');
-    const eStr = String(epNum);
-    const ePadded = String(epNum).padStart(2, '0');
-
-    const keys = [
-      `S${season}E${epNum}`,
-      `S${sPadded}E${ePadded}`,
-      `S${season}E${ePadded}`,
-      `S${sPadded}E${eStr}`,
-      `${season}x${epNum}`,
-      `${sPadded}x${ePadded}`
-    ];
-
-    for (const k of keys) {
-      if (userPathsMap[k]) return userPathsMap[k];
-      if (userPathsMap[k.toLowerCase()]) return userPathsMap[k.toLowerCase()];
-    }
-
-    // Search for episode pattern in path strings (e.g. Agent Carter S01E04)
-    const epPattern = new RegExp(`S0?${season}.*E0?${epNum}|S0?${season}E0?${epNum}`, 'i');
-    for (const [k, v] of Object.entries(userPathsMap)) {
-      if (typeof v === 'string' && epPattern.test(v)) {
-        return v;
-      }
-    }
-
-    return defaultMoviePath || "";
+    const resolved = resolveMediaPaths(item, uid, season, epNum);
+    return resolved.path;
   };
 
   const getEpSubPath = (season, epNum) => {
-    const code1 = `S${season}E${epNum}_sub`;
-    const code2 = `S${String(season).padStart(2, '0')}E${String(epNum).padStart(2, '0')}_sub`;
-    return userPathsMap[code1] || userPathsMap[code2] || userPathsMap["subtitle"] || subPath || "";
+    const resolved = resolveMediaPaths(item, uid, season, epNum);
+    return resolved.subPath;
   };
 
   const handlePlayMedia = (path, label, episodeSubPath = "", season = 1, epNum = 1) => {

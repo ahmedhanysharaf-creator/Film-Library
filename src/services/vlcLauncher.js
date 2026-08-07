@@ -64,7 +64,7 @@ export const encodePathB64 = (str) => {
 
 /**
  * Downloads a 1-click Windows Registry (.reg) installer script
- * Registers filmlibrary:// protocol on Windows to open existing local .m3u files in VLC automatically!
+ * Registers filmlibrary:// protocol on Windows to open local media files in VLC automatically!
  */
 export const downloadWindowsRegistryFix = () => {
   const regContent = `Windows Registry Editor Version 5.00
@@ -78,7 +78,7 @@ export const downloadWindowsRegistryFix = () => {
 [HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell\\open]
 
 [HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell\\open\\command]
-@="powershell -windowstyle hidden -command \\"$u='%1'; $fB64=[regex]::Match($u, 'f=([^&]+)').Groups[1].Value; if ($fB64) { $file=[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($fB64)); $vlc=if (Test-Path 'C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe') { 'C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe' } else { 'C:\\\\Program Files (x86)\\\\VideoLAN\\\\VLC\\\\vlc.exe' }; if (Test-Path -LiteralPath $file) { Start-Process $vlc -ArgumentList ('\\\\\\\"' + $file + '\\\\\\\"') } }\\""
+@="powershell -windowstyle hidden -command \\"$u='%1'; $fB64=[regex]::Match($u, 'f=([^&]+)').Groups[1].Value; $sB64=[regex]::Match($u, 's=([^&]+)').Groups[1].Value; $m3uB64=[regex]::Match($u, 'm3u=([^&]+)').Groups[1].Value; $file=if ($fB64) { [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($fB64)) } else { '' }; $sub=if ($sB64) { [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($sB64)) } else { '' }; $m3u=if ($m3uB64) { [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($m3uB64)) } else { '' }; $targetFile=if ($file -and (Test-Path -LiteralPath $file)) { $file } elseif ($m3u -and (Test-Path -LiteralPath $m3u)) { $m3u } else { '' }; if ($targetFile) { $vlc=if (Test-Path 'C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe') { 'C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe' } elseif (Test-Path 'C:\\\\Program Files (x86)\\\\VideoLAN\\\\VLC\\\\vlc.exe') { 'C:\\\\Program Files (x86)\\\\VideoLAN\\\\VLC\\\\vlc.exe' } else { 'vlc' }; $args='\\\\\\"' + $targetFile + '\\\\\\\"'; if ($sub -and (Test-Path -LiteralPath $sub)) { $args += ' --sub-file=\\\\\\\"' + $sub + '\\\\\\\"' }; try { Start-Process $vlc -ArgumentList $args } catch { Start-Process $targetFile } } else { Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show('Media file not found at local path:\`n' + $file, 'Film Library') }\\""
 `;
 
   const blob = new Blob([regContent], { type: "application/x-msregedit" });
@@ -133,7 +133,7 @@ export const downloadVlcM3uPlaylist = (path, title, subPath) => {
 };
 
 /**
- * Master Direct Automatic VLC Launcher (Opens existing local .m3u files from your hard drive!)
+ * Master Direct Automatic VLC Launcher (Opens media directly in VLC!)
  */
 export const launchInVlc = (path, title, addToast, subPath = "", itemType = "movie") => {
   if (!path) {
@@ -145,26 +145,154 @@ export const launchInVlc = (path, title, addToast, subPath = "", itemType = "mov
   const cleanSub = cleanLocalPath(subPath);
   const cleanTitle = (title || "Media").replace(/[^a-zA-Z0-9_\-\s]/g, "");
 
-  // 1. Copy clean path to clipboard
+  // 1. Copy clean path to clipboard as background convenience
   copyPathToClipboard(cleanPath);
 
-  // 2. Resolve local .m3u file path on disk
+  // 2. Base64 encode file & subtitle paths to prevent URL syntax errors
+  const fB64 = encodePathB64(cleanPath);
+  const sB64 = cleanSub ? encodePathB64(cleanSub) : "";
+
+  // 3. Build protocol URI with direct media file path
+  let protocolUri = `filmlibrary://play?f=${encodeURIComponent(fB64)}&path=${encodeURIComponent(cleanPath)}`;
+  if (sB64) {
+    protocolUri += `&s=${encodeURIComponent(sB64)}&sub=${encodeURIComponent(cleanSub)}`;
+  }
+
+  // Also include fallback m3u path
   const baseFolder = getLocalPlaylistFolderPath();
-  const subFolder = itemType === "series" ? "Series" : "Movies";
+  const subFolder = itemType === "series" || itemType === "tv" ? "Series" : "Movies";
   const m3uFilePath = `${baseFolder}\\${subFolder}\\${cleanTitle.replace(/\s+/g, "_")}.m3u`;
+  protocolUri += `&m3u=${encodeURIComponent(encodePathB64(m3uFilePath))}`;
 
-  // 3. Base64 encode full .m3u file path to prevent URL syntax errors
-  const m3uB64 = encodePathB64(m3uFilePath);
-
-  // 4. Trigger filmlibrary:// protocol to open the existing .m3u file on disk in VLC
-  const protocolUri = `filmlibrary://playm3u?f=${encodeURIComponent(m3uB64)}`;
+  // 4. Trigger filmlibrary:// protocol to launch VLC directly with video file
   window.location.href = protocolUri;
 
   if (addToast) {
-    addToast(`Opening "${cleanTitle}" from your local M3U playlist folder in VLC!`, "success");
+    addToast(`Launching "${cleanTitle}" in VLC...`, "success");
   }
 
   return true;
+};
+
+/**
+ * Universal media path resolver for Movies and Series Episodes across all schema structures
+ */
+export const resolveMediaPaths = (item, currentUserUid = "", season = 1, episode = 1) => {
+  if (!item) return { path: "", subPath: "" };
+
+  // 1. Resolve active user paths object
+  const userPathObj =
+    (item.user_paths || []).find((up) => currentUserUid && up.uid === currentUserUid) ||
+    (item.user_paths || [])[0] ||
+    {};
+
+  const pathsMap = userPathObj.paths || item.paths || {};
+  const episodesMap = item.episodes || {};
+  const globalSub = userPathObj.subPath || item.subPath || item.subtitle_path || pathsMap.subtitle || pathsMap.sub || "";
+
+  const isSeries = item.type?.toLowerCase() === "series" || item.type?.toLowerCase() === "tv";
+
+  if (!isSeries) {
+    // Movie path lookup
+    const moviePath =
+      pathsMap.default ||
+      pathsMap.movie ||
+      pathsMap.video ||
+      item.localPath ||
+      item.path ||
+      item.local_path ||
+      item.default_path ||
+      (typeof pathsMap === "object" ? Object.values(pathsMap).find((v) => typeof v === "string" && !isSubtitleFile(v)) : "") ||
+      "";
+
+    const subPath =
+      pathsMap.subtitle ||
+      pathsMap.sub ||
+      globalSub ||
+      (moviePath ? moviePath.replace(/\.[^/.]+$/, ".srt") : "");
+
+    return { path: cleanLocalPath(moviePath), subPath: cleanLocalPath(subPath) };
+  }
+
+  // TV Series Episode path lookup
+  const sNum = Number(season) || 1;
+  const eNum = Number(episode) || 1;
+  const sPadded = String(sNum).padStart(2, "0");
+  const ePadded = String(eNum).padStart(2, "0");
+
+  const candidateKeys = [
+    `S${sNum}E${eNum}`,
+    `S${sPadded}E${ePadded}`,
+    `S${sNum}E${ePadded}`,
+    `S${sPadded}E${eNum}`,
+    `${sNum}x${eNum}`,
+    `${sPadded}x${ePadded}`,
+    `${sNum}x${ePadded}`,
+    `E${eNum}`,
+    `E${ePadded}`,
+    `Episode ${eNum}`,
+    `Ep ${eNum}`,
+    `${eNum}`,
+    `${ePadded}`
+  ];
+
+  let resolvedPath = "";
+  let resolvedSub = "";
+
+  // Check direct key matches in pathsMap and episodesMap
+  for (const k of candidateKeys) {
+    const keyLower = k.toLowerCase();
+
+    // Check pathsMap
+    const pVal = pathsMap[k] || pathsMap[keyLower];
+    if (pVal && typeof pVal === "string" && !isSubtitleFile(pVal)) {
+      resolvedPath = pVal;
+      resolvedSub = pathsMap[`${k}_sub`] || pathsMap[`${keyLower}_sub`] || globalSub;
+      break;
+    }
+
+    // Check episodesMap
+    const epVal = episodesMap[k] || episodesMap[keyLower];
+    if (epVal) {
+      if (typeof epVal === "string" && !isSubtitleFile(epVal)) {
+        resolvedPath = epVal;
+        resolvedSub = globalSub;
+        break;
+      } else if (typeof epVal === "object" && (epVal.path || epVal.localPath)) {
+        resolvedPath = epVal.path || epVal.localPath;
+        resolvedSub = epVal.subPath || epVal.subtitle_path || globalSub;
+        break;
+      }
+    }
+  }
+
+  // Fallback: Pattern matching in pathsMap or episodesMap string values
+  if (!resolvedPath) {
+    const epPattern = new RegExp(`S0?${sNum}.*E0?${eNum}|S0?${sNum}E0?${eNum}|${sNum}x0?${eNum}`, "i");
+
+    for (const [k, v] of Object.entries({ ...pathsMap, ...episodesMap })) {
+      const valStr = typeof v === "string" ? v : v?.path || v?.localPath || "";
+      if (valStr && epPattern.test(valStr) && !isSubtitleFile(valStr)) {
+        resolvedPath = valStr;
+        resolvedSub = (typeof v === "object" ? v.subPath : "") || globalSub;
+        break;
+      }
+    }
+  }
+
+  // Fallback to default series path if episode path not mapped separately
+  if (!resolvedPath) {
+    resolvedPath =
+      pathsMap.default ||
+      item.default_path ||
+      item.localPath ||
+      item.path ||
+      item.local_path ||
+      "";
+    resolvedSub = globalSub;
+  }
+
+  return { path: cleanLocalPath(resolvedPath), subPath: cleanLocalPath(resolvedSub) };
 };
 
 /**
@@ -174,72 +302,59 @@ export const getItemPathsAndSubtitles = (item, currentUserUid = "") => {
   const result = [];
   if (!item) return result;
 
-  // Find userPathObj matching currentUser, or fallback to first userPathObj in item.user_paths
-  const userPathObj =
-    (item.user_paths || []).find((up) => currentUserUid && up.uid === currentUserUid) ||
-    (item.user_paths || [])[0] ||
-    {};
+  const isSeries = item.type?.toLowerCase() === "series" || item.type?.toLowerCase() === "tv";
 
-  const pathsMap = userPathObj.paths || item.paths || {};
-  const globalSub = userPathObj.subPath || item.subPath || item.subtitle_path || "";
-
-  if (item.type === "movie") {
-    const moviePath =
-      pathsMap.default ||
-      pathsMap.movie ||
-      item.localPath ||
-      item.path ||
-      item.local_path ||
-      (typeof pathsMap === "object" ? Object.values(pathsMap)[0] : "") ||
-      "";
-
-    if (moviePath && !isSubtitleFile(moviePath)) {
-      result.push({
-        title: item.title || "Movie",
-        path: moviePath,
-        subPath: globalSub
-      });
+  if (!isSeries) {
+    const { path, subPath } = resolveMediaPaths(item, currentUserUid);
+    if (path) {
+      result.push({ title: item.title || "Movie", path, subPath });
     }
-  } else if (item.type === "series") {
+  } else {
+    // Return all episodes available
+    const userPathObj =
+      (item.user_paths || []).find((up) => currentUserUid && up.uid === currentUserUid) ||
+      (item.user_paths || [])[0] ||
+      {};
+    const pathsMap = userPathObj.paths || item.paths || {};
+    const episodesMap = item.episodes || {};
+
     const allEpKeys = new Set([
       ...Object.keys(pathsMap),
-      ...Object.keys(item.episodes || {})
+      ...Object.keys(episodesMap)
     ]);
 
     allEpKeys.forEach((epKey) => {
-      if (epKey === "subtitle" || epKey.endsWith("_sub")) return;
+      if (epKey === "subtitle" || epKey.endsWith("_sub") || epKey === "sub") return;
 
       const pathVal =
         pathsMap[epKey] ||
-        (typeof item.episodes?.[epKey] === "string"
-          ? item.episodes[epKey]
-          : item.episodes?.[epKey]?.path || item.episodes?.[epKey]?.localPath);
+        (typeof episodesMap[epKey] === "string"
+          ? episodesMap[epKey]
+          : episodesMap[epKey]?.path || episodesMap[epKey]?.localPath);
 
       if (pathVal && typeof pathVal === "string" && !isSubtitleFile(pathVal)) {
         const subVal =
-          (typeof item.episodes?.[epKey] === "object" ? item.episodes[epKey]?.subPath : "") ||
+          (typeof episodesMap[epKey] === "object" ? episodesMap[epKey]?.subPath : "") ||
           pathsMap[`${epKey}_sub`] ||
-          globalSub;
+          userPathObj.subPath ||
+          item.subPath ||
+          item.subtitle_path ||
+          "";
 
         const epTitle = epKey === "default" ? (item.title || "Series") : `${item.title || "Series"} - ${epKey}`;
 
         result.push({
           title: epTitle,
-          path: pathVal,
-          subPath: subVal || ""
+          path: cleanLocalPath(pathVal),
+          subPath: cleanLocalPath(subVal)
         });
       }
     });
 
-    // Fallback if series has a single default path configured
     if (result.length === 0) {
-      const defaultSeriesPath = pathsMap.default || item.localPath || item.path || "";
-      if (defaultSeriesPath && !isSubtitleFile(defaultSeriesPath)) {
-        result.push({
-          title: item.title || "Series",
-          path: defaultSeriesPath,
-          subPath: globalSub
-        });
+      const { path, subPath } = resolveMediaPaths(item, currentUserUid);
+      if (path) {
+        result.push({ title: item.title || "Series", path, subPath });
       }
     }
   }
@@ -294,3 +409,4 @@ export const exportMasterM3uPlaylist = (mediaItems, addToast, currentUserUid = "
     addToast(`Exported Master VLC Playlist with ${itemCounter} media entries!`, "success");
   }
 };
+

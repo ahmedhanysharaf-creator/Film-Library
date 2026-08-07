@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Star, Play, CheckCircle2, Bookmark, Monitor, Tv, Film, Edit3, Trash2, CheckSquare, Square } from "lucide-react";
-import { launchInVlc } from "../services/vlcLauncher";
+import { launchInVlc, resolveMediaPaths } from "../services/vlcLauncher";
+import { getNextEpisodeToPlay, saveContinueWatchingItem } from "../services/continueWatching";
 import { useToast } from "../context/ToastContext";
 import { useAuth } from "../context/AuthContext";
 
@@ -19,27 +20,51 @@ export const PosterCard = ({
   const [hovered, setHovered] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
+  const uid = currentUser?.uid || "demo_user_id";
+
   // Check current user progress
-  const userProgress = (item.user_progress || {})[currentUser?.uid || ""] || {};
+  const userProgress = (item.user_progress || {})[uid] || {};
   const isWatched = userProgress.status === "watched";
   const isWatchlist = userProgress.status === "watchlist";
 
-  // Check paths for current user
-  const userPathObj = (item.user_paths || []).find((up) => up.uid === currentUser?.uid);
-  const defaultPath = userPathObj?.paths?.default || (userPathObj?.paths ? Object.values(userPathObj.paths)[0] : "");
-  const subPath = item.subtitle_path || userPathObj?.paths?.subtitle || "";
-
   const handleQuickPlay = (e) => {
     e.stopPropagation();
-    if (defaultPath) {
-      launchInVlc(defaultPath, item.title, addToast, subPath, item.type);
-    } else {
-      const anyUserPath = (item.user_paths || [])[0];
-      const anyPath = anyUserPath?.paths?.default || (anyUserPath?.paths ? Object.values(anyUserPath.paths)[0] : "");
-      if (anyPath) {
-        launchInVlc(anyPath, item.title, addToast, subPath, item.type);
+    const isSeries = item.type?.toLowerCase() === "series" || item.type?.toLowerCase() === "tv";
+
+    if (isSeries) {
+      const nextInfo = getNextEpisodeToPlay(item, uid);
+      const { path, subPath } = resolveMediaPaths(item, uid, nextInfo.season, nextInfo.episode);
+
+      if (path) {
+        saveContinueWatchingItem({
+          mediaId: item.id || item.tmdb_id,
+          title: item.title,
+          type: item.type,
+          poster_url: item.poster_url,
+          backdrop_url: item.backdrop_url,
+          season: nextInfo.season,
+          episode: nextInfo.episode,
+          progressPct: 50
+        });
+        launchInVlc(path, `${item.title} ${nextInfo.epCode}`, addToast, subPath, item.type);
       } else {
-        addToast(`No local file path configured for "${item.title}". Click for details.`, "warning");
+        addToast(`No local file path configured for "${item.title}". Click item for details.`, "warning");
+      }
+    } else {
+      const { path, subPath } = resolveMediaPaths(item, uid);
+
+      if (path) {
+        saveContinueWatchingItem({
+          mediaId: item.id || item.tmdb_id,
+          title: item.title,
+          type: item.type,
+          poster_url: item.poster_url,
+          backdrop_url: item.backdrop_url,
+          progressPct: 50
+        });
+        launchInVlc(path, item.title, addToast, subPath, item.type);
+      } else {
+        addToast(`No local file path configured for "${item.title}". Click item for details.`, "warning");
       }
     }
   };
