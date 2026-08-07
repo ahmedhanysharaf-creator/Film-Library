@@ -1,6 +1,6 @@
 /**
  * VLC Media Player Launcher Service
- * Native .m3u Playlist launcher and Master Library Playlist exporter
+ * Instant .m3u playlist launcher and Master Library Playlist exporter
  */
 
 export const getSecurityToken = () => {
@@ -81,7 +81,8 @@ export const downloadVlcM3uPlaylist = (path, title, subPath) => {
 };
 
 /**
- * Master Direct VLC Launcher (No file downloads!)
+ * Master Direct VLC Launcher via Instant .m3u Playlist
+ * Set Chrome to "Always open files of this type" for 1-click automatic VLC opening!
  */
 export const launchInVlc = (path, title, addToast, subPath = "") => {
   if (!path) {
@@ -95,9 +96,12 @@ export const launchInVlc = (path, title, addToast, subPath = "") => {
   // 1. Copy clean path to clipboard
   copyPathToClipboard(cleanPath);
 
+  // 2. Trigger instant .m3u playlist open for automatic VLC launching
+  downloadVlcM3uPlaylist(cleanPath, title, cleanSub);
+
   if (addToast) {
     const subMsg = cleanSub ? " with subtitle attached!" : "...";
-    addToast(`Copied file path for "${title || 'Media'}"! Play from your synced Playlists Folder.${subMsg}`, "success");
+    addToast(`Launching "${title || 'Media'}" in VLC Player!${subMsg}`, "success");
   }
 
   return true;
