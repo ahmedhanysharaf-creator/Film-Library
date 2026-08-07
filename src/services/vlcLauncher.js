@@ -81,7 +81,7 @@ export const downloadVlcM3uPlaylist = (path, title, subPath) => {
 };
 
 /**
- * Master Direct VLC Launcher via Instant .m3u Playlist
+ * Master Direct VLC Launcher (No file downloads!)
  */
 export const launchInVlc = (path, title, addToast, subPath = "") => {
   if (!path) {
@@ -95,12 +95,9 @@ export const launchInVlc = (path, title, addToast, subPath = "") => {
   // 1. Copy clean path to clipboard
   copyPathToClipboard(cleanPath);
 
-  // 2. Download clean .m3u playlist file for instant automatic VLC opening
-  downloadVlcM3uPlaylist(cleanPath, title, cleanSub);
-
   if (addToast) {
     const subMsg = cleanSub ? " with subtitle attached!" : "...";
-    addToast(`Opening "${title || 'Media'}" in VLC Player!${subMsg}`, "success");
+    addToast(`Copied file path for "${title || 'Media'}"! Play from your synced Playlists Folder.${subMsg}`, "success");
   }
 
   return true;
