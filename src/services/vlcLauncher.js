@@ -64,7 +64,7 @@ export const encodePathB64 = (str) => {
 
 /**
  * Downloads a 1-click Windows Registry (.reg) installer script
- * Registers filmlibrary:// protocol on Windows to open local media files in VLC automatically!
+ * Registers filmlibrary:// protocol on Windows to open local media files in VLC automatically with subtitles!
  */
 export const downloadWindowsRegistryFix = () => {
   const regContent = `Windows Registry Editor Version 5.00
@@ -78,7 +78,7 @@ export const downloadWindowsRegistryFix = () => {
 [HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell\\open]
 
 [HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell\\open\\command]
-@="powershell -windowstyle hidden -command \\"$u='%1'; $fB64=[regex]::Match($u, 'f=([^&]+)').Groups[1].Value; $sB64=[regex]::Match($u, 's=([^&]+)').Groups[1].Value; $m3uB64=[regex]::Match($u, 'm3u=([^&]+)').Groups[1].Value; $file=if ($fB64) { [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($fB64)) } else { '' }; $sub=if ($sB64) { [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($sB64)) } else { '' }; $m3u=if ($m3uB64) { [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($m3uB64)) } else { '' }; $targetFile=if ($file -and (Test-Path -LiteralPath $file)) { $file } elseif ($m3u -and (Test-Path -LiteralPath $m3u)) { $m3u } else { '' }; if ($targetFile) { $vlc=if (Test-Path 'C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe') { 'C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe' } elseif (Test-Path 'C:\\\\Program Files (x86)\\\\VideoLAN\\\\VLC\\\\vlc.exe') { 'C:\\\\Program Files (x86)\\\\VideoLAN\\\\VLC\\\\vlc.exe' } else { 'vlc' }; $args='\\\\\\"' + $targetFile + '\\\\\\\"'; if ($sub -and (Test-Path -LiteralPath $sub)) { $args += ' --sub-file=\\\\\\\"' + $sub + '\\\\\\\"' }; try { Start-Process $vlc -ArgumentList $args } catch { Start-Process $targetFile } } else { Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show('Media file not found at local path:\`n' + $file, 'Film Library') }\\""
+@="powershell -windowstyle hidden -command \\"$u='%1'; $pMatch=[regex]::Match($u, '[?&]path=([^&]+)'); $sMatch=[regex]::Match($u, '[?&]sub=([^&]+)'); $pEnc=if ($pMatch.Success) { $pMatch.Groups[1].Value } else { '' }; $sEnc=if ($sMatch.Success) { $sMatch.Groups[1].Value } else { '' }; $filePath=if ($pEnc) { [System.Uri]::UnescapeDataString($pEnc) } else { '' }; $subPath=if ($sEnc) { [System.Uri]::UnescapeDataString($sEnc) } else { '' }; if (-not $filePath) { $fMatch=[regex]::Match($u, '[?&]f=([^&]+)'); if ($fMatch.Success) { $fRaw=[System.Uri]::UnescapeDataString($fMatch.Groups[1].Value); try { $filePath=[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($fRaw)) } catch {} } }; if (-not $subPath) { $sMatch=[regex]::Match($u, '[?&]s=([^&]+)'); if ($sMatch.Success) { $sRaw=[System.Uri]::UnescapeDataString($sMatch.Groups[1].Value); try { $subPath=[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($sRaw)) } catch {} } }; if ($filePath -and (Test-Path -LiteralPath $filePath)) { $vlc=if (Test-Path 'C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe') { 'C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe' } elseif (Test-Path 'C:\\\\Program Files (x86)\\\\VideoLAN\\\\VLC\\\\vlc.exe') { 'C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe' } else { 'vlc' }; $vlcArgs='\\\\\\"' + $filePath + '\\\\\\\"'; if ($subPath -and (Test-Path -LiteralPath $subPath)) { $vlcArgs += ' --sub-file=\\\\\\\"' + $subPath + '\\\\\\\"' } else { $dir=[System.IO.Path]::GetDirectoryName($filePath); $name=[System.IO.Path]::GetFileNameWithoutExtension($filePath); $autoSubs=@(\\"$dir\\\\$name.srt\\", \\"$dir\\\\$name.ass\\", \\"$dir\\\\$name.vtt\\", \\"$dir\\\\$name.sub\\", \\"$dir\\\\$name.en.srt\\", \\"$dir\\\\$name.ar.srt\\", \\"$dir\\\\Subs\\\\$name.srt\\", \\"$dir\\\\Subtitles\\\\$name.srt\\"); foreach ($autoSub in $autoSubs) { if (Test-Path -LiteralPath $autoSub) { $vlcArgs += ' --sub-file=\\\\\\\"' + $autoSub + '\\\\\\\"'; break } } }; try { Start-Process $vlc -ArgumentList $vlcArgs } catch { Start-Process $filePath } } else { Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show('Media file not found at local path:\`n' + $filePath, 'Film Library') }\\""
 `;
 
   const blob = new Blob([regContent], { type: "application/x-msregedit" });
@@ -133,7 +133,7 @@ export const downloadVlcM3uPlaylist = (path, title, subPath) => {
 };
 
 /**
- * Master Direct Automatic VLC Launcher (Opens media directly in VLC!)
+ * Master Direct Automatic VLC Launcher (Opens media directly in VLC with subtitles!)
  */
 export const launchInVlc = (path, title, addToast, subPath = "", itemType = "movie") => {
   if (!path) {
@@ -148,15 +148,17 @@ export const launchInVlc = (path, title, addToast, subPath = "", itemType = "mov
   // 1. Copy clean path to clipboard as background convenience
   copyPathToClipboard(cleanPath);
 
-  // 2. Base64 encode file & subtitle paths to prevent URL syntax errors
+  // 2. Build protocol URI with standard URL-encoded path and sub parameters
+  let protocolUri = `filmlibrary://play?path=${encodeURIComponent(cleanPath)}`;
+  if (cleanSub) {
+    protocolUri += `&sub=${encodeURIComponent(cleanSub)}`;
+  }
+
+  // Also include base64 fallbacks f and s
   const fB64 = encodePathB64(cleanPath);
   const sB64 = cleanSub ? encodePathB64(cleanSub) : "";
-
-  // 3. Build protocol URI with direct media file path
-  let protocolUri = `filmlibrary://play?f=${encodeURIComponent(fB64)}&path=${encodeURIComponent(cleanPath)}`;
-  if (sB64) {
-    protocolUri += `&s=${encodeURIComponent(sB64)}&sub=${encodeURIComponent(cleanSub)}`;
-  }
+  if (fB64) protocolUri += `&f=${encodeURIComponent(fB64)}`;
+  if (sB64) protocolUri += `&s=${encodeURIComponent(sB64)}`;
 
   // Also include fallback m3u path
   const baseFolder = getLocalPlaylistFolderPath();
@@ -164,7 +166,7 @@ export const launchInVlc = (path, title, addToast, subPath = "", itemType = "mov
   const m3uFilePath = `${baseFolder}\\${subFolder}\\${cleanTitle.replace(/\s+/g, "_")}.m3u`;
   protocolUri += `&m3u=${encodeURIComponent(encodePathB64(m3uFilePath))}`;
 
-  // 4. Trigger filmlibrary:// protocol to launch VLC directly with video file
+  // 3. Trigger filmlibrary:// protocol to launch VLC directly with video file
   window.location.href = protocolUri;
 
   if (addToast) {
@@ -208,8 +210,10 @@ export const resolveMediaPaths = (item, currentUserUid = "", season = 1, episode
     const subPath =
       pathsMap.subtitle ||
       pathsMap.sub ||
-      globalSub ||
-      (moviePath ? moviePath.replace(/\.[^/.]+$/, ".srt") : "");
+      userPathObj.subPath ||
+      item.subPath ||
+      item.subtitle_path ||
+      globalSub;
 
     return { path: cleanLocalPath(moviePath), subPath: cleanLocalPath(subPath) };
   }
@@ -280,7 +284,7 @@ export const resolveMediaPaths = (item, currentUserUid = "", season = 1, episode
     }
   }
 
-  // Fallback to default series path if episode path not mapped separately
+  // Fallback if no episode-specific path found: check if pathsMap has any string value or default path
   if (!resolvedPath) {
     resolvedPath =
       pathsMap.default ||
@@ -288,6 +292,7 @@ export const resolveMediaPaths = (item, currentUserUid = "", season = 1, episode
       item.localPath ||
       item.path ||
       item.local_path ||
+      (typeof pathsMap === "object" ? Object.values(pathsMap).find((v) => typeof v === "string" && !isSubtitleFile(v)) : "") ||
       "";
     resolvedSub = globalSub;
   }

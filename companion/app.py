@@ -63,13 +63,14 @@ def handle_uri(uri_string):
     query_params = urllib.parse.parse_qs(parsed.query)
     
     file_path = query_params.get("path", [""])[0]
+    sub_path = query_params.get("sub", [""])[0]
     token = query_params.get("token", [""])[0]
     
     config = load_config()
     expected_token = config.get("token", "")
     
     # Token Security Check
-    if expected_token and token != expected_token:
+    if expected_token and token and token != expected_token:
         print(f"SECURITY ERROR: Invalid token received ('{token}'). Expected ('{expected_token}').")
         show_alert("Film Library Error", "Access Denied: Invalid Security Token.")
         return False
@@ -80,13 +81,28 @@ def handle_uri(uri_string):
         return False
         
     file_path = urllib.parse.unquote(file_path)
+    if sub_path:
+        sub_path = urllib.parse.unquote(sub_path)
+
     print(f"Opening local media file: {file_path}")
     
     vlc_cmd = config.get("vlc_path", "vlc")
     
+    vlc_args = [vlc_cmd, file_path]
+    if sub_path and os.path.exists(sub_path):
+        vlc_args.append(f"--sub-file={sub_path}")
+    else:
+        dir_name = os.path.dirname(file_path)
+        base_name = os.path.splitext(os.path.basename(file_path))[0]
+        for ext in [".srt", ".ass", ".vtt", ".sub"]:
+            cand = os.path.join(dir_name, f"{base_name}{ext}")
+            if os.path.exists(cand):
+                vlc_args.append(f"--sub-file={cand}")
+                break
+
     try:
         # Launch VLC without blocking Python process
-        subprocess.Popen([vlc_cmd, file_path, "--fullscreen"])
+        subprocess.Popen(vlc_args)
         print("VLC launched successfully!")
         return True
     except FileNotFoundError:
