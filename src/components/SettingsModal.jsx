@@ -1,7 +1,8 @@
-import React, { useState } from "react";
-import { X, Settings, Key, ShieldCheck, Database, Save, Download, Tv, List } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { X, Settings, Key, ShieldCheck, Database, Save, Download, Tv, List, FolderSync, FolderArchive } from "lucide-react";
 import { getSecurityToken, setSecurityToken, downloadWindowsRegistryFix, exportMasterM3uPlaylist } from "../services/vlcLauncher";
 import { fetchLibraryItems } from "../services/storage";
+import { connectLocalPlaylistFolder, syncAllPlaylistsToFolder, getStoredDirectoryHandle, clearStoredDirectoryHandle, exportPlaylistsAsZip } from "../services/folderSync";
 import { getTmdbApiKey, setTmdbApiKey } from "../services/tmdb";
 import { useToast } from "../context/ToastContext";
 
@@ -13,6 +14,13 @@ export const SettingsModal = ({ onClose }) => {
   const [firebaseConfigStr, setFirebaseConfigStr] = useState(
     localStorage.getItem("filmlibrary_firebase_config") || ""
   );
+  const [syncHandle, setSyncHandle] = useState(null);
+
+  useEffect(() => {
+    getStoredDirectoryHandle().then((handle) => {
+      if (handle) setSyncHandle(handle);
+    });
+  }, []);
 
   const handleSave = (e) => {
     e.preventDefault();
@@ -54,6 +62,67 @@ export const SettingsModal = ({ onClose }) => {
         </div>
 
         <form onSubmit={handleSave} style={styles.form}>
+          {/* Automatic Local Folder Syncing */}
+          <div style={{ ...styles.vlcSetupBox, backgroundColor: "rgba(139, 92, 246, 0.1)", borderColor: "#8b5cf6" }}>
+            <FolderSync size={24} color="#8b5cf6" />
+            <div style={{ flex: 1 }}>
+              <div style={styles.vlcSetupTitle}>
+                Local Playlist Folder Auto-Sync {syncHandle ? `(Connected: ${syncHandle.name})` : ""}
+              </div>
+              <p style={styles.vlcSetupSub}>
+                Select a folder on your computer. When you add/edit movies or series, individual `.m3u` files will be updated in `Movies/` and `Series/` subfolders automatically!
+              </p>
+            </div>
+            {syncHandle ? (
+              <button
+                type="button"
+                style={{ ...styles.downloadRegBtn, backgroundColor: "rgba(239, 68, 68, 0.2)", color: "#ef4444", border: "1px solid #ef4444" }}
+                onClick={async () => {
+                  await clearStoredDirectoryHandle();
+                  setSyncHandle(null);
+                  addToast("Disconnected local playlist folder.", "info");
+                }}
+              >
+                Disconnect
+              </button>
+            ) : (
+              <button
+                type="button"
+                style={{ ...styles.downloadRegBtn, backgroundColor: "#8b5cf6", color: "#ffffff" }}
+                onClick={async () => {
+                  const handle = await connectLocalPlaylistFolder(addToast);
+                  if (handle) {
+                    setSyncHandle(handle);
+                    const items = await fetchLibraryItems();
+                    await syncAllPlaylistsToFolder(items, handle, addToast);
+                  }
+                }}
+              >
+                <FolderSync size={14} /> Connect Folder
+              </button>
+            )}
+          </div>
+
+          {/* Export Playlists Folder as ZIP Archive */}
+          <div style={{ ...styles.vlcSetupBox, backgroundColor: "rgba(16, 185, 129, 0.1)", borderColor: "#10b981" }}>
+            <FolderArchive size={24} color="#10b981" />
+            <div style={{ flex: 1 }}>
+              <div style={styles.vlcSetupTitle}>Download Playlists Folder (.ZIP)</div>
+              <p style={styles.vlcSetupSub}>
+                Download a `.zip` archive containing separate `.m3u` files organized in `Movies/` and `Series/` folders for transferring to other devices!
+              </p>
+            </div>
+            <button
+              type="button"
+              style={{ ...styles.downloadRegBtn, backgroundColor: "#10b981", color: "#ffffff" }}
+              onClick={async () => {
+                const items = await fetchLibraryItems();
+                await exportPlaylistsAsZip(items, addToast);
+              }}
+            >
+              <Download size={14} /> Download ZIP
+            </button>
+          </div>
           {/* Export Master Library Playlist (.m3u) */}
           <div style={{ ...styles.vlcSetupBox, backgroundColor: "rgba(59, 130, 246, 0.1)", borderColor: "#3b82f6" }}>
             <List size={24} color="#3b82f6" />

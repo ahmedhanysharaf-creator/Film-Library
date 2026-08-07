@@ -145,8 +145,11 @@ export const getLocalLibrary = () => {
   }
 };
 
+import { autoSyncIfConnected } from "./folderSync";
+
 export const saveLocalLibrary = (items) => {
   localStorage.setItem(LOCAL_STORAGE_LIB_KEY, JSON.stringify(items));
+  autoSyncIfConnected(items);
 };
 
 /**

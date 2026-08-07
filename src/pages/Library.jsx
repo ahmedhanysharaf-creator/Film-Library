@@ -4,6 +4,7 @@ import {
 } from "lucide-react";
 import { fetchLibraryItems, deleteMediaEntry, deleteMediaEntriesBatch, updateWatchProgress } from "../services/storage";
 import { exportMasterM3uPlaylist } from "../services/vlcLauncher";
+import { exportPlaylistsAsZip } from "../services/folderSync";
 import { PosterCard } from "../components/PosterCard";
 import { ContinueWatchingRow } from "../components/ContinueWatchingRow";
 import { useAuth } from "../context/AuthContext";
@@ -263,6 +264,26 @@ export const Library = ({ onSelectItem, onEditItem }) => {
               title="Download a single Master Playlist file containing all movies & TV episodes for VLC"
             >
               <List size={14} /> Export Master Playlist (.m3u)
+            </button>
+
+            <button
+              style={{
+                backgroundColor: "rgba(16, 185, 129, 0.15)",
+                border: "1px solid #10b981",
+                color: "#10b981",
+                borderRadius: "6px",
+                padding: "6px 12px",
+                fontSize: "0.82rem",
+                fontWeight: 700,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px"
+              }}
+              onClick={() => exportPlaylistsAsZip(items, addToast)}
+              title="Download a ZIP archive containing Movies/ and Series/ folders with individual .m3u files"
+            >
+              <FolderArchive size={14} /> Download Playlists Folder (.ZIP)
             </button>
           </div>
         </div>
