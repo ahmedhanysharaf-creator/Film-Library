@@ -12,6 +12,30 @@ export const setSecurityToken = (token) => {
 };
 
 /**
+ * Normalizes and decodes raw paths, removing file:///, %20, %27, etc.
+ * Converts to a clean, native Windows file path (e.g. C:\Users\Ahmed\Movies\Film.mp4)
+ */
+export const cleanLocalPath = (rawPath) => {
+  if (!rawPath) return "";
+  let path = String(rawPath).trim();
+
+  // Strip file:/// or file:// prefix
+  path = path.replace(/^file:\/\/\/?/gi, "");
+
+  // Iteratively decode URI components (%20 -> space, %27 -> ', etc.)
+  try {
+    let prev = "";
+    while (path.includes("%") && path !== prev) {
+      prev = path;
+      path = decodeURIComponent(path);
+    }
+  } catch (e) {}
+
+  // Convert forward slashes to Windows backslashes
+  return path.replace(/\//g, "\\");
+};
+
+/**
  * Downloads a 1-click Windows Registry / Batch installer script
  * Registers filmlibrary:// protocol on Windows to open media directly in VLC without downloading .m3u files!
  */
@@ -32,7 +56,7 @@ if not exist "%VLC_PATH%" (
 
 reg add "HKCU\\Software\\Classes\\filmlibrary" /ve /d "URL:Film Library Protocol" /f >nul
 reg add "HKCU\\Software\\Classes\\filmlibrary" /v "URL Protocol" /d "" /f >nul
-reg add "HKCU\\Software\\Classes\\filmlibrary\\shell\\open\\command" /ve /d "cmd /c for /f \"tokens=2 delims==\" %%a in (\"%%1\") do start \"\" \"%VLC_PATH%\" \"%%a\"" /f >nul
+reg add "HKCU\\Software\\Classes\\filmlibrary\\shell\\open\\command" /ve /d "powershell -windowstyle hidden -command \"$u='%1'; $raw=($u -split 'path=')[1] -split '&'; $p=[System.Uri]::UnescapeDataString($raw[0]); start '%VLC_PATH%' -ArgumentList ('\"' + $p + '\"')\"" /f >nul
 
 echo =======================================================
 echo SUCCESS! Direct 1-Click VLC Playback is registered!
@@ -55,10 +79,7 @@ pause
 
 export const copyPathToClipboard = (path, addToast) => {
   if (!path) return;
-  let cleanPath = path;
-  try {
-    cleanPath = decodeURIComponent(path).replace(/\//g, "\\");
-  } catch (e) {}
+  const cleanPath = cleanLocalPath(path);
 
   navigator.clipboard.writeText(cleanPath).then(
     () => {
@@ -74,22 +95,8 @@ export const copyPathToClipboard = (path, addToast) => {
 export const downloadVlcM3uPlaylist = (path, title, subPath) => {
   if (!path) return;
   
-  let cleanPath = path;
-  try {
-    cleanPath = decodeURIComponent(path).replace(/\//g, "\\");
-  } catch (e) {
-    cleanPath = path.replace(/\//g, "\\");
-  }
-
-  let cleanSub = "";
-  if (subPath) {
-    try {
-      cleanSub = decodeURIComponent(subPath).replace(/\//g, "\\");
-    } catch (e) {
-      cleanSub = subPath.replace(/\//g, "\\");
-    }
-  }
-
+  const cleanPath = cleanLocalPath(path);
+  const cleanSub = cleanLocalPath(subPath);
   const cleanTitle = (title || "Media").replace(/[^a-zA-Z0-9_\-\s]/g, "");
 
   let m3uContent = `#EXTM3U\n`;
@@ -119,24 +126,11 @@ export const launchInVlc = (path, title, addToast, subPath = "") => {
     return false;
   }
 
-  let cleanPath = path;
-  try {
-    cleanPath = decodeURIComponent(path).replace(/\//g, "\\");
-  } catch (e) {
-    cleanPath = path.replace(/\//g, "\\");
-  }
-
-  let cleanSub = "";
-  if (subPath) {
-    try {
-      cleanSub = decodeURIComponent(subPath).replace(/\//g, "\\");
-    } catch (e) {
-      cleanSub = subPath.replace(/\//g, "\\");
-    }
-  }
+  const cleanPath = cleanLocalPath(path);
+  const cleanSub = cleanLocalPath(subPath);
 
   // 1. Copy decoded path to clipboard
-  copyPathToClipboard(path);
+  copyPathToClipboard(cleanPath);
 
   // 2. Direct 1-Click Launch via URI Protocol scheme (No file download!)
   const token = getSecurityToken();
