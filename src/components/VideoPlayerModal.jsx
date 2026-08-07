@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from "react";
 import { 
   X, Play, Pause, Volume2, VolumeX, Maximize, RotateCcw, 
-  SkipBack, SkipForward, Subtitles, Settings, Film, Tv, Download, Copy, ExternalLink, HardDrive, FolderOpen
+  SkipBack, SkipForward, Subtitles, Settings, Film, Tv, Download, Copy, ExternalLink, HardDrive, FolderOpen, Loader2, Sparkles, FolderSync
 } from "lucide-react";
 import { copyPathToClipboard, downloadVlcM3uPlaylist, resolveMediaPaths } from "../services/vlcLauncher";
+import { connectLocalPlaylistFolder, getStoredDirectoryHandle, findMediaFileInDirectoryHandle } from "../services/folderSync";
 import { saveContinueWatchingItem, getNextEpisodeToPlay } from "../services/continueWatching";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
@@ -34,6 +35,8 @@ export const VideoPlayerModal = ({
   const [subPath, setSubPath] = useState("");
   const [activeVideoSrc, setActiveVideoSrc] = useState("");
   const [activeSubSrc, setActiveSubSrc] = useState("");
+  const [folderHandle, setFolderHandle] = useState(null);
+  const [isSearchingFolder, setIsSearchingFolder] = useState(false);
 
   // Video State
   const [isPlaying, setIsPlaying] = useState(false);
@@ -45,6 +48,48 @@ export const VideoPlayerModal = ({
   const [showControls, setShowControls] = useState(true);
   const [videoError, setVideoError] = useState(false);
   const [subtitlesEnabled, setSubtitlesEnabled] = useState(true);
+
+  // Load stored directory handle from IndexedDB
+  useEffect(() => {
+    getStoredDirectoryHandle().then((handle) => {
+      if (handle) setFolderHandle(handle);
+    });
+  }, []);
+
+  const attemptAutoPlayFromFolder = async (handle, targetPath) => {
+    if (!handle || !targetPath) return false;
+    setIsSearchingFolder(true);
+    try {
+      const opts = { mode: "read" };
+      if ((await handle.queryPermission(opts)) !== "granted") {
+        if ((await handle.requestPermission(opts)) !== "granted") {
+          setIsSearchingFolder(false);
+          return false;
+        }
+      }
+
+      const file = await findMediaFileInDirectoryHandle(handle, targetPath);
+      if (file) {
+        const blobUrl = URL.createObjectURL(file);
+        setActiveVideoSrc(blobUrl);
+        setVideoError(false);
+        setIsSearchingFolder(false);
+        addToast(`Auto-playing "${file.name}" from connected media folder!`, "success");
+        return true;
+      }
+    } catch (e) {}
+    setIsSearchingFolder(false);
+    return false;
+  };
+
+  // Connect Local Media Folder (Select Once)
+  const handleConnectFolder = async () => {
+    const handle = await connectLocalPlaylistFolder(addToast);
+    if (handle) {
+      setFolderHandle(handle);
+      await attemptAutoPlayFromFolder(handle, mediaPath);
+    }
+  };
 
   // Resolve media paths whenever episode / item changes
   useEffect(() => {
@@ -59,9 +104,15 @@ export const VideoPlayerModal = ({
       setActiveVideoSrc(resolved.path);
       setVideoError(false);
     } else {
-      // Local disk file string - HTML5 video cannot fetch local C:\ paths directly via HTTP due to browser CORS/security
       setActiveVideoSrc("");
       setVideoError(true);
+
+      // Attempt automatic playback if folder handle is stored
+      getStoredDirectoryHandle().then((handle) => {
+        if (handle) {
+          attemptAutoPlayFromFolder(handle, resolved.path || item.title);
+        }
+      });
     }
 
     if (resolved.subPath && (resolved.subPath.startsWith("http://") || resolved.subPath.startsWith("https://") || resolved.subPath.startsWith("blob:"))) {
@@ -295,7 +346,14 @@ export const VideoPlayerModal = ({
 
                 <div style={styles.actionBtnGrid}>
                   <button 
-                    style={styles.primaryActionBtn} 
+                    style={{ ...styles.primaryActionBtn, backgroundColor: "#8b5cf6" }} 
+                    onClick={handleConnectFolder}
+                  >
+                    <FolderSync size={18} /> {folderHandle ? "Grant Folder Permission (Auto-Play All)" : "Connect Media Folder (Select ONCE for Auto-Play)"}
+                  </button>
+
+                  <button 
+                    style={styles.secondaryActionBtn} 
                     onClick={() => fileInputRef.current?.click()}
                   >
                     <FolderOpen size={18} /> Select Video File from Device

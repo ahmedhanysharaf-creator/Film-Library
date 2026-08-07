@@ -60,7 +60,7 @@ export const clearStoredDirectoryHandle = async () => {
       tx.oncomplete = () => resolve(true);
       tx.onerror = () => resolve(false);
     });
-  } catch (e) {}
+  } catch (e) { }
 };
 
 /**
@@ -99,7 +99,7 @@ const writeFileToDir = async (dirHandle, fileName, content) => {
     const writable = await fileHandle.createWritable();
     await writable.write(content);
     await writable.close();
-  } catch (e) {}
+  } catch (e) { }
 };
 
 /**
@@ -237,3 +237,48 @@ export const exportPlaylistsAsZip = async (items, addToast) => {
 
   if (addToast) addToast(`Exported Playlist ZIP Folder with ${count} media files!`, "success");
 };
+
+/**
+ * Searches a connected DirectoryHandle recursively for a media file matching targetPathOrTitle
+ */
+export const findMediaFileInDirectoryHandle = async (dirHandle, targetPathOrTitle) => {
+  if (!dirHandle || !targetPathOrTitle) return null;
+
+  const normalized = String(targetPathOrTitle).replace(/\\/g, "/");
+  const parts = normalized.split("/").filter(Boolean);
+  const targetFileName = parts.length > 0 ? parts[parts.length - 1].toLowerCase() : normalized.toLowerCase();
+
+  const targetExtIdx = targetFileName.lastIndexOf(".");
+  const targetBaseName = targetExtIdx !== -1 ? targetFileName.substring(0, targetExtIdx) : targetFileName;
+
+  const queue = [dirHandle];
+  let searched = 0;
+
+  while (queue.length > 0 && searched < 400) {
+    const currentDir = queue.shift();
+    try {
+      for await (const entry of currentDir.values()) {
+        searched++;
+        if (entry.kind === "file") {
+          const entryNameLower = entry.name.toLowerCase();
+          const entryExtIdx = entryNameLower.lastIndexOf(".");
+          const entryBaseName = entryExtIdx !== -1 ? entryNameLower.substring(0, entryExtIdx) : entryNameLower;
+
+          // Exact match or base name match
+          if (entryNameLower === targetFileName || 
+              (targetBaseName.length > 3 && (entryBaseName === targetBaseName || entryNameLower.includes(targetBaseName) || targetFileName.includes(entryBaseName)))) {
+            const file = await entry.getFile();
+            return file;
+          }
+        } else if (entry.kind === "directory") {
+          // Avoid scanning unrelated system directories
+          if (!["node_modules", ".git", "$recycle.bin", "system volume information"].includes(entry.name.toLowerCase())) {
+            queue.push(entry);
+          }
+        }
+      }
+    } catch (e) {}
+  }
+  return null;
+};
+
