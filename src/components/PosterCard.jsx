@@ -32,12 +32,12 @@ export const PosterCard = ({
   const handleQuickPlay = (e) => {
     e.stopPropagation();
     if (defaultPath) {
-      launchInVlc(defaultPath, item.title, addToast, subPath);
+      launchInVlc(defaultPath, item.title, addToast, subPath, item.type);
     } else {
       const anyUserPath = (item.user_paths || [])[0];
       const anyPath = anyUserPath?.paths?.default || (anyUserPath?.paths ? Object.values(anyUserPath.paths)[0] : "");
       if (anyPath) {
-        launchInVlc(anyPath, item.title, addToast, subPath);
+        launchInVlc(anyPath, item.title, addToast, subPath, item.type);
       } else {
         addToast(`No local file path configured for "${item.title}". Click for details.`, "warning");
       }

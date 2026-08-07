@@ -154,7 +154,7 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate }) =
       progressPct: 50
     });
 
-    launchInVlc(path, label, addToast, episodeSubPath);
+    launchInVlc(path, label, addToast, episodeSubPath, item.type);
   };
 
   const handleUpdateLocalPathFromFile = (e, epCodeKey = "default") => {

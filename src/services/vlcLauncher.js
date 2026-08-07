@@ -1,6 +1,6 @@
 /**
  * VLC Media Player Launcher Service
- * Instant .m3u playlist launcher and Master Library Playlist exporter
+ * Direct Automatic opening of existing local .m3u playlist files from your hard drive
  */
 
 export const getSecurityToken = () => {
@@ -11,7 +11,17 @@ export const setSecurityToken = (token) => {
   localStorage.setItem("filmlibrary_security_token", token);
 };
 
-export const downloadWindowsRegistryFix = () => {};
+export const getLocalPlaylistFolderPath = () => {
+  return localStorage.getItem("filmlibrary_local_playlist_folder") || "C:\\Users\\Ahmed\\Downloads\\Film_Library_Playlists";
+};
+
+export const setLocalPlaylistFolderPath = (folderPath) => {
+  if (folderPath) {
+    localStorage.setItem("filmlibrary_local_playlist_folder", cleanLocalPath(folderPath));
+  } else {
+    localStorage.removeItem("filmlibrary_local_playlist_folder");
+  }
+};
 
 const SUBTITLE_EXTENSIONS = [".srt", ".ass", ".vtt", ".sub"];
 const isSubtitleFile = (p) => p && typeof p === "string" && SUBTITLE_EXTENSIONS.some((ext) => p.toLowerCase().endsWith(ext));
@@ -40,6 +50,48 @@ export const cleanLocalPath = (rawPath) => {
   return path.replace(/\//g, "\\");
 };
 
+/**
+ * Safely Base64 encodes UTF-8 path strings to prevent URL parsing errors
+ */
+export const encodePathB64 = (str) => {
+  if (!str) return "";
+  try {
+    return btoa(unescape(encodeURIComponent(str)));
+  } catch (e) {
+    return "";
+  }
+};
+
+/**
+ * Downloads a 1-click Windows Registry (.reg) installer script
+ * Registers filmlibrary:// protocol on Windows to open existing local .m3u files in VLC automatically!
+ */
+export const downloadWindowsRegistryFix = () => {
+  const regContent = `Windows Registry Editor Version 5.00
+
+[HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary]
+@="URL:Film Library Protocol"
+"URL Protocol"=""
+
+[HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell]
+
+[HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell\\open]
+
+[HKEY_CURRENT_USER\\Software\\Classes\\filmlibrary\\shell\\open\\command]
+@="powershell -windowstyle hidden -command \\"$u='%1'; $fB64=[regex]::Match($u, 'f=([^&]+)').Groups[1].Value; if ($fB64) { $file=[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($fB64)); $vlc=if (Test-Path 'C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe') { 'C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe' } else { 'C:\\\\Program Files (x86)\\\\VideoLAN\\\\VLC\\\\vlc.exe' }; if (Test-Path -LiteralPath $file) { Start-Process $vlc -ArgumentList ('\\\\\\\"' + $file + '\\\\\\\"') } }\\""
+`;
+
+  const blob = new Blob([regContent], { type: "application/x-msregedit" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "Register_1Click_VLC_Player.reg";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
 export const copyPathToClipboard = (path, addToast) => {
   if (!path) return;
   const cleanPath = cleanLocalPath(path);
@@ -53,7 +105,7 @@ export const copyPathToClipboard = (path, addToast) => {
 };
 
 /**
- * Generate and trigger instant .m3u playlist download with clean Windows path & subtitle track embed
+ * Generate and trigger instant .m3u playlist download (Fallback Option)
  */
 export const downloadVlcM3uPlaylist = (path, title, subPath) => {
   if (!path) return;
@@ -81,10 +133,9 @@ export const downloadVlcM3uPlaylist = (path, title, subPath) => {
 };
 
 /**
- * Master Direct VLC Launcher via Instant .m3u Playlist
- * Set Chrome to "Always open files of this type" for 1-click automatic VLC opening!
+ * Master Direct Automatic VLC Launcher (Opens existing local .m3u files from your hard drive!)
  */
-export const launchInVlc = (path, title, addToast, subPath = "") => {
+export const launchInVlc = (path, title, addToast, subPath = "", itemType = "movie") => {
   if (!path) {
     if (addToast) addToast("No local file path configured for this item.", "warning");
     return false;
@@ -92,16 +143,25 @@ export const launchInVlc = (path, title, addToast, subPath = "") => {
 
   const cleanPath = cleanLocalPath(path);
   const cleanSub = cleanLocalPath(subPath);
+  const cleanTitle = (title || "Media").replace(/[^a-zA-Z0-9_\-\s]/g, "");
 
   // 1. Copy clean path to clipboard
   copyPathToClipboard(cleanPath);
 
-  // 2. Trigger instant .m3u playlist open for automatic VLC launching
-  downloadVlcM3uPlaylist(cleanPath, title, cleanSub);
+  // 2. Resolve local .m3u file path on disk
+  const baseFolder = getLocalPlaylistFolderPath();
+  const subFolder = itemType === "series" ? "Series" : "Movies";
+  const m3uFilePath = `${baseFolder}\\${subFolder}\\${cleanTitle.replace(/\s+/g, "_")}.m3u`;
+
+  // 3. Base64 encode full .m3u file path to prevent URL syntax errors
+  const m3uB64 = encodePathB64(m3uFilePath);
+
+  // 4. Trigger filmlibrary:// protocol to open the existing .m3u file on disk in VLC
+  const protocolUri = `filmlibrary://playm3u?f=${encodeURIComponent(m3uB64)}`;
+  window.location.href = protocolUri;
 
   if (addToast) {
-    const subMsg = cleanSub ? " with subtitle attached!" : "...";
-    addToast(`Launching "${title || 'Media'}" in VLC Player!${subMsg}`, "success");
+    addToast(`Opening "${cleanTitle}" from your local M3U playlist folder in VLC!`, "success");
   }
 
   return true;
