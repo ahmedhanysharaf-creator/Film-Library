@@ -100,9 +100,34 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate }) =
 
   // Robust episode path lookups
   const getEpPath = (season, epNum) => {
-    const code1 = `S${season}E${epNum}`;
-    const code2 = `S${String(season).padStart(2, '0')}E${String(epNum).padStart(2, '0')}`;
-    return userPathsMap[code1] || userPathsMap[code2] || userPathsMap[code1.toLowerCase()] || userPathsMap[code2.toLowerCase()] || defaultMoviePath || "";
+    const sStr = String(season);
+    const sPadded = String(season).padStart(2, '0');
+    const eStr = String(epNum);
+    const ePadded = String(epNum).padStart(2, '0');
+
+    const keys = [
+      `S${season}E${epNum}`,
+      `S${sPadded}E${ePadded}`,
+      `S${season}E${ePadded}`,
+      `S${sPadded}E${eStr}`,
+      `${season}x${epNum}`,
+      `${sPadded}x${ePadded}`
+    ];
+
+    for (const k of keys) {
+      if (userPathsMap[k]) return userPathsMap[k];
+      if (userPathsMap[k.toLowerCase()]) return userPathsMap[k.toLowerCase()];
+    }
+
+    // Search for episode pattern in path strings (e.g. Agent Carter S01E04)
+    const epPattern = new RegExp(`S0?${season}.*E0?${epNum}|S0?${season}E0?${epNum}`, 'i');
+    for (const [k, v] of Object.entries(userPathsMap)) {
+      if (typeof v === 'string' && epPattern.test(v)) {
+        return v;
+      }
+    }
+
+    return defaultMoviePath || "";
   };
 
   const getEpSubPath = (season, epNum) => {
