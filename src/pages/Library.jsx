@@ -10,7 +10,7 @@ import { ContinueWatchingRow } from "../components/ContinueWatchingRow";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 
-export const Library = ({ onSelectItem, onEditItem }) => {
+export const Library = ({ onSelectItem, onEditItem, onPlayMedia }) => {
   const { currentUser } = useAuth();
   const { addToast } = useToast();
   const [items, setItems] = useState([]);
@@ -657,6 +657,7 @@ export const Library = ({ onSelectItem, onEditItem }) => {
                       isDimmed={isDimmed}
                       viewMode={viewMode}
                       onToggleSelect={isMultiSelectActive || selectedItemIds.size > 0 ? handleToggleSelectItem : null}
+                      onPlayMedia={onPlayMedia}
                     />
                   </div>
                 );

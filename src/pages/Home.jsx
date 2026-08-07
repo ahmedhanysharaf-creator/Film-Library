@@ -4,7 +4,7 @@ import { fetchLibraryItems } from "../services/storage";
 import { PosterCard } from "../components/PosterCard";
 import { ContinueWatchingRow } from "../components/ContinueWatchingRow";
 
-export const Home = ({ setActivePage, onSelectItem }) => {
+export const Home = ({ setActivePage, onSelectItem, onPlayMedia }) => {
   const [items, setItems] = useState([]);
   const [featuredItem, setFeaturedItem] = useState(null);
 
@@ -114,6 +114,7 @@ export const Home = ({ setActivePage, onSelectItem }) => {
                 key={item.id}
                 item={item}
                 onClick={() => onSelectItem(item)}
+                onPlayMedia={onPlayMedia}
               />
             ))}
           </div>

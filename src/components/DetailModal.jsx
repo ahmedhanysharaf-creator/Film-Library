@@ -9,7 +9,7 @@ import { saveContinueWatchingItem, getNextEpisodeToPlay } from "../services/cont
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 
-export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate }) => {
+export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate, onPlayMedia }) => {
   const { currentUser } = useAuth();
   const { addToast } = useToast();
 
@@ -106,12 +106,6 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate }) =
   };
 
   const handlePlayMedia = (path, label, episodeSubPath = "", season = 1, epNum = 1) => {
-    if (!path) {
-      addToast("No local file path configured for your PC.", "warning");
-      return;
-    }
-
-    // Save to Continue Watching
     saveContinueWatchingItem({
       mediaId: item.id || item.tmdb_id,
       title: item.title,
@@ -123,7 +117,11 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate }) =
       progressPct: 50
     });
 
-    launchInVlc(path, label, addToast, episodeSubPath, item.type);
+    if (onPlayMedia) {
+      onPlayMedia(item, season, epNum);
+    } else {
+      launchInVlc(path, label, addToast, episodeSubPath, item.type);
+    }
   };
 
   const handleUpdateLocalPathFromFile = (e, epCodeKey = "default") => {

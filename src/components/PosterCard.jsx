@@ -13,7 +13,8 @@ export const PosterCard = ({
   isSelected = false, 
   isDimmed = false, 
   viewMode = "grid",
-  onToggleSelect = null
+  onToggleSelect = null,
+  onPlayMedia = null
 }) => {
   const { addToast } = useToast();
   const { currentUser } = useAuth();
@@ -33,38 +34,46 @@ export const PosterCard = ({
 
     if (isSeries) {
       const nextInfo = getNextEpisodeToPlay(item, uid);
-      const { path, subPath } = resolveMediaPaths(item, uid, nextInfo.season, nextInfo.episode);
+      saveContinueWatchingItem({
+        mediaId: item.id || item.tmdb_id,
+        title: item.title,
+        type: item.type,
+        poster_url: item.poster_url,
+        backdrop_url: item.backdrop_url,
+        season: nextInfo.season,
+        episode: nextInfo.episode,
+        progressPct: 50
+      });
 
-      if (path) {
-        saveContinueWatchingItem({
-          mediaId: item.id || item.tmdb_id,
-          title: item.title,
-          type: item.type,
-          poster_url: item.poster_url,
-          backdrop_url: item.backdrop_url,
-          season: nextInfo.season,
-          episode: nextInfo.episode,
-          progressPct: 50
-        });
-        launchInVlc(path, `${item.title} ${nextInfo.epCode}`, addToast, subPath, item.type);
+      if (onPlayMedia) {
+        onPlayMedia(item, nextInfo.season, nextInfo.episode);
       } else {
-        addToast(`No local file path configured for "${item.title}". Click item for details.`, "warning");
+        const { path, subPath } = resolveMediaPaths(item, uid, nextInfo.season, nextInfo.episode);
+        if (path) {
+          launchInVlc(path, `${item.title} ${nextInfo.epCode}`, addToast, subPath, item.type);
+        } else {
+          addToast(`No local file path configured for "${item.title}". Click item for details.`, "warning");
+        }
       }
     } else {
-      const { path, subPath } = resolveMediaPaths(item, uid);
+      saveContinueWatchingItem({
+        mediaId: item.id || item.tmdb_id,
+        title: item.title,
+        type: item.type,
+        poster_url: item.poster_url,
+        backdrop_url: item.backdrop_url,
+        progressPct: 50
+      });
 
-      if (path) {
-        saveContinueWatchingItem({
-          mediaId: item.id || item.tmdb_id,
-          title: item.title,
-          type: item.type,
-          poster_url: item.poster_url,
-          backdrop_url: item.backdrop_url,
-          progressPct: 50
-        });
-        launchInVlc(path, item.title, addToast, subPath, item.type);
+      if (onPlayMedia) {
+        onPlayMedia(item, 1, 1);
       } else {
-        addToast(`No local file path configured for "${item.title}". Click item for details.`, "warning");
+        const { path, subPath } = resolveMediaPaths(item, uid);
+        if (path) {
+          launchInVlc(path, item.title, addToast, subPath, item.type);
+        } else {
+          addToast(`No local file path configured for "${item.title}". Click item for details.`, "warning");
+        }
       }
     }
   };

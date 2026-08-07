@@ -6,6 +6,7 @@ import { ToastContainer } from "./components/ToastContainer";
 import { DetailModal } from "./components/DetailModal";
 import { WhitelistModal } from "./components/WhitelistModal";
 import { SettingsModal } from "./components/SettingsModal";
+import { VideoPlayerModal } from "./components/VideoPlayerModal";
 
 import { Home } from "./pages/Home";
 import { Library } from "./pages/Library";
@@ -26,6 +27,11 @@ const AppContent = () => {
   const [showWhitelist, setShowWhitelist] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
+  // Cross-platform HTML5 Video Player Modal State
+  const [activePlayerItem, setActivePlayerItem] = useState(null);
+  const [activePlayerSeason, setActivePlayerSeason] = useState(1);
+  const [activePlayerEpisode, setActivePlayerEpisode] = useState(1);
+
   if (loading) {
     return (
       <div style={styles.loadingScreen}>
@@ -38,6 +44,12 @@ const AppContent = () => {
   if (!currentUser || !isWhitelisted) {
     return <Login onLoginSuccess={() => setActivePage("library")} />;
   }
+
+  const handlePlayMedia = (item, season = 1, episode = 1) => {
+    setActivePlayerItem(item);
+    setActivePlayerSeason(season);
+    setActivePlayerEpisode(episode);
+  };
 
   const handleEdit = (item) => {
     setSelectedItem(null);
@@ -83,6 +95,7 @@ const AppContent = () => {
           <Home
             setActivePage={setActivePage}
             onSelectItem={(item) => setSelectedItem(item)}
+            onPlayMedia={handlePlayMedia}
           />
         )}
 
@@ -90,6 +103,7 @@ const AppContent = () => {
           <Library
             onSelectItem={(item) => setSelectedItem(item)}
             onEditItem={handleEdit}
+            onPlayMedia={handlePlayMedia}
           />
         )}
 
@@ -120,6 +134,17 @@ const AppContent = () => {
           onEdit={handleEdit}
           onDelete={handleDelete}
           onItemUpdate={(updatedItem) => setSelectedItem(updatedItem)}
+          onPlayMedia={handlePlayMedia}
+        />
+      )}
+
+      {/* Cross-Platform HTML5 Video Player Modal (Phones, Tablets, Laptops) */}
+      {activePlayerItem && (
+        <VideoPlayerModal
+          item={activePlayerItem}
+          initialSeason={activePlayerSeason}
+          initialEpisode={activePlayerEpisode}
+          onClose={() => setActivePlayerItem(null)}
         />
       )}
 

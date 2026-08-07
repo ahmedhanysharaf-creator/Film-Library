@@ -9,7 +9,7 @@ import { launchInVlc, resolveMediaPaths } from "../services/vlcLauncher";
 import { useToast } from "../context/ToastContext";
 import { useAuth } from "../context/AuthContext";
 
-export const ContinueWatchingRow = ({ libraryItems = [], onSelectMedia, setActivePage }) => {
+export const ContinueWatchingRow = ({ libraryItems = [], onSelectMedia, setActivePage, onPlayMedia }) => {
   const { addToast } = useToast();
   const { currentUser } = useAuth();
   const [list, setList] = useState([]);
@@ -34,6 +34,11 @@ export const ContinueWatchingRow = ({ libraryItems = [], onSelectMedia, setActiv
   const handlePlayItem = (cwItem) => {
     const matchedMedia = libraryItems.find((m) => m.id === cwItem.mediaId || m.tmdb_id === cwItem.mediaId);
     
+    if (matchedMedia && onPlayMedia) {
+      onPlayMedia(matchedMedia, cwItem.season || 1, cwItem.episode || 1);
+      return;
+    }
+
     let path = "";
     let subPath = "";
 
