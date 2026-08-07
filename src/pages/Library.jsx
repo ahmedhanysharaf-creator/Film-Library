@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { 
-  Search, Grid, List, Filter, ArrowUpDown, Check, X, Film, Tv, Star, CheckCircle2, Bookmark, User, Globe, History, Edit3, Trash2, Calendar, HardDrive, CheckSquare, Square, Layers, CheckCheck 
+  Search, Grid, List, Filter, ArrowUpDown, Check, X, Film, Tv, Star, CheckCircle2, Bookmark, User, Globe, History, Edit3, Trash2, Calendar, HardDrive, CheckSquare, Square, Layers, CheckCheck, FolderArchive 
 } from "lucide-react";
 import { fetchLibraryItems, deleteMediaEntry, deleteMediaEntriesBatch, updateWatchProgress } from "../services/storage";
 import { exportMasterM3uPlaylist } from "../services/vlcLauncher";
