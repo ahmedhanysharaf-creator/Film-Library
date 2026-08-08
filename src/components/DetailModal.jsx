@@ -105,7 +105,23 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate, onP
     return resolved.subPath;
   };
 
-  const handlePlayMedia = (path, label, episodeSubPath = "", season = 1, epNum = 1) => {
+  const handlePlayVlc = (path, label, episodeSubPath = "", season = 1, epNum = 1) => {
+    saveContinueWatchingItem({
+      mediaId: item.id || item.tmdb_id,
+      title: item.title,
+      type: item.type,
+      poster_url: item.poster_url,
+      backdrop_url: item.backdrop_url,
+      season: season,
+      episode: epNum,
+      progressPct: 50
+    });
+
+    const targetPath = path || defaultMoviePath || item.title;
+    launchInVlc(targetPath, label || item.title, addToast, episodeSubPath || subPath, item.type);
+  };
+
+  const handlePlayBrowser = (season = 1, epNum = 1) => {
     saveContinueWatchingItem({
       mediaId: item.id || item.tmdb_id,
       title: item.title,
@@ -119,8 +135,6 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate, onP
 
     if (onPlayMedia) {
       onPlayMedia(item, season, epNum);
-    } else {
-      launchInVlc(path, label, addToast, episodeSubPath, item.type);
     }
   };
 
@@ -328,15 +342,22 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate, onP
                 </div>
               )}
 
-              {/* Media One-Click VLC Play & File Download Options */}
+              {/* Media One-Click VLC Play & Web Player Options */}
               {(!item.type || item.type.toLowerCase() !== "series" && item.type.toLowerCase() !== "tv") && (
                 <div style={styles.playSectionCol}>
                   <div style={styles.playSection}>
                     <button
                       style={styles.mainPlayBtn}
-                      onClick={() => handlePlayMedia(defaultMoviePath, item.title, subPath)}
+                      onClick={() => handlePlayVlc(defaultMoviePath, item.title, subPath)}
                     >
                       <Play size={20} fill="#ffffff" /> Play Media in VLC
+                    </button>
+
+                    <button
+                      style={{ ...styles.mainPlayBtn, backgroundColor: "#8b5cf6", border: "1px solid #7c3aed" }}
+                      onClick={() => handlePlayBrowser(1, 1)}
+                    >
+                      <Tv size={20} /> Play in Web Browser
                     </button>
 
                     {defaultMoviePath && (
@@ -373,12 +394,20 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate, onP
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px", gap: "12px", flexWrap: "wrap" }}>
                       <span style={styles.sectionTitle}>Seasons & Episodes</span>
 
-                      <button
-                        style={styles.mainPlayBtn}
-                        onClick={() => handlePlayMedia(nextEpPath || defaultMoviePath, `${item.title} ${nextInfo.epCode}`, nextEpSubPath, nextInfo.season, nextInfo.episode)}
-                      >
-                        <Play size={18} fill="#ffffff" /> Play {nextInfo.epCode} (Next Episode)
-                      </button>
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <button
+                          style={styles.mainPlayBtn}
+                          onClick={() => handlePlayVlc(nextEpPath || defaultMoviePath, `${item.title} ${nextInfo.epCode}`, nextEpSubPath, nextInfo.season, nextInfo.episode)}
+                        >
+                          <Play size={18} fill="#ffffff" /> Play {nextInfo.epCode} in VLC
+                        </button>
+                        <button
+                          style={{ ...styles.mainPlayBtn, backgroundColor: "#8b5cf6", border: "1px solid #7c3aed" }}
+                          onClick={() => handlePlayBrowser(nextInfo.season, nextInfo.episode)}
+                        >
+                          <Tv size={18} /> In Web Browser
+                        </button>
+                      </div>
                     </div>
 
                     {/* Season Tabs */}
@@ -424,10 +453,17 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate, onP
                           <div style={styles.epRight}>
                             <button
                               style={styles.epPlayBtn}
-                              onClick={() => handlePlayMedia(epPath || defaultMoviePath, `${item.title} ${epCode}`, epSubPath, activeSeason, epNum)}
+                              onClick={() => handlePlayVlc(epPath || defaultMoviePath, `${item.title} ${epCode}`, epSubPath, activeSeason, epNum)}
                               title={epPath ? `Play ${epCode} in VLC` : "Play media in VLC"}
                             >
-                              <Play size={12} fill="#000000" /> Play S{activeSeason}E{epNum}
+                              <Play size={12} fill="#000000" /> Play S{activeSeason}E{epNum} in VLC
+                            </button>
+                            <button
+                              style={{ ...styles.epPlayBtn, backgroundColor: "#8b5cf6", color: "#ffffff" }}
+                              onClick={() => handlePlayBrowser(activeSeason, epNum)}
+                              title="Play in web browser player"
+                            >
+                              <Tv size={12} /> Browser
                             </button>
                             <button
                               style={styles.epCopyBtn}
