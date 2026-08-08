@@ -515,28 +515,43 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
 
     for (let i = 0; i < videoItems.length; i++) {
       const rawItem = videoItems[i];
-      const fullItemPath = rawItem.includes(":") || rawItem.startsWith("\\")
+      // Normalize slashes to forward slash for path splitting
+      const normalizedPath = rawItem.replace(/\\/g, "/");
+      const pathParts = normalizedPath.split("/").filter(Boolean);
+
+      const fullItemPath = rawItem.includes(":") || rawItem.startsWith("\\") || rawItem.startsWith("/")
         ? rawItem
-        : `${baseFolder}\\${rawItem}`;
+        : (baseFolder ? `${baseFolder}\\${rawItem.replace(/\//g, "\\")}` : rawItem.replace(/\//g, "\\"));
 
-      const tvInfo = parseTvShowFileName(rawItem.includes("/") || rawItem.includes("\\") ? rawItem : fullItemPath);
+      if (pathParts.length > 1) {
+        // IT IS IN A SUBFOLDER -> TV SERIES!
+        // Subfolder name (pathParts[0]) is the TV Series Title
+        const subfolderName = pathParts[0];
+        const { cleanTitle: cleanSeriesTitle, year: folderYear } = extractTitleAndYearFromPath(subfolderName);
+        const seriesTitle = cleanSeriesTitle || subfolderName;
+        const fileName = pathParts[pathParts.length - 1];
+        const tvInfo = parseTvShowFileName(fileName);
 
-      if (tvInfo.isTv && tvInfo.seriesTitle) {
-        const groupKey = tvInfo.seriesTitle.toLowerCase();
+        const groupKey = seriesTitle.toLowerCase();
         if (!seriesGroups[groupKey]) {
           seriesGroups[groupKey] = {
-            seriesTitle: tvInfo.seriesTitle,
-            year: tvInfo.year,
+            seriesTitle: seriesTitle,
+            year: folderYear || tvInfo.year,
             episodes: []
           };
         }
+
+        const seasonNum = tvInfo.season || 1;
+        const epNum = tvInfo.episode || (seriesGroups[groupKey].episodes.length + 1);
+
         seriesGroups[groupKey].episodes.push({
           rawItem,
           fullItemPath,
-          season: tvInfo.season,
-          episode: tvInfo.episode || (seriesGroups[groupKey].episodes.length + 1)
+          season: seasonNum,
+          episode: epNum
         });
       } else {
+        // LOOSE FILE DIRECTLY IN ROOT FOLDER -> STANDALONE MOVIE!
         const { cleanTitle, year } = extractTitleAndYearFromPath(rawItem);
         movieItems.push({
           rawItem,
