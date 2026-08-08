@@ -164,6 +164,47 @@ def resolve_absolute_file_path(raw_path):
 
     return clean_p
 
+def find_subtitle_in_directory(video_file_path):
+    """
+    Finds matching subtitle (.srt, .ass, .vtt) for video_file_path 
+    checking exact base name, language tags, or Subs/ subfolder.
+    """
+    if not video_file_path or not os.path.exists(video_file_path):
+        return ""
+    dir_name = os.path.dirname(video_file_path)
+    base_name = os.path.splitext(os.path.basename(video_file_path))[0]
+    
+    # 1. Exact base match e.g. "Film.srt", "Film.ass"
+    for ext in [".srt", ".ass", ".vtt", ".sub"]:
+        cand = os.path.join(dir_name, f"{base_name}{ext}")
+        if os.path.exists(cand):
+            return cand
+            
+    # 2. Language suffix match e.g. "Film.ar.srt", "Film.en.srt", "Film_Arabic.srt"
+    try:
+        vid_lower = base_name.lower()
+        for f in os.listdir(dir_name):
+            f_lower = f.lower()
+            if any(f_lower.endswith(ext) for ext in [".srt", ".ass", ".vtt", ".sub"]):
+                f_base = os.path.splitext(f)[0].lower()
+                if f_base.startswith(vid_lower) or vid_lower.startswith(f_base):
+                    return os.path.join(dir_name, f)
+    except Exception:
+        pass
+
+    # 3. Subtitles subfolder e.g. "Subs/Film.srt" or "Subtitles/Film.srt"
+    for sub_dir_name in ["Subs", "Subtitles", "sub", "subtitles"]:
+        sub_folder = os.path.join(dir_name, sub_dir_name)
+        if os.path.exists(sub_folder) and os.path.isdir(sub_folder):
+            try:
+                for f in os.listdir(sub_folder):
+                    if any(f.lower().endswith(ext) for ext in [".srt", ".ass", ".vtt", ".sub"]):
+                        return os.path.join(sub_folder, f)
+            except Exception:
+                pass
+
+    return ""
+
 def create_m3u_file(file_path, title="Media", sub_path="", save_dir="", category="Movies"):
     """
     Generates a single .m3u playlist file for an item with subtitle directives.
@@ -177,39 +218,43 @@ def create_m3u_file(file_path, title="Media", sub_path="", save_dir="", category
     
     real_file_path = resolve_absolute_file_path(file_path)
     real_sub_path = resolve_absolute_file_path(sub_path) if sub_path else ""
+
+    if not real_sub_path or not os.path.exists(real_sub_path):
+        real_sub_path = find_subtitle_in_directory(real_file_path)
     
     content = "#EXTM3U\n"
     if real_sub_path and os.path.exists(real_sub_path):
-        content += f"#EXTVLCOPT:sub-file={real_sub_path}\n"
+        sub_win = real_sub_path.replace("/", "\\")
+        sub_unix = real_sub_path.replace("\\", "/")
+        content += f"#EXTVLCOPT:sub-file={sub_win}\n"
+        content += f"#EXTVLCOPT:sub-file={sub_unix}\n"
+        content += f"#EXTVLCOPT:input-slave={sub_win}\n"
         content += "#EXTVLCOPT:sub-track=0\n"
-    elif real_file_path:
-        dir_name = os.path.dirname(real_file_path)
-        base_name = os.path.splitext(os.path.basename(real_file_path))[0]
-        if dir_name and base_name:
-            for ext in [".srt", ".ass", ".vtt", ".sub"]:
-                cand = os.path.join(dir_name, f"{base_name}{ext}")
-                if os.path.exists(cand):
-                    content += f"#EXTVLCOPT:sub-file={cand}\n"
-                    content += "#EXTVLCOPT:sub-track=0\n"
-                    break
 
     content += f"#EXTINF:-1,{title}\n{real_file_path}\n"
     
     try:
         with open(m3u_path, "w", encoding="utf-8") as f:
             f.write(content)
-        print(f"Created/Updated .m3u playlist for '{title}' -> Path: {real_file_path}")
+        print(f"Created/Updated .m3u playlist for '{title}' -> Video: {real_file_path} | Sub: {real_sub_path}")
     except Exception as e:
         print(f"Error creating .m3u file: {e}")
         
-    return m3u_path
+    return m3u_path, real_sub_path
 
-def launch_m3u_in_vlc(m3u_path, vlc_cmd="vlc"):
-    """Launches VLC directly opening the target .m3u playlist file."""
+def launch_m3u_in_vlc(m3u_path, vlc_cmd="vlc", sub_path=""):
+    """Launches VLC directly opening the target .m3u playlist file with subtitles."""
     print(f"Launching VLC with M3U playlist file: {m3u_path}")
+    vlc_args = [vlc_cmd, m3u_path]
+
+    real_sub = resolve_absolute_file_path(sub_path) if sub_path else ""
+    if real_sub and os.path.exists(real_sub):
+        vlc_args.append(f"--sub-file={real_sub}")
+        vlc_args.append("--sub-track=0")
+
     try:
-        subprocess.Popen([vlc_cmd, m3u_path])
-        print("VLC launched successfully via .m3u file!")
+        subprocess.Popen(vlc_args)
+        print("VLC launched successfully via .m3u file with subtitles!")
         return True
     except FileNotFoundError:
         print("VLC executable not found. Opening .m3u with system default application...")
@@ -310,8 +355,8 @@ def handle_uri(uri_string):
     config = load_config()
     cat_dir = "Series" if category in ["series", "tv"] else "Movies"
     
-    m3u_path = create_m3u_file(file_path, title, sub_path, config.get("playlists_dir"), cat_dir)
-    return launch_m3u_in_vlc(m3u_path, config.get("vlc_path", "vlc"))
+    m3u_path, real_sub = create_m3u_file(file_path, title, sub_path, config.get("playlists_dir"), cat_dir)
+    return launch_m3u_in_vlc(m3u_path, config.get("vlc_path", "vlc"), sub_path=real_sub)
 
 def show_alert(title, text):
     """Simple Windows message box popup fallback."""
@@ -357,8 +402,8 @@ class CompanionHTTPRequestHandler(BaseHTTPRequestHandler):
             item_type = urllib.parse.unquote(query_params.get("type", ["movie"])[0])
             
             cat_dir = "Series" if item_type in ["series", "tv"] else "Movies"
-            m3u_path = create_m3u_file(file_path, title, sub_path, config.get("playlists_dir"), cat_dir)
-            success = launch_m3u_in_vlc(m3u_path, config.get("vlc_path", "vlc"))
+            m3u_path, real_sub = create_m3u_file(file_path, title, sub_path, config.get("playlists_dir"), cat_dir)
+            success = launch_m3u_in_vlc(m3u_path, config.get("vlc_path", "vlc"), sub_path=real_sub)
             
             self.send_response(200 if success else 500)
             self._set_cors_headers()
@@ -388,8 +433,8 @@ class CompanionHTTPRequestHandler(BaseHTTPRequestHandler):
             item_type = data.get("type", "movie")
             
             cat_dir = "Series" if item_type in ["series", "tv"] else "Movies"
-            m3u_path = create_m3u_file(file_path, title, sub_path, config.get("playlists_dir"), cat_dir)
-            success = launch_m3u_in_vlc(m3u_path, config.get("vlc_path", "vlc"))
+            m3u_path, real_sub = create_m3u_file(file_path, title, sub_path, config.get("playlists_dir"), cat_dir)
+            success = launch_m3u_in_vlc(m3u_path, config.get("vlc_path", "vlc"), sub_path=real_sub)
 
             self.send_response(200 if success else 500)
             self._set_cors_headers()
