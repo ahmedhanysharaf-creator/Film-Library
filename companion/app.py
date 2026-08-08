@@ -208,7 +208,7 @@ def find_subtitle_in_directory(video_file_path):
 def create_m3u_file(file_path, title="Media", sub_path="", save_dir="", category="Movies"):
     """
     Generates a single .m3u playlist file for an item with subtitle directives.
-    Returns absolute path to generated .m3u file.
+    Returns (m3u_path, real_file_path, real_sub_path).
     """
     clean_title = sanitize_filename(title)
     target_dir = os.path.join(save_dir, category)
@@ -240,29 +240,43 @@ def create_m3u_file(file_path, title="Media", sub_path="", save_dir="", category
     except Exception as e:
         print(f"Error creating .m3u file: {e}")
         
-    return m3u_path, real_sub_path
+    return m3u_path, real_file_path, real_sub_path
 
-def launch_m3u_in_vlc(m3u_path, vlc_cmd="vlc", sub_path=""):
-    """Launches VLC directly opening the target .m3u playlist file with subtitles."""
-    print(f"Launching VLC with M3U playlist file: {m3u_path}")
-    vlc_args = [vlc_cmd, m3u_path]
-
+def launch_m3u_in_vlc(m3u_path, vlc_cmd="vlc", video_path="", sub_path=""):
+    """Launches VLC directly opening the target video file or .m3u playlist file with subtitles."""
+    real_video = resolve_absolute_file_path(video_path) if video_path else ""
     real_sub = resolve_absolute_file_path(sub_path) if sub_path else ""
+
+    if not real_sub and real_video:
+        real_sub = find_subtitle_in_directory(real_video)
+
+    vlc_args = [vlc_cmd]
+
+    if real_video and os.path.exists(real_video):
+        print(f"Launching VLC with video file: {real_video}")
+        vlc_args.append(real_video)
+    elif m3u_path and os.path.exists(m3u_path):
+        print(f"Launching VLC with M3U playlist file: {m3u_path}")
+        vlc_args.append(m3u_path)
+    else:
+        vlc_args.append(m3u_path)
+
     if real_sub and os.path.exists(real_sub):
         vlc_args.append(f"--sub-file={real_sub}")
         vlc_args.append("--sub-track=0")
 
     try:
         subprocess.Popen(vlc_args)
-        print("VLC launched successfully via .m3u file with subtitles!")
+        print("VLC launched successfully with subtitles!")
         return True
     except FileNotFoundError:
-        print("VLC executable not found. Opening .m3u with system default application...")
+        print("VLC executable not found. Opening with system default application...")
         try:
-            os.startfile(m3u_path)
+            target = real_video if (real_video and os.path.exists(real_video)) else m3u_path
+            os.startfile(target)
             return True
         except Exception as e:
-            print(f"Failed to open .m3u file: {e}")
+            print(f"Failed to open file: {e}")
             show_alert("Film Library Error", f"Failed to launch player: {e}")
             return False
     except Exception as e:
@@ -355,8 +369,8 @@ def handle_uri(uri_string):
     config = load_config()
     cat_dir = "Series" if category in ["series", "tv"] else "Movies"
     
-    m3u_path, real_sub = create_m3u_file(file_path, title, sub_path, config.get("playlists_dir"), cat_dir)
-    return launch_m3u_in_vlc(m3u_path, config.get("vlc_path", "vlc"), sub_path=real_sub)
+    m3u_path, real_video, real_sub = create_m3u_file(file_path, title, sub_path, config.get("playlists_dir"), cat_dir)
+    return launch_m3u_in_vlc(m3u_path, config.get("vlc_path", "vlc"), video_path=real_video, sub_path=real_sub)
 
 def show_alert(title, text):
     """Simple Windows message box popup fallback."""
@@ -402,8 +416,8 @@ class CompanionHTTPRequestHandler(BaseHTTPRequestHandler):
             item_type = urllib.parse.unquote(query_params.get("type", ["movie"])[0])
             
             cat_dir = "Series" if item_type in ["series", "tv"] else "Movies"
-            m3u_path, real_sub = create_m3u_file(file_path, title, sub_path, config.get("playlists_dir"), cat_dir)
-            success = launch_m3u_in_vlc(m3u_path, config.get("vlc_path", "vlc"), sub_path=real_sub)
+            m3u_path, real_video, real_sub = create_m3u_file(file_path, title, sub_path, config.get("playlists_dir"), cat_dir)
+            success = launch_m3u_in_vlc(m3u_path, config.get("vlc_path", "vlc"), video_path=real_video, sub_path=real_sub)
             
             self.send_response(200 if success else 500)
             self._set_cors_headers()
@@ -433,8 +447,8 @@ class CompanionHTTPRequestHandler(BaseHTTPRequestHandler):
             item_type = data.get("type", "movie")
             
             cat_dir = "Series" if item_type in ["series", "tv"] else "Movies"
-            m3u_path, real_sub = create_m3u_file(file_path, title, sub_path, config.get("playlists_dir"), cat_dir)
-            success = launch_m3u_in_vlc(m3u_path, config.get("vlc_path", "vlc"), sub_path=real_sub)
+            m3u_path, real_video, real_sub = create_m3u_file(file_path, title, sub_path, config.get("playlists_dir"), cat_dir)
+            success = launch_m3u_in_vlc(m3u_path, config.get("vlc_path", "vlc"), video_path=real_video, sub_path=real_sub)
 
             self.send_response(200 if success else 500)
             self._set_cors_headers()
