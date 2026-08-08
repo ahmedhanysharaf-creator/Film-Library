@@ -1,11 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, memo } from "react";
 import { Star, Play, CheckCircle2, Bookmark, Monitor, Tv, Film, Edit3, Trash2, CheckSquare, Square } from "lucide-react";
 import { launchInVlc, resolveMediaPaths } from "../services/vlcLauncher";
 import { getNextEpisodeToPlay, saveContinueWatchingItem } from "../services/continueWatching";
 import { useToast } from "../context/ToastContext";
 import { useAuth } from "../context/AuthContext";
 
-export const PosterCard = ({ 
+export const PosterCard = memo(({ 
   item, 
   onClick, 
   onEdit, 
@@ -274,7 +274,7 @@ export const PosterCard = ({
       </div>
     </div>
   );
-};
+});
 
 const styles = {
   card: {

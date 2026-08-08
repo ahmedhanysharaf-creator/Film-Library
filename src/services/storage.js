@@ -133,6 +133,14 @@ const INITIAL_SEED_LIBRARY = [
 const LOCAL_STORAGE_LIB_KEY = "filmlibrary_items_data";
 const LOCAL_STORAGE_USERS_KEY = "filmlibrary_allowed_users_data";
 
+let cachedItems = null;
+let lastCacheTime = 0;
+const CACHE_TTL_MS = 5000;
+
+export const clearMemoryCache = () => {
+  cachedItems = null;
+};
+
 export const getLocalLibrary = () => {
   const data = localStorage.getItem(LOCAL_STORAGE_LIB_KEY);
   if (!data) {
@@ -147,15 +155,21 @@ export const getLocalLibrary = () => {
 };
 
 export const saveLocalLibrary = (items) => {
+  cachedItems = items;
+  lastCacheTime = Date.now();
   localStorage.setItem(LOCAL_STORAGE_LIB_KEY, JSON.stringify(items));
   autoSyncIfConnected(items);
 };
 
 /**
- * Fetch all library items with GUARANTEED HYBRID PERSISTENCE
- * Combines LocalStorage + Firestore so refreshing NEVER wipes items!
+ * Fetch all library items with GUARANTEED HYBRID PERSISTENCE & 0-latency Memory Caching
  */
-export const fetchLibraryItems = async () => {
+export const fetchLibraryItems = async (forceRefresh = false) => {
+  const now = Date.now();
+  if (!forceRefresh && cachedItems && (now - lastCacheTime < CACHE_TTL_MS)) {
+    return cachedItems;
+  }
+
   const localItems = getLocalLibrary();
   let firestoreItems = [];
 
@@ -198,6 +212,8 @@ export const fetchLibraryItems = async () => {
   });
 
   const finalItems = Array.from(mergedMap.values());
+  cachedItems = finalItems;
+  lastCacheTime = Date.now();
   saveLocalLibrary(finalItems);
   return finalItems;
 };

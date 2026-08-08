@@ -631,35 +631,28 @@ export const Library = ({ onSelectItem, onEditItem, onPlayMedia }) => {
           ) : (
             <div style={viewMode === "grid" ? styles.grid : styles.listStack}>
               {filteredItems.map((item) => {
-                const isHovered = activeHoverId === item.id;
-                const hasAnyHover = activeHoverId !== null;
                 const isItemChecked = selectedItemIds.has(item.id);
-                const isDimmed = (hasAnyHover && !isHovered) || (selectedItemIds.size > 0 && !isItemChecked);
+                const isDimmed = selectedItemIds.size > 0 && !isItemChecked;
 
                 return (
-                  <div
+                  <PosterCard
                     key={item.id}
-                    onMouseEnter={() => setActiveHoverId(item.id)}
-                    onMouseLeave={() => setActiveHoverId(null)}
-                  >
-                    <PosterCard
-                      item={item}
-                      onClick={() => {
-                        if (isMultiSelectActive || selectedItemIds.size > 0) {
-                          handleToggleSelectItem(item.id);
-                        } else {
-                          onSelectItem(item);
-                        }
-                      }}
-                      onEdit={onEditItem}
-                      onDelete={handleDeleteItem}
-                      isSelected={isItemChecked || isHovered}
-                      isDimmed={isDimmed}
-                      viewMode={viewMode}
-                      onToggleSelect={isMultiSelectActive || selectedItemIds.size > 0 ? handleToggleSelectItem : null}
-                      onPlayMedia={onPlayMedia}
-                    />
-                  </div>
+                    item={item}
+                    onClick={() => {
+                      if (isMultiSelectActive || selectedItemIds.size > 0) {
+                        handleToggleSelectItem(item.id);
+                      } else {
+                        onSelectItem(item);
+                      }
+                    }}
+                    onEdit={onEditItem}
+                    onDelete={handleDeleteItem}
+                    isSelected={isItemChecked}
+                    isDimmed={isDimmed}
+                    viewMode={viewMode}
+                    onToggleSelect={isMultiSelectActive || selectedItemIds.size > 0 ? handleToggleSelectItem : null}
+                    onPlayMedia={onPlayMedia}
+                  />
                 );
               })}
             </div>
