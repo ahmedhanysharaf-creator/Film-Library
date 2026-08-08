@@ -229,7 +229,7 @@ def create_m3u_file(file_path, title="Media", sub_path="", save_dir="", category
         content += f"#EXTVLCOPT:sub-file={sub_win}\n"
         content += f"#EXTVLCOPT:sub-file={sub_unix}\n"
         content += f"#EXTVLCOPT:input-slave={sub_win}\n"
-        content += "#EXTVLCOPT:sub-track=1\n"
+        content += f"#EXTVLCOPT:input-slave={sub_unix}\n"
 
     content += f"#EXTINF:-1,{title}\n{real_file_path}\n"
     
@@ -262,9 +262,9 @@ def launch_m3u_in_vlc(m3u_path, vlc_cmd="vlc", video_path="", sub_path=""):
         vlc_args.append(m3u_path)
 
     if real_sub and os.path.exists(real_sub):
-        vlc_args.append(f"--sub-file={real_sub}")
-        vlc_args.append("--sub-track=1")
-        vlc_args.append("--sub-autodetect-file")
+        print(f"Attaching subtitle track: {real_sub}")
+        vlc_args.extend(["--sub-file", real_sub])
+        vlc_args.extend(["--input-slave", real_sub])
 
     try:
         subprocess.Popen(vlc_args)
