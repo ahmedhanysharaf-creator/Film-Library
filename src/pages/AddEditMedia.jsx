@@ -388,7 +388,9 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
     if (files.length === 0) return;
 
     const videoFiles = files.filter((f) => {
-      const ext = f.name.substring(f.name.lastIndexOf(".")).toLowerCase();
+      const extIndex = f.name.lastIndexOf(".");
+      if (extIndex === -1) return false;
+      const ext = f.name.substring(extIndex).toLowerCase();
       return VIDEO_EXTENSIONS.includes(ext);
     });
 
@@ -398,13 +400,24 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
     }
 
     const firstRelativePath = videoFiles[0].webkitRelativePath || "";
-    const detectedFolderName = firstRelativePath.split("/")[0] || "Marvel Films";
-    
-    if (!folderPath) {
-      setFolderPath(`C:\\Users\\Ahmed\\Downloads\\English\\${detectedFolderName}`);
+    const pathParts = firstRelativePath.split("/");
+    const detectedFolderName = pathParts.length > 1 ? pathParts[0] : "";
+
+    if (!folderPath && detectedFolderName) {
+      setFolderPath(detectedFolderName);
     }
 
-    const fileNamesList = videoFiles.map((f) => f.name).join("\n");
+    // Preserve relative subfolder structure (e.g., "Inception (2010)\Inception.mp4")
+    const fileNamesList = videoFiles.map((f) => {
+      if (f.webkitRelativePath) {
+        const parts = f.webkitRelativePath.split("/");
+        if (parts.length > 1) {
+          return parts.slice(1).join("\\");
+        }
+      }
+      return f.name;
+    }).join("\n");
+
     setFileListText(fileNamesList);
     const subCount = files.filter((f) => SUB_EXTENSIONS.some((ext) => f.name.toLowerCase().endsWith(ext))).length;
     const subMsg = subCount > 0 ? ` & ${subCount} subtitle track(s) (.srt)!` : "!";
