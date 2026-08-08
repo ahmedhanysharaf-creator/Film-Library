@@ -274,6 +274,13 @@ export const PosterCard = memo(({
       </div>
     </div>
   );
+}, (prevProps, nextProps) => {
+  return (
+    prevProps.item === nextProps.item &&
+    prevProps.isSelected === nextProps.isSelected &&
+    prevProps.isDimmed === nextProps.isDimmed &&
+    prevProps.viewMode === nextProps.viewMode
+  );
 });
 
 const styles = {

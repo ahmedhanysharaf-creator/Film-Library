@@ -133,7 +133,7 @@ export const downloadVlcM3uPlaylist = (path, title, subPath) => {
 };
 
 /**
- * Master Direct Automatic VLC Launcher (Opens media directly in VLC with subtitles!)
+ * Master Direct Automatic VLC Launcher (Opens media in VLC through .m3u playlist files!)
  */
 export const launchInVlc = (path, title, addToast, subPath = "", itemType = "movie") => {
   if (!path) {
@@ -143,35 +143,48 @@ export const launchInVlc = (path, title, addToast, subPath = "", itemType = "mov
 
   const cleanPath = cleanLocalPath(path);
   const cleanSub = cleanLocalPath(subPath);
-  const cleanTitle = (title || "Media").replace(/[^a-zA-Z0-9_\-\s]/g, "");
+  const cleanTitle = title || "Media";
 
   // 1. Copy clean path to clipboard as background convenience
   copyPathToClipboard(cleanPath);
 
-  // 2. Build protocol URI with standard URL-encoded path and sub parameters
-  let protocolUri = `filmlibrary://play?path=${encodeURIComponent(cleanPath)}`;
-  if (cleanSub) {
-    protocolUri += `&sub=${encodeURIComponent(cleanSub)}`;
-  }
-
-  // Also include base64 fallbacks f and s
-  const fB64 = encodePathB64(cleanPath);
-  const sB64 = cleanSub ? encodePathB64(cleanSub) : "";
-  if (fB64) protocolUri += `&f=${encodeURIComponent(fB64)}`;
-  if (sB64) protocolUri += `&s=${encodeURIComponent(sB64)}`;
-
-  // Also include fallback m3u path
-  const baseFolder = getLocalPlaylistFolderPath();
-  const subFolder = itemType === "series" || itemType === "tv" ? "Series" : "Movies";
-  const m3uFilePath = `${baseFolder}\\${subFolder}\\${cleanTitle.replace(/\s+/g, "_")}.m3u`;
-  protocolUri += `&m3u=${encodeURIComponent(encodePathB64(m3uFilePath))}`;
-
-  // 3. Trigger filmlibrary:// protocol to launch VLC directly with video file
-  window.location.href = protocolUri;
-
   if (addToast) {
-    addToast(`Launching "${cleanTitle}" in VLC...`, "success");
+    addToast(`Opening "${cleanTitle}" in VLC via .m3u playlist...`, "info");
   }
+
+  // 2. Try launching via Companion HTTP server (Zero-prompt direct launch through .m3u file)
+  fetch("http://127.0.0.1:18899/play", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      path: cleanPath,
+      subPath: cleanSub,
+      title: cleanTitle,
+      type: itemType
+    })
+  })
+    .then((res) => res.json())
+    .then((data) => {
+      if (data.success) {
+        if (addToast) addToast(`Launched VLC via .m3u playlist!`, "success");
+      } else {
+        throw new Error("Companion HTTP error");
+      }
+    })
+    .catch(() => {
+      // 3. Fallback: Trigger filmlibrary:// URI protocol handler
+      let protocolUri = `filmlibrary://play?path=${encodeURIComponent(cleanPath)}&title=${encodeURIComponent(cleanTitle)}&type=${encodeURIComponent(itemType)}`;
+      if (cleanSub) {
+        protocolUri += `&sub=${encodeURIComponent(cleanSub)}`;
+      }
+
+      window.location.href = protocolUri;
+
+      // 4. Also trigger automatic .m3u playlist download/opening in browser
+      setTimeout(() => {
+        downloadVlcM3uPlaylist(cleanPath, cleanTitle, cleanSub);
+      }, 300);
+    });
 
   return true;
 };

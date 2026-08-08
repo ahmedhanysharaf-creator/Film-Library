@@ -15,11 +15,17 @@ export const SettingsModal = ({ onClose }) => {
     localStorage.getItem("filmlibrary_firebase_config") || ""
   );
   const [syncHandle, setSyncHandle] = useState(null);
+  const [companionStatus, setCompanionStatus] = useState("checking");
 
   useEffect(() => {
     getStoredDirectoryHandle().then((handle) => {
       if (handle) setSyncHandle(handle);
     });
+
+    fetch("http://127.0.0.1:18899/status")
+      .then((r) => r.json())
+      .then(() => setCompanionStatus("connected"))
+      .catch(() => setCompanionStatus("offline"));
   }, []);
 
   const handleSave = (e) => {
@@ -62,6 +68,49 @@ export const SettingsModal = ({ onClose }) => {
         </div>
 
         <form onSubmit={handleSave} style={styles.form}>
+          {/* Companion Background Service Connection Status */}
+          <div style={{ ...styles.vlcSetupBox, backgroundColor: companionStatus === "connected" ? "rgba(16, 185, 129, 0.15)" : "rgba(245, 158, 11, 0.15)", borderColor: companionStatus === "connected" ? "#10b981" : "#f59e0b", padding: "16px" }}>
+            <FolderSync size={28} color={companionStatus === "connected" ? "#10b981" : "#f59e0b"} />
+            <div style={{ flex: 1 }}>
+              <div style={{ ...styles.vlcSetupTitle, color: companionStatus === "connected" ? "#34d399" : "#fbbf24", fontSize: "1.05rem" }}>
+                {companionStatus === "connected" ? "🟢 Windows Companion Server Active" : "🟡 Companion Server Offline"}
+              </div>
+              <p style={styles.vlcSetupSub}>
+                {companionStatus === "connected"
+                  ? "Real-time M3U playlist auto-sync is ACTIVE! Clicking Play opens VLC through your local .m3u playlist files."
+                  : "To enable instant VLC launching and automatic local .m3u folder syncing, run python companion/app.py on your PC."}
+              </p>
+            </div>
+            <button
+              type="button"
+              style={{ ...styles.downloadRegBtn, backgroundColor: "#10b981", color: "#ffffff", padding: "8px 14px" }}
+              onClick={async () => {
+                const items = await fetchLibraryItems();
+                const payload = items.map((item) => ({
+                  title: item.title,
+                  type: item.type,
+                  entries: (item.user_paths || []).map((up) => ({ path: up.paths?.default, title: item.title }))
+                }));
+                fetch("http://127.0.0.1:18899/sync", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ items: payload })
+                })
+                  .then((r) => r.json())
+                  .then((d) => {
+                    setCompanionStatus("connected");
+                    addToast(`Synced ${d.entries_synced} items to Playlists folder!`, "success");
+                  })
+                  .catch(() => {
+                    setCompanionStatus("offline");
+                    addToast("Companion server is offline. Run python companion/app.py", "warning");
+                  });
+              }}
+            >
+              Sync M3U Playlists Now
+            </button>
+          </div>
+
           {/* Automatic Local Folder Auto-Play & Sync */}
           <div style={{ ...styles.vlcSetupBox, backgroundColor: "rgba(139, 92, 246, 0.15)", borderColor: "#8b5cf6", padding: "16px" }}>
             <FolderSync size={28} color="#8b5cf6" />

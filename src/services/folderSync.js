@@ -112,8 +112,13 @@ export const syncAllPlaylistsToFolder = async (items, dirHandle, addToast) => {
     // Verify permission
     const options = { mode: "readwrite" };
     if ((await dirHandle.queryPermission(options)) !== "granted") {
-      if ((await dirHandle.requestPermission(options)) !== "granted") {
-        if (addToast) addToast("Folder write permission denied.", "warning");
+      // Avoid requesting permission outside user activation
+      try {
+        if ((await dirHandle.requestPermission(options)) !== "granted") {
+          if (addToast) addToast("Folder write permission denied.", "warning");
+          return;
+        }
+      } catch (e) {
         return;
       }
     }
@@ -121,6 +126,20 @@ export const syncAllPlaylistsToFolder = async (items, dirHandle, addToast) => {
     // Create subfolders: Movies/ and Series/
     const moviesDir = await dirHandle.getDirectoryHandle("Movies", { create: true });
     const seriesDir = await dirHandle.getDirectoryHandle("Series", { create: true });
+
+    // Clean obsolete .m3u files in Movies/ and Series/
+    try {
+      for await (const entry of moviesDir.values()) {
+        if (entry.kind === "file" && entry.name.endsWith(".m3u")) {
+          await moviesDir.removeEntry(entry.name);
+        }
+      }
+      for await (const entry of seriesDir.values()) {
+        if (entry.kind === "file" && entry.name.endsWith(".m3u")) {
+          await seriesDir.removeEntry(entry.name);
+        }
+      }
+    } catch (e) {}
 
     let masterContent = `#EXTM3U\n`;
     let count = 0;
@@ -166,9 +185,25 @@ export const syncAllPlaylistsToFolder = async (items, dirHandle, addToast) => {
 };
 
 /**
- * Triggers auto-sync if a local folder handle is stored
+ * Triggers auto-sync to Companion HTTP API and local DirectoryHandle if stored
  */
 export const autoSyncIfConnected = async (items) => {
+  if (!items) return;
+
+  // 1. Sync to local Companion HTTP Server
+  const payload = items.map((item) => ({
+    title: item.title,
+    type: item.type,
+    entries: getItemPathsAndSubtitles(item)
+  }));
+
+  fetch("http://127.0.0.1:18899/sync", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ items: payload })
+  }).catch(() => {});
+
+  // 2. Sync to stored HTML5 DirectoryHandle if available
   const handle = await getStoredDirectoryHandle();
   if (handle) {
     await syncAllPlaylistsToFolder(items, handle, null);
