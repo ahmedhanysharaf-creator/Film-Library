@@ -86,7 +86,7 @@ def clean_path_string(raw_path):
 def resolve_absolute_file_path(raw_path):
     """
     Cleans path string and attempts to resolve relative or missing paths 
-    to an existing absolute file on disk.
+    to an existing absolute file on disk by scanning candidate folders.
     """
     clean_p = clean_path_string(raw_path)
     if not clean_p:
@@ -97,30 +97,70 @@ def resolve_absolute_file_path(raw_path):
 
     home = os.path.expanduser("~")
     candidate_roots = [
-        r"D:\\",
-        r"E:\\",
-        r"F:\\",
-        r"C:\\",
         os.path.join(home, "Downloads"),
         os.path.join(home, "Movies"),
         os.path.join(home, "Videos"),
         os.path.join(home, "Desktop"),
-        os.path.join(home, "Documents")
+        os.path.join(home, "Documents"),
+        r"D:\\",
+        r"E:\\",
+        r"F:\\",
+        r"C:\\"
     ]
 
-    # Try combining candidate root with relative path
+    # 1. Direct join with roots
     for root in candidate_roots:
         cand1 = os.path.join(root, clean_p)
         if os.path.exists(cand1):
             return os.path.abspath(cand1)
 
-    # Try combining candidate root with basename
+    # 2. Check 1-level subdirectories of candidate roots (e.g. Downloads\English\Marvel Films\...)
+    for root in candidate_roots:
+        if os.path.exists(root):
+            try:
+                for sub in os.listdir(root):
+                    sub_dir = os.path.join(root, sub)
+                    if os.path.isdir(sub_dir):
+                        cand = os.path.join(sub_dir, clean_p)
+                        if os.path.exists(cand):
+                            return os.path.abspath(cand)
+            except Exception:
+                pass
+
+    # 3. Basename search across candidate roots and 1-level subdirectories
     base_name = os.path.basename(clean_p)
     if base_name:
         for root in candidate_roots:
-            cand2 = os.path.join(root, base_name)
-            if os.path.exists(cand2):
-                return os.path.abspath(cand2)
+            cand_base = os.path.join(root, base_name)
+            if os.path.exists(cand_base):
+                return os.path.abspath(cand_base)
+
+            if os.path.exists(root):
+                try:
+                    for sub in os.listdir(root):
+                        sub_dir = os.path.join(root, sub)
+                        if os.path.isdir(sub_dir):
+                            cand = os.path.join(sub_dir, base_name)
+                            if os.path.exists(cand):
+                                return os.path.abspath(cand)
+                except Exception:
+                    pass
+
+    # 4. Deep search across candidate roots for matching basename
+    if base_name:
+        for root in candidate_roots:
+            if not os.path.exists(root):
+                continue
+            try:
+                for dirpath, dirnames, filenames in os.walk(root):
+                    dirnames[:] = [d for d in dirnames if d.lower() not in ["$recycle.bin", "node_modules", ".git", "appdata", "windows"]]
+                    if base_name in filenames:
+                        return os.path.abspath(os.path.join(dirpath, base_name))
+                    depth = dirpath.count(os.sep) - root.count(os.sep)
+                    if depth >= 3:
+                        dirnames.clear()
+            except Exception:
+                pass
 
     return clean_p
 
