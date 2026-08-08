@@ -34,6 +34,8 @@ export const PosterCard = ({
 
     if (isSeries) {
       const nextInfo = getNextEpisodeToPlay(item, uid);
+      const { path, subPath } = resolveMediaPaths(item, uid, nextInfo.season, nextInfo.episode);
+
       saveContinueWatchingItem({
         mediaId: item.id || item.tmdb_id,
         title: item.title,
@@ -45,17 +47,11 @@ export const PosterCard = ({
         progressPct: 50
       });
 
-      if (onPlayMedia) {
-        onPlayMedia(item, nextInfo.season, nextInfo.episode);
-      } else {
-        const { path, subPath } = resolveMediaPaths(item, uid, nextInfo.season, nextInfo.episode);
-        if (path) {
-          launchInVlc(path, `${item.title} ${nextInfo.epCode}`, addToast, subPath, item.type);
-        } else {
-          addToast(`No local file path configured for "${item.title}". Click item for details.`, "warning");
-        }
-      }
+      const targetPath = path || item.title;
+      launchInVlc(targetPath, `${item.title} ${nextInfo.epCode}`, addToast, subPath, item.type);
     } else {
+      const { path, subPath } = resolveMediaPaths(item, uid);
+
       saveContinueWatchingItem({
         mediaId: item.id || item.tmdb_id,
         title: item.title,
@@ -65,16 +61,8 @@ export const PosterCard = ({
         progressPct: 50
       });
 
-      if (onPlayMedia) {
-        onPlayMedia(item, 1, 1);
-      } else {
-        const { path, subPath } = resolveMediaPaths(item, uid);
-        if (path) {
-          launchInVlc(path, item.title, addToast, subPath, item.type);
-        } else {
-          addToast(`No local file path configured for "${item.title}". Click item for details.`, "warning");
-        }
-      }
+      const targetPath = path || item.title;
+      launchInVlc(targetPath, item.title, addToast, subPath, item.type);
     }
   };
 

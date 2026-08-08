@@ -34,11 +34,6 @@ export const ContinueWatchingRow = ({ libraryItems = [], onSelectMedia, setActiv
   const handlePlayItem = (cwItem) => {
     const matchedMedia = libraryItems.find((m) => m.id === cwItem.mediaId || m.tmdb_id === cwItem.mediaId);
     
-    if (matchedMedia && onPlayMedia) {
-      onPlayMedia(matchedMedia, cwItem.season || 1, cwItem.episode || 1);
-      return;
-    }
-
     let path = "";
     let subPath = "";
 
@@ -51,14 +46,9 @@ export const ContinueWatchingRow = ({ libraryItems = [], onSelectMedia, setActiv
       subPath = resolved.subPath;
     }
 
-    if (path) {
-      const label = cwItem.epCode ? `${cwItem.title} (${cwItem.epCode})` : cwItem.title;
-      launchInVlc(path, label, addToast, subPath, matchedMedia?.type);
-    } else if (matchedMedia) {
-      onSelectMedia(matchedMedia);
-    } else {
-      addToast(`Please configure local file path for "${cwItem.title}"`, "warning");
-    }
+    const label = cwItem.epCode ? `${cwItem.title} (${cwItem.epCode})` : cwItem.title;
+    const targetPath = path || cwItem.title;
+    launchInVlc(targetPath, label, addToast, subPath, matchedMedia?.type);
   };
 
   const handleOpenEditModal = (cwItem, e) => {
