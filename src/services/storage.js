@@ -1,4 +1,5 @@
 import { db, isFirebaseConfigured } from "./firebase";
+import { autoSyncIfConnected } from "./folderSync";
 import { 
   collection, 
   doc, 
@@ -145,8 +146,6 @@ export const getLocalLibrary = () => {
   }
 };
 
-import { autoSyncIfConnected } from "./folderSync";
-
 export const saveLocalLibrary = (items) => {
   localStorage.setItem(LOCAL_STORAGE_LIB_KEY, JSON.stringify(items));
   autoSyncIfConnected(items);
@@ -275,6 +274,7 @@ export const saveMediaEntry = async (mediaData, currentUser) => {
   }
 
   saveLocalLibrary(allItems);
+  autoSyncIfConnected(allItems);
   return savedItem;
 };
 
@@ -358,6 +358,7 @@ export const saveMediaEntriesBatch = async (mediaDataList, currentUser, onProgre
 
   // 1. ALWAYS persist to LocalStorage FIRST so refreshing never loses data
   saveLocalLibrary(allItems);
+  autoSyncIfConnected(allItems);
 
   // 2. Non-blocking Firestore background commit with 2-second timeout ceiling
   if (useFirestore && batch) {
