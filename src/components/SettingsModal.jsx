@@ -62,15 +62,15 @@ export const SettingsModal = ({ onClose }) => {
         </div>
 
         <form onSubmit={handleSave} style={styles.form}>
-          {/* Automatic Local Folder Syncing */}
-          <div style={{ ...styles.vlcSetupBox, backgroundColor: "rgba(139, 92, 246, 0.1)", borderColor: "#8b5cf6" }}>
-            <FolderSync size={24} color="#8b5cf6" />
+          {/* Automatic Local Folder Auto-Play & Sync */}
+          <div style={{ ...styles.vlcSetupBox, backgroundColor: "rgba(139, 92, 246, 0.15)", borderColor: "#8b5cf6", padding: "16px" }}>
+            <FolderSync size={28} color="#8b5cf6" />
             <div style={{ flex: 1 }}>
-              <div style={styles.vlcSetupTitle}>
-                Local Playlist Folder Auto-Sync {syncHandle ? `(Connected: ${syncHandle.name})` : ""}
+              <div style={{ ...styles.vlcSetupTitle, color: "#a78bfa", fontSize: "1.05rem" }}>
+                🎬 Local Media Folder {syncHandle ? `(Connected: "${syncHandle.name}")` : "(Not Connected)"}
               </div>
               <p style={styles.vlcSetupSub}>
-                Select a folder on your computer. When you add/edit movies or series, individual `.m3u` files will be updated in `Movies/` and `Series/` subfolders automatically!
+                Connect your main PC media folder (e.g. <code>D:\Movies</code> or <code>Marvel Films</code>). Once connected, clicking **Play** on ANY movie or TV series episode will play the file **100% AUTOMATICALLY** with ZERO manual file picking!
               </p>
             </div>
             {syncHandle ? (
@@ -80,7 +80,7 @@ export const SettingsModal = ({ onClose }) => {
                 onClick={async () => {
                   await clearStoredDirectoryHandle();
                   setSyncHandle(null);
-                  addToast("Disconnected local playlist folder.", "info");
+                  addToast("Disconnected local media folder.", "info");
                 }}
               >
                 Disconnect
@@ -88,7 +88,7 @@ export const SettingsModal = ({ onClose }) => {
             ) : (
               <button
                 type="button"
-                style={{ ...styles.downloadRegBtn, backgroundColor: "#8b5cf6", color: "#ffffff" }}
+                style={{ ...styles.downloadRegBtn, backgroundColor: "#8b5cf6", color: "#ffffff", padding: "10px 18px", fontWeight: 700 }}
                 onClick={async () => {
                   const handle = await connectLocalPlaylistFolder(addToast);
                   if (handle) {
@@ -98,7 +98,7 @@ export const SettingsModal = ({ onClose }) => {
                   }
                 }}
               >
-                <FolderSync size={14} /> Connect Folder
+                <FolderSync size={16} /> Connect Media Folder (Select ONCE)
               </button>
             )}
           </div>

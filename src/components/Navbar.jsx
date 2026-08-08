@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Film, Plus, Shield, Settings, LogOut, User, ChevronDown, MonitorPlay, Download, Wrench, Search, FileText, LayoutGrid } from "lucide-react";
+import { Film, Plus, Shield, Settings, LogOut, User, ChevronDown, MonitorPlay, Download, Wrench, Search, FileText, LayoutGrid, FolderSync } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 export const Navbar = ({ activePage, setActivePage, onSelectTool, onOpenWhitelist, onOpenSettings }) => {
@@ -156,9 +156,10 @@ export const Navbar = ({ activePage, setActivePage, onSelectTool, onOpenWhitelis
               gap: "6px",
               outline: "none"
             }}
-            onClick={() => alert("Hello Ahmed!")}
+            onClick={onOpenSettings}
+            title="Connect local PC media folder ONCE so all movies & series play automatically"
           >
-            Ahmed
+            <FolderSync size={16} /> 📁 Connect Media Folder
           </button>
         </div>
 
