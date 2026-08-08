@@ -64,6 +64,66 @@ def sanitize_filename(name):
     clean = re.sub(r'\s+', '_', clean).strip('_')
     return clean or "Media"
 
+def clean_path_string(raw_path):
+    """Normalizes and decodes raw paths, unquoting %20, %5C, file://, etc."""
+    if not raw_path:
+        return ""
+    path = str(raw_path).strip()
+    path = re.sub(r'^file:///?', '', path, flags=re.IGNORECASE)
+    
+    try:
+        prev = ""
+        while "%" in path and path != prev:
+            prev = path
+            path = urllib.parse.unquote(path)
+    except Exception:
+        pass
+
+    path = path.replace("/", "\\")
+    path = re.sub(r'\\+', r'\\', path)
+    return path.strip()
+
+def resolve_absolute_file_path(raw_path):
+    """
+    Cleans path string and attempts to resolve relative or missing paths 
+    to an existing absolute file on disk.
+    """
+    clean_p = clean_path_string(raw_path)
+    if not clean_p:
+        return ""
+
+    if os.path.exists(clean_p):
+        return os.path.abspath(clean_p)
+
+    home = os.path.expanduser("~")
+    candidate_roots = [
+        r"D:\\",
+        r"E:\\",
+        r"F:\\",
+        r"C:\\",
+        os.path.join(home, "Downloads"),
+        os.path.join(home, "Movies"),
+        os.path.join(home, "Videos"),
+        os.path.join(home, "Desktop"),
+        os.path.join(home, "Documents")
+    ]
+
+    # Try combining candidate root with relative path
+    for root in candidate_roots:
+        cand1 = os.path.join(root, clean_p)
+        if os.path.exists(cand1):
+            return os.path.abspath(cand1)
+
+    # Try combining candidate root with basename
+    base_name = os.path.basename(clean_p)
+    if base_name:
+        for root in candidate_roots:
+            cand2 = os.path.join(root, base_name)
+            if os.path.exists(cand2):
+                return os.path.abspath(cand2)
+
+    return clean_p
+
 def create_m3u_file(file_path, title="Media", sub_path="", save_dir="", category="Movies"):
     """
     Generates a single .m3u playlist file for an item with subtitle directives.
@@ -75,26 +135,30 @@ def create_m3u_file(file_path, title="Media", sub_path="", save_dir="", category
     
     m3u_path = os.path.join(target_dir, f"{clean_title}.m3u")
     
+    real_file_path = resolve_absolute_file_path(file_path)
+    real_sub_path = resolve_absolute_file_path(sub_path) if sub_path else ""
+    
     content = "#EXTM3U\n"
-    if sub_path and os.path.exists(sub_path):
-        content += f"#EXTVLCOPT:sub-file={sub_path}\n"
+    if real_sub_path and os.path.exists(real_sub_path):
+        content += f"#EXTVLCOPT:sub-file={real_sub_path}\n"
         content += "#EXTVLCOPT:sub-track=0\n"
-    elif file_path:
-        dir_name = os.path.dirname(file_path)
-        base_name = os.path.splitext(os.path.basename(file_path))[0]
-        for ext in [".srt", ".ass", ".vtt", ".sub"]:
-            cand = os.path.join(dir_name, f"{base_name}{ext}")
-            if os.path.exists(cand):
-                content += f"#EXTVLCOPT:sub-file={cand}\n"
-                content += "#EXTVLCOPT:sub-track=0\n"
-                break
+    elif real_file_path:
+        dir_name = os.path.dirname(real_file_path)
+        base_name = os.path.splitext(os.path.basename(real_file_path))[0]
+        if dir_name and base_name:
+            for ext in [".srt", ".ass", ".vtt", ".sub"]:
+                cand = os.path.join(dir_name, f"{base_name}{ext}")
+                if os.path.exists(cand):
+                    content += f"#EXTVLCOPT:sub-file={cand}\n"
+                    content += "#EXTVLCOPT:sub-track=0\n"
+                    break
 
-    content += f"#EXTINF:-1,{title}\n{file_path}\n"
+    content += f"#EXTINF:-1,{title}\n{real_file_path}\n"
     
     try:
         with open(m3u_path, "w", encoding="utf-8") as f:
             f.write(content)
-        print(f"Created/Updated .m3u playlist: {m3u_path}")
+        print(f"Created/Updated .m3u playlist for '{title}' -> Path: {real_file_path}")
     except Exception as e:
         print(f"Error creating .m3u file: {e}")
         
@@ -154,14 +218,14 @@ def sync_playlists_folder(items_payload, playlists_dir):
         item_m3u_content = "#EXTM3U\n"
         
         for entry in entries:
-            file_path = entry.get("path", "")
-            sub_path = entry.get("subPath", "")
+            file_path = resolve_absolute_file_path(entry.get("path", ""))
+            sub_path = resolve_absolute_file_path(entry.get("subPath", "")) if entry.get("subPath") else ""
             entry_title = entry.get("title", item_title)
             
             if not file_path:
                 continue
                 
-            if sub_path:
+            if sub_path and os.path.exists(sub_path):
                 item_m3u_content += f"#EXTVLCOPT:sub-file={sub_path}\n#EXTVLCOPT:sub-track=0\n"
                 master_content += f"#EXTVLCOPT:sub-file={sub_path}\n#EXTVLCOPT:sub-track=0\n"
             
