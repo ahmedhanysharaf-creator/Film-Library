@@ -37,22 +37,36 @@ export const extractTitleAndYearFromPath = (fullPath) => {
   let extractedYear = null;
   const yearMatch = rawName.match(/\b(19\d\d|20\d\d)\b/);
   if (yearMatch) {
-    extractedYear = parseInt(yearMatch[1]);
+    extractedYear = parseInt(yearMatch[1], 10);
   }
 
-  let clean = rawName.replace(/[\[\(]?\b(19\d\d|20\d\d)\b[\]\)]?/g, " ");
-  clean = clean.replace(/^(?:M\d+|E\d+|S\d+E\d+|\d+)\b\s*[-_.]*\s*/i, "");
+  let clean = rawName;
 
+  // 1. Remove bracketed years e.g. (2021), [2021], or standalone year 2021
+  clean = clean.replace(/[\[\(]?\b(19\d\d|20\d\d)\b[\]\)]?/g, " ");
+
+  // 2. Remove prefix tags like P05, P01, P-05, P_05, M01, E01, S01E01, numeric index "01 - ", "1 - "
+  clean = clean.replace(/^(?:\[?\s*P[-_]?\d+\s*\]?|\[?\s*M[-_]?\d+\s*\]?|\[?\s*E[-_]?\d+\s*\]?|\[?\s*S\d+E\d+\s*\]?|\d{1,3}\s*[-_.]\s*)/i, "");
+
+  // 3. Remove inline or trailing season patterns e.g. "- S01", "- Season 1", "S01", "Season 01"
+  clean = clean.replace(/(?:[.\s_–-]+(?:Season|Saisons?|Stafell|Temporada|Seizoen|S)[\.\s_\-]*\d{1,2}\b.*$)/i, "");
+
+  // 4. Remove leading bracket tags e.g. [1080p], [HEVC], [NF]
+  clean = clean.replace(/^\[[^\]]+\]\s*/g, "").replace(/\s*\[[^\]]+\]$/g, "");
+
+  // 5. Remove quality & release tags
   const tags = [
     "1080p", "720p", "4k", "2160p", "bluray", "web-dl", "webrip", "hdrip", "dvdrip",
-    "x264", "x265", "hevc", "aac", "dts", "repack", "remux", "hdr", "dual audio"
+    "x264", "x265", "hevc", "aac", "dts", "repack", "remux", "hdr", "dual audio",
+    "p01", "p02", "p03", "p04", "p05", "p06", "p07", "p08", "p09", "p10"
   ];
   tags.forEach((tag) => {
     const reg = new RegExp(`\\b${tag}\\b`, "gi");
     clean = clean.replace(reg, "");
   });
 
-  clean = clean.replace(/^[-\s._]+/, "");
+  clean = clean.replace(/^[-\s._–]+/, "");
+  clean = clean.replace(/[-\s._–]+$/, "");
   clean = clean.replace(/[._]/g, " ");
   clean = clean.replace(/\s+-\s+/g, " ");
   clean = clean.replace(/\s+/g, " ").trim();
@@ -76,14 +90,16 @@ export const isSeasonFolderName = (folderName) => {
   if (/^(?:Specials|Extras|Bonus)(?:[\.\s_\-]*[\(\[][^\)\]]+[\)\]])?$/i.test(clean)) {
     return true;
   }
-  return false;
+  // Check if string becomes empty when stripping year, season, and prefix tags
+  const { cleanTitle } = extractTitleAndYearFromPath(clean);
+  return !cleanTitle;
 };
 
 export const extractSeasonNumberFromFolder = (folderName) => {
   if (!folderName) return 1;
   if (/^(?:Specials|Extras|Bonus)$/i.test(folderName.trim())) return 0;
-  const match = folderName.match(/\b\d{1,2}\b/);
-  if (match) return parseInt(match[0], 10);
+  const match = folderName.match(/(?:Season|Saisons?|Stafell|Temporada|Seizoen|S)[\.\s_\-]*(\d{1,2})\b/i) || folderName.match(/\b\d{1,2}\b/);
+  if (match) return parseInt(match[1] || match[0], 10);
   return 1;
 };
 
@@ -156,7 +172,7 @@ export const parseTvShowFileName = (fullPathOrFileName, rootFolderPath = "") => 
           isTv = true;
           seriesTitleRawFromFile = match[1] || "";
           seasonFromFile = 1;
-          episodeFromFile = parseInt(match[2], 10);
+          episodeFromFile = parseInt(match[3], 10);
         } else {
           // 5. Regex 301 or 101 (Season 3 Ep 01, Season 1 Ep 01)
           const reg5 = /^(.+?)[.\s_–-]+(\d{1})(\d{2})\b/i;
@@ -185,39 +201,33 @@ export const parseTvShowFileName = (fullPathOrFileName, rootFolderPath = "") => 
   // 2. Folder hierarchy analysis
   let seasonFromFolder = null;
   let seriesTitleFromFolder = "";
+  let yearFromFolder = null;
 
   for (let i = folderParts.length - 1; i >= 0; i--) {
     const folder = folderParts[i];
     
-    if (isSeasonFolderName(folder)) {
-      isTv = true;
-      if (seasonFromFolder === null) {
-        seasonFromFolder = extractSeasonNumberFromFolder(folder);
-      }
-      continue;
-    }
-
     if (isGenericLibraryFolderName(folder)) {
       continue;
     }
 
-    // Check if folder itself has a season pattern like "Game.of.Thrones.S01.1080p"
-    const seasonTagMatch = folder.match(/^(.+?)[.\s_–-]+S(\d{1,2})\b/i);
-    if (seasonTagMatch) {
+    // Check if folder itself contains a season pattern (e.g. "Season 1", "S01", "P05 - (2021) - Hawkeye - S01")
+    const seasonPatternMatch = folder.match(/(?:[.\s_–-]+|^)(?:Season|Saisons?|Stafell|Temporada|Seizoen|S)[\.\s_\-]*(\d{1,2})\b/i);
+    if (seasonPatternMatch) {
       isTv = true;
       if (seasonFromFolder === null) {
-        seasonFromFolder = parseInt(seasonTagMatch[2], 10);
-      }
-      const { cleanTitle } = extractTitleAndYearFromPath(seasonTagMatch[1]);
-      if (cleanTitle && !isGenericLibraryFolderName(cleanTitle)) {
-        seriesTitleFromFolder = cleanTitle;
-        break;
+        seasonFromFolder = parseInt(seasonPatternMatch[1], 10);
       }
     }
 
-    // Normal folder name (e.g. "Breaking Bad" or "Marvel's Daredevil")
-    const { cleanTitle } = extractTitleAndYearFromPath(folder);
-    if (cleanTitle && !isGenericLibraryFolderName(cleanTitle)) {
+    if (isSeasonFolderName(folder)) {
+      continue;
+    }
+
+    // Normal or compound folder name (e.g. "Breaking Bad" or "P05 - (2021) - Hawkeye - S01")
+    const { cleanTitle, year: fYear } = extractTitleAndYearFromPath(folder);
+    if (fYear && !yearFromFolder) yearFromFolder = fYear;
+
+    if (cleanTitle && !isGenericLibraryFolderName(cleanTitle) && !isSeasonFolderName(cleanTitle)) {
       isTv = true;
       seriesTitleFromFolder = cleanTitle;
       break;
@@ -226,24 +236,29 @@ export const parseTvShowFileName = (fullPathOrFileName, rootFolderPath = "") => 
 
   // 3. Fallback to rootFolderPath if seriesTitleFromFolder is still empty
   let seriesTitleFromRoot = "";
+  let yearFromRoot = null;
   if (rootFolderPath) {
     const cleanRoot = rootFolderPath.replace(/\\/g, "/").split("/").filter(Boolean).pop() || "";
     if (cleanRoot && !isSeasonFolderName(cleanRoot) && !isGenericLibraryFolderName(cleanRoot)) {
-      const { cleanTitle } = extractTitleAndYearFromPath(cleanRoot);
+      const { cleanTitle, year: rYear } = extractTitleAndYearFromPath(cleanRoot);
       if (cleanTitle) seriesTitleFromRoot = cleanTitle;
+      if (rYear) yearFromRoot = rYear;
     }
   }
 
   // 4. Resolve Series Title
   let cleanTitleFromFile = "";
+  let yearFromFile = null;
   if (seriesTitleRawFromFile) {
-    cleanTitleFromFile = extractCleanTitleFromPath(seriesTitleRawFromFile);
+    const parsedFile = extractTitleAndYearFromPath(seriesTitleRawFromFile);
+    cleanTitleFromFile = parsedFile.cleanTitle;
+    yearFromFile = parsedFile.year;
     if (isGenericLibraryFolderName(cleanTitleFromFile)) cleanTitleFromFile = "";
   }
 
   // Precedence for series title:
-  // 1) Folder title (e.g. "Breaking Bad" from Breaking Bad/Season 1)
-  // 2) Title from filename if valid (e.g. "Breaking Bad" from Breaking.Bad.S01E01)
+  // 1) Folder title (e.g. "Hawkeye" from P05 - (2021) - Hawkeye - S01)
+  // 2) Title from filename if valid (e.g. "Hawkeye" from Hawkeye.S01E01.mp4)
   // 3) Root folder title
   // 4) Clean title from filename
   let finalSeriesTitle = seriesTitleFromFolder || cleanTitleFromFile || seriesTitleFromRoot;
@@ -256,10 +271,12 @@ export const parseTvShowFileName = (fullPathOrFileName, rootFolderPath = "") => 
   const finalSeason = seasonFromFolder !== null ? seasonFromFolder : (seasonFromFile !== null ? seasonFromFile : 1);
   const finalEpisode = episodeFromFile !== null ? episodeFromFile : null;
 
-  let year = null;
-  const yearMatch = (seriesTitleRawFromFile || finalSeriesTitle || fullPathOrFileName).match(/\b(19\d\d|20\d\d)\b/);
-  if (yearMatch) {
-    year = parseInt(yearMatch[1], 10);
+  let finalYear = yearFromFolder || yearFromFile || yearFromRoot;
+  if (!finalYear) {
+    const yearMatch = (seriesTitleRawFromFile || finalSeriesTitle || fullPathOrFileName).match(/\b(19\d\d|20\d\d)\b/);
+    if (yearMatch) {
+      finalYear = parseInt(yearMatch[1], 10);
+    }
   }
 
   return {
@@ -267,7 +284,7 @@ export const parseTvShowFileName = (fullPathOrFileName, rootFolderPath = "") => 
     seriesTitle: finalSeriesTitle,
     season: finalSeason,
     episode: finalEpisode,
-    year
+    year: finalYear
   };
 };
 
