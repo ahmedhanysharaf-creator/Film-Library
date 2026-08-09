@@ -47,14 +47,34 @@ export const AuthProvider = ({ children }) => {
   };
 
   useEffect(() => {
-    // 1. Check persistent localStorage session first
+    // 1. Check persistent localStorage session first or create auto-login session
     const savedSessionStr = localStorage.getItem("filmlibrary_demo_user");
     if (savedSessionStr) {
       try {
         const savedUser = JSON.parse(savedSessionStr);
         setCurrentUser(savedUser);
         setIsWhitelisted(true);
-      } catch (e) {}
+      } catch (e) {
+        const defaultUser = {
+          uid: "demo_user_id",
+          email: "ahmed@filmlibrary.com",
+          displayName: "Ahmed Hany",
+          photoURL: "https://api.dicebear.com/7.x/bottts/svg?seed=AhmedHany"
+        };
+        setCurrentUser(defaultUser);
+        setIsWhitelisted(true);
+        localStorage.setItem("filmlibrary_demo_user", JSON.stringify(defaultUser));
+      }
+    } else {
+      const defaultUser = {
+        uid: "demo_user_id",
+        email: "ahmed@filmlibrary.com",
+        displayName: "Ahmed Hany",
+        photoURL: "https://api.dicebear.com/7.x/bottts/svg?seed=AhmedHany"
+      };
+      setCurrentUser(defaultUser);
+      setIsWhitelisted(true);
+      localStorage.setItem("filmlibrary_demo_user", JSON.stringify(defaultUser));
     }
 
     // 2. Sync with Firebase Auth state if configured
