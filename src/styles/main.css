@@ -399,3 +399,54 @@ body {
   color: #000000 !important;
   font-weight: 700 !important;
 }
+
+/* Netflix Style Custom Dropdown Options */
+.custom-select-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: 6px;
+  color: #ffffff;
+  font-size: 0.88rem;
+  cursor: pointer;
+  background-color: transparent;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  user-select: none;
+}
+
+.custom-select-option:hover {
+  background-color: var(--accent-red) !important;
+  color: #ffffff !important;
+}
+
+.custom-select-option.is-selected {
+  background-color: rgba(229, 9, 20, 0.2);
+  color: #ffffff;
+}
+
+.custom-select-option.is-selected:hover {
+  background-color: var(--accent-red) !important;
+  color: #ffffff !important;
+}
+
+/* Fallback Global HTML Select Option Dark Theme */
+select {
+  background-color: var(--bg-surface) !important;
+  color: #ffffff !important;
+}
+
+select option {
+  background-color: #141414 !important;
+  color: #ffffff !important;
+  padding: 10px 14px;
+}
+
+select option:hover,
+select option:focus,
+select option:active,
+select option:checked {
+  background-color: #e50914 !important;
+  color: #ffffff !important;
+}
+

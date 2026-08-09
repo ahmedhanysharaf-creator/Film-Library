@@ -4,6 +4,7 @@ import {
 } from "lucide-react";
 import { fetchLibraryItems, deleteMediaEntry, deleteMediaEntriesBatch, updateWatchProgress } from "../services/storage";
 import { PosterCard } from "../components/PosterCard";
+import { CustomSelect } from "../components/CustomSelect";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 
@@ -288,20 +289,18 @@ export const Library = ({ onSelectItem, onEditItem, onPlayMedia }) => {
               </button>
             </div>
 
-            {/* Sort Selector */}
-            <div style={styles.selectWrapper}>
-              <ArrowUpDown size={16} color="var(--text-muted)" />
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                style={styles.select}
-              >
-                <option value="added">Newest Added</option>
-                <option value="title">Title (A-Z)</option>
-                <option value="rating">Highest Rating</option>
-                <option value="year">Release Year</option>
-              </select>
-            </div>
+            {/* Netflix-style Custom Sort Selector */}
+            <CustomSelect
+              options={[
+                { value: "added", label: "Newest Added" },
+                { value: "title", label: "Title (A-Z)" },
+                { value: "rating", label: "Highest Rating" },
+                { value: "year", label: "Release Year" }
+              ]}
+              value={sortBy}
+              onChange={(newSort) => setSortBy(newSort)}
+              icon={ArrowUpDown}
+            />
 
             {/* View Mode Toggle */}
             <div style={styles.viewToggleGroup}>
