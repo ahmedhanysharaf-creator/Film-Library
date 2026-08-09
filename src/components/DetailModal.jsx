@@ -1,15 +1,14 @@
 import React, { useState } from "react";
 import { 
-  X, Play, Star, Clock, User, Film, Tv, CheckCircle2, Bookmark, 
-  Trash2, Edit3, Copy, HardDrive, Video, ExternalLink, Download 
+  X, Star, Clock, Film, Tv, CheckCircle2, Bookmark, 
+  Trash2, Edit3, Copy, HardDrive, Video, ExternalLink 
 } from "lucide-react";
-import { launchInVlc, copyPathToClipboard, downloadVlcM3uPlaylist, resolveMediaPaths } from "../services/vlcLauncher";
+import { copyPathToClipboard, resolveMediaPaths } from "../services/vlcLauncher";
 import { updateWatchProgress } from "../services/storage";
-import { saveContinueWatchingItem, getNextEpisodeToPlay } from "../services/continueWatching";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 
-export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate, onPlayMedia }) => {
+export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate }) => {
   const { currentUser } = useAuth();
   const { addToast } = useToast();
 
@@ -98,44 +97,6 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate, onP
   const getEpPath = (season, epNum) => {
     const resolved = resolveMediaPaths(item, uid, season, epNum);
     return resolved.path;
-  };
-
-  const getEpSubPath = (season, epNum) => {
-    const resolved = resolveMediaPaths(item, uid, season, epNum);
-    return resolved.subPath;
-  };
-
-  const handlePlayVlc = (path, label, episodeSubPath = "", season = 1, epNum = 1) => {
-    saveContinueWatchingItem({
-      mediaId: item.id || item.tmdb_id,
-      title: item.title,
-      type: item.type,
-      poster_url: item.poster_url,
-      backdrop_url: item.backdrop_url,
-      season: season,
-      episode: epNum,
-      progressPct: 50
-    });
-
-    const targetPath = path || defaultMoviePath || item.title;
-    launchInVlc(targetPath, label || item.title, addToast, episodeSubPath || subPath, item.type);
-  };
-
-  const handlePlayBrowser = (season = 1, epNum = 1) => {
-    saveContinueWatchingItem({
-      mediaId: item.id || item.tmdb_id,
-      title: item.title,
-      type: item.type,
-      poster_url: item.poster_url,
-      backdrop_url: item.backdrop_url,
-      season: season,
-      episode: epNum,
-      progressPct: 50
-    });
-
-    if (onPlayMedia) {
-      onPlayMedia(item, season, epNum);
-    }
   };
 
   const handleUpdateLocalPathFromFile = (e, epCodeKey = "default") => {
@@ -342,37 +303,9 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate, onP
                 </div>
               )}
 
-              {/* Media One-Click VLC Play & Web Player Options */}
+              {/* Media File Path Actions */}
               {(!item.type || item.type.toLowerCase() !== "series" && item.type.toLowerCase() !== "tv") && (
                 <div style={styles.playSectionCol}>
-                  <div style={styles.playSection}>
-                    <button
-                      style={styles.mainPlayBtn}
-                      onClick={() => handlePlayVlc(defaultMoviePath, item.title, subPath)}
-                    >
-                      <Play size={20} fill="#ffffff" /> Play Media in VLC
-                    </button>
-
-                    <button
-                      style={{ ...styles.mainPlayBtn, backgroundColor: "#8b5cf6", border: "1px solid #7c3aed" }}
-                      onClick={() => handlePlayBrowser(1, 1)}
-                    >
-                      <Tv size={20} /> Play in Web Browser
-                    </button>
-
-                    {defaultMoviePath && (
-                      <button
-                        style={styles.m3uDownloadBtn}
-                        onClick={() => {
-                          downloadVlcM3uPlaylist(defaultMoviePath, item.title, subPath);
-                          addToast("Downloaded VLC Playlist (.m3u)! Open file to play in VLC.", "success");
-                        }}
-                      >
-                        <Download size={16} /> Get `.m3u` File
-                      </button>
-                    )}
-                  </div>
-
                   {defaultMoviePath && (
                     <div style={styles.secondaryPlayRow}>
                       <button style={styles.copyBtn} onClick={() => copyPathToClipboard(defaultMoviePath, addToast)}>
@@ -384,47 +317,27 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate, onP
               )}
 
               {/* TV Series Season & Episode Breakdown */}
-              {(item.type?.toLowerCase() === "series" || item.type?.toLowerCase() === "tv") && (() => {
-                const nextInfo = getNextEpisodeToPlay(item, uid);
-                const nextEpPath = getEpPath(nextInfo.season, nextInfo.episode);
-                const nextEpSubPath = getEpSubPath(nextInfo.season, nextInfo.episode);
+              {(item.type?.toLowerCase() === "series" || item.type?.toLowerCase() === "tv") && (
+                <div style={styles.seriesSection}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px", gap: "12px", flexWrap: "wrap" }}>
+                    <span style={styles.sectionTitle}>Seasons & Episodes</span>
+                  </div>
 
-                return (
-                  <div style={styles.seriesSection}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px", gap: "12px", flexWrap: "wrap" }}>
-                      <span style={styles.sectionTitle}>Seasons & Episodes</span>
-
-                      <div style={{ display: "flex", gap: "8px" }}>
-                        <button
-                          style={styles.mainPlayBtn}
-                          onClick={() => handlePlayVlc(nextEpPath || defaultMoviePath, `${item.title} ${nextInfo.epCode}`, nextEpSubPath, nextInfo.season, nextInfo.episode)}
-                        >
-                          <Play size={18} fill="#ffffff" /> Play {nextInfo.epCode} in VLC
-                        </button>
-                        <button
-                          style={{ ...styles.mainPlayBtn, backgroundColor: "#8b5cf6", border: "1px solid #7c3aed" }}
-                          onClick={() => handlePlayBrowser(nextInfo.season, nextInfo.episode)}
-                        >
-                          <Tv size={18} /> In Web Browser
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Season Tabs */}
-                    <div style={styles.seasonTabs}>
-                      {(item.seasons || [{ season_number: 1, episode_count: 10 }]).map((s) => (
-                        <button
-                          key={s.season_number}
-                          style={{
-                            ...styles.seasonTab,
-                            ...(activeSeason === s.season_number ? styles.seasonTabActive : {})
-                          }}
-                          onClick={() => setActiveSeason(s.season_number)}
-                        >
-                          Season {s.season_number}
-                        </button>
-                      ))}
-                    </div>
+                  {/* Season Tabs */}
+                  <div style={styles.seasonTabs}>
+                    {(item.seasons || [{ season_number: 1, episode_count: 10 }]).map((s) => (
+                      <button
+                        key={s.season_number}
+                        style={{
+                          ...styles.seasonTab,
+                          ...(activeSeason === s.season_number ? styles.seasonTabActive : {})
+                        }}
+                        onClick={() => setActiveSeason(s.season_number)}
+                      >
+                        Season {s.season_number}
+                      </button>
+                    ))}
+                  </div>
 
                   {/* Episode List */}
                   <div style={styles.episodeList}>
@@ -435,7 +348,6 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate, onP
                       const epCode = `S${activeSeason}E${epNum}`;
                       const isEpWatched = watchedEpisodes.has(epCode);
                       const epPath = getEpPath(activeSeason, epNum);
-                      const epSubPath = getEpSubPath(activeSeason, epNum);
 
                       return (
                         <div key={epCode} style={styles.episodeRow}>
@@ -452,24 +364,11 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate, onP
 
                           <div style={styles.epRight}>
                             <button
-                              style={styles.epPlayBtn}
-                              onClick={() => handlePlayVlc(epPath || defaultMoviePath, `${item.title} ${epCode}`, epSubPath, activeSeason, epNum)}
-                              title={epPath ? `Play ${epCode} in VLC` : "Play media in VLC"}
-                            >
-                              <Play size={12} fill="#000000" /> Play S{activeSeason}E{epNum} in VLC
-                            </button>
-                            <button
-                              style={{ ...styles.epPlayBtn, backgroundColor: "#8b5cf6", color: "#ffffff" }}
-                              onClick={() => handlePlayBrowser(activeSeason, epNum)}
-                              title="Play in web browser player"
-                            >
-                              <Tv size={12} /> Browser
-                            </button>
-                            <button
                               style={styles.epCopyBtn}
                               onClick={() => copyPathToClipboard(epPath || defaultMoviePath, addToast)}
+                              title="Copy local episode path"
                             >
-                              <Copy size={12} />
+                              <Copy size={12} /> Copy Path
                             </button>
                           </div>
                         </div>
@@ -477,8 +376,7 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate, onP
                     })}
                   </div>
                 </div>
-              );
-            })()}
+              )}
 
               {/* Consolidated Multi-User File Paths */}
               <div style={styles.userPathsSection}>

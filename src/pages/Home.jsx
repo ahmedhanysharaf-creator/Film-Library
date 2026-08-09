@@ -55,8 +55,8 @@ export const Home = ({ setActivePage, onSelectItem, onPlayMedia }) => {
 
             <div style={styles.heroActions}>
               <button style={styles.heroPlayBtn} onClick={() => onSelectItem(featuredItem)}>
-                <Play size={18} fill="#ffffff" />
-                View & Play Media
+                <Film size={18} />
+                View Catalog Details
               </button>
               
               <button style={styles.heroBrowseBtn} onClick={() => setActivePage("library")}>

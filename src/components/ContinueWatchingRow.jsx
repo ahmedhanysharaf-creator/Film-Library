@@ -1,15 +1,14 @@
 import React, { useState, useEffect } from "react";
-import { Play, Edit3, Trash2, X, Check, Tv, Film, Sparkles, Clock } from "lucide-react";
+import { Edit3, Trash2, X, Check, Tv, Film, Sparkles, Clock, Bookmark } from "lucide-react";
 import { 
   getContinueWatchingList, 
   removeContinueWatchingItem, 
   updateContinueWatchingProgress 
 } from "../services/continueWatching";
-import { launchInVlc, resolveMediaPaths } from "../services/vlcLauncher";
 import { useToast } from "../context/ToastContext";
 import { useAuth } from "../context/AuthContext";
 
-export const ContinueWatchingRow = ({ libraryItems = [], onSelectMedia, setActivePage, onPlayMedia }) => {
+export const ContinueWatchingRow = ({ libraryItems = [], onSelectMedia, setActivePage }) => {
   const { addToast } = useToast();
   const { currentUser } = useAuth();
   const [list, setList] = useState([]);
@@ -31,26 +30,6 @@ export const ContinueWatchingRow = ({ libraryItems = [], onSelectMedia, setActiv
     };
   }, []);
 
-  const handlePlayItem = (cwItem) => {
-    const matchedMedia = libraryItems.find((m) => m.id === cwItem.mediaId || m.tmdb_id === cwItem.mediaId);
-    
-    let path = "";
-    let subPath = "";
-
-    if (matchedMedia) {
-      const isSeries = matchedMedia.type?.toLowerCase() === "series" || matchedMedia.type?.toLowerCase() === "tv";
-      const s = cwItem.season || 1;
-      const e = cwItem.episode || 1;
-      const resolved = resolveMediaPaths(matchedMedia, uid, isSeries ? s : 1, isSeries ? e : 1);
-      path = resolved.path;
-      subPath = resolved.subPath;
-    }
-
-    const label = cwItem.epCode ? `${cwItem.title} (${cwItem.epCode})` : cwItem.title;
-    const targetPath = path || cwItem.title;
-    launchInVlc(targetPath, label, addToast, subPath, matchedMedia?.type);
-  };
-
   const handleOpenEditModal = (cwItem, e) => {
     e.stopPropagation();
     setEditingItem(cwItem);
@@ -67,7 +46,7 @@ export const ContinueWatchingRow = ({ libraryItems = [], onSelectMedia, setActiv
 
   const handleRemove = (mediaId, title) => {
     removeContinueWatchingItem(mediaId);
-    addToast(`Removed "${title}" from Continue Watching`, "info");
+    addToast(`Removed "${title}" from In Progress Tracker`, "info");
     setEditingItem(null);
   };
 
@@ -76,11 +55,11 @@ export const ContinueWatchingRow = ({ libraryItems = [], onSelectMedia, setActiv
       <div style={styles.header}>
         <div style={styles.headerTitleGroup}>
           <div style={styles.iconCircle}>
-            <Play size={18} color="#ffffff" fill="#ffffff" />
+            <Clock size={18} color="#ffffff" />
           </div>
           <div>
-            <h2 style={styles.title}>Continue Watching</h2>
-            <span style={styles.subtitle}>Netflix-style User Watch Progress</span>
+            <h2 style={styles.title}>In Progress Collection</h2>
+            <span style={styles.subtitle}>Track your series and movie progress</span>
           </div>
         </div>
         <span style={styles.countBadge}>{list.length} item(s) in progress</span>
@@ -93,12 +72,12 @@ export const ContinueWatchingRow = ({ libraryItems = [], onSelectMedia, setActiv
             <div style={styles.emptyTextGroup}>
               <h4 style={styles.emptyTitle}>No Media in Progress Yet</h4>
               <p style={styles.emptyDesc}>
-                Whenever you click <strong>Play</strong> on any movie or TV series episode, your active watch position (e.g. <strong>S2E4</strong>) will automatically show up here so you can continue where you left off!
+                Mark episodes or update series progress in your library to track what you're currently watching!
               </p>
             </div>
             {setActivePage && (
               <button style={styles.browseBtn} onClick={() => setActivePage("library")}>
-                <Film size={16} /> Explore Library to Play
+                <Film size={16} /> Explore Library
               </button>
             )}
           </div>

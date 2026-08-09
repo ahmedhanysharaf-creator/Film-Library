@@ -1,36 +1,21 @@
-import React, { useState, useEffect } from "react";
-import { X, Settings, Key, ShieldCheck, Database, Save, Download, Tv, List, FolderSync, FolderArchive } from "lucide-react";
-import { getSecurityToken, setSecurityToken, downloadWindowsRegistryFix, exportMasterM3uPlaylist } from "../services/vlcLauncher";
+import React, { useState } from "react";
+import { X, Settings, Key, Database, Save, Download, List, FolderArchive } from "lucide-react";
+import { exportMasterM3uPlaylist } from "../services/vlcLauncher";
 import { fetchLibraryItems } from "../services/storage";
-import { connectLocalPlaylistFolder, syncAllPlaylistsToFolder, getStoredDirectoryHandle, clearStoredDirectoryHandle, exportPlaylistsAsZip } from "../services/folderSync";
+import { exportPlaylistsAsZip } from "../services/folderSync";
 import { getTmdbApiKey, setTmdbApiKey } from "../services/tmdb";
 import { useToast } from "../context/ToastContext";
 
 export const SettingsModal = ({ onClose }) => {
   const { addToast } = useToast();
 
-  const [token, setTokenState] = useState(getSecurityToken());
   const [tmdbKey, setTmdbKeyState] = useState(getTmdbApiKey());
   const [firebaseConfigStr, setFirebaseConfigStr] = useState(
     localStorage.getItem("filmlibrary_firebase_config") || ""
   );
-  const [syncHandle, setSyncHandle] = useState(null);
-  const [companionStatus, setCompanionStatus] = useState("checking");
-
-  useEffect(() => {
-    getStoredDirectoryHandle().then((handle) => {
-      if (handle) setSyncHandle(handle);
-    });
-
-    fetch("http://127.0.0.1:18899/status")
-      .then((r) => r.json())
-      .then(() => setCompanionStatus("connected"))
-      .catch(() => setCompanionStatus("offline"));
-  }, []);
 
   const handleSave = (e) => {
     e.preventDefault();
-    setSecurityToken(token.trim());
 
     if (tmdbKey.trim()) {
       setTmdbApiKey(tmdbKey.trim());
@@ -60,7 +45,7 @@ export const SettingsModal = ({ onClose }) => {
         <div style={styles.header}>
           <div style={styles.titleGroup}>
             <Settings size={22} color="var(--accent-red)" />
-            <h3 style={styles.title}>Companion & VLC Settings</h3>
+            <h3 style={styles.title}>Application Settings</h3>
           </div>
           <button style={styles.closeBtn} onClick={onClose}>
             <X size={20} />
@@ -68,97 +53,13 @@ export const SettingsModal = ({ onClose }) => {
         </div>
 
         <form onSubmit={handleSave} style={styles.form}>
-          {/* Companion Background Service Connection Status */}
-          <div style={{ ...styles.vlcSetupBox, backgroundColor: companionStatus === "connected" ? "rgba(16, 185, 129, 0.15)" : "rgba(245, 158, 11, 0.15)", borderColor: companionStatus === "connected" ? "#10b981" : "#f59e0b", padding: "16px" }}>
-            <FolderSync size={28} color={companionStatus === "connected" ? "#10b981" : "#f59e0b"} />
-            <div style={{ flex: 1 }}>
-              <div style={{ ...styles.vlcSetupTitle, color: companionStatus === "connected" ? "#34d399" : "#fbbf24", fontSize: "1.05rem" }}>
-                {companionStatus === "connected" ? "🟢 Windows Companion Server Active" : "🟡 Companion Server Offline"}
-              </div>
-              <p style={styles.vlcSetupSub}>
-                {companionStatus === "connected"
-                  ? "Real-time M3U playlist auto-sync is ACTIVE! Clicking Play opens VLC through your local .m3u playlist files."
-                  : "To enable instant VLC launching and automatic local .m3u folder syncing, run python companion/app.py on your PC."}
-              </p>
-            </div>
-            <button
-              type="button"
-              style={{ ...styles.downloadRegBtn, backgroundColor: "#10b981", color: "#ffffff", padding: "8px 14px" }}
-              onClick={async () => {
-                const items = await fetchLibraryItems();
-                const payload = items.map((item) => ({
-                  title: item.title,
-                  type: item.type,
-                  entries: (item.user_paths || []).map((up) => ({ path: up.paths?.default, title: item.title }))
-                }));
-                fetch("http://127.0.0.1:18899/sync", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ items: payload })
-                })
-                  .then((r) => r.json())
-                  .then((d) => {
-                    setCompanionStatus("connected");
-                    addToast(`Synced ${d.entries_synced} items to Playlists folder!`, "success");
-                  })
-                  .catch(() => {
-                    setCompanionStatus("offline");
-                    addToast("Companion server is offline. Run python companion/app.py", "warning");
-                  });
-              }}
-            >
-              Sync M3U Playlists Now
-            </button>
-          </div>
-
-          {/* Automatic Local Folder Auto-Play & Sync */}
-          <div style={{ ...styles.vlcSetupBox, backgroundColor: "rgba(139, 92, 246, 0.15)", borderColor: "#8b5cf6", padding: "16px" }}>
-            <FolderSync size={28} color="#8b5cf6" />
-            <div style={{ flex: 1 }}>
-              <div style={{ ...styles.vlcSetupTitle, color: "#a78bfa", fontSize: "1.05rem" }}>
-                🎬 Local Media Folder {syncHandle ? `(Connected: "${syncHandle.name}")` : "(Not Connected)"}
-              </div>
-              <p style={styles.vlcSetupSub}>
-                Connect your main PC media folder (e.g. <code>D:\Movies</code> or <code>Marvel Films</code>). Once connected, clicking **Play** on ANY movie or TV series episode will play the file **100% AUTOMATICALLY** with ZERO manual file picking!
-              </p>
-            </div>
-            {syncHandle ? (
-              <button
-                type="button"
-                style={{ ...styles.downloadRegBtn, backgroundColor: "rgba(239, 68, 68, 0.2)", color: "#ef4444", border: "1px solid #ef4444" }}
-                onClick={async () => {
-                  await clearStoredDirectoryHandle();
-                  setSyncHandle(null);
-                  addToast("Disconnected local media folder.", "info");
-                }}
-              >
-                Disconnect
-              </button>
-            ) : (
-              <button
-                type="button"
-                style={{ ...styles.downloadRegBtn, backgroundColor: "#8b5cf6", color: "#ffffff", padding: "10px 18px", fontWeight: 700 }}
-                onClick={async () => {
-                  const handle = await connectLocalPlaylistFolder(addToast);
-                  if (handle) {
-                    setSyncHandle(handle);
-                    const items = await fetchLibraryItems();
-                    await syncAllPlaylistsToFolder(items, handle, addToast);
-                  }
-                }}
-              >
-                <FolderSync size={16} /> Connect Media Folder (Select ONCE)
-              </button>
-            )}
-          </div>
-
           {/* Export Playlists Folder as ZIP Archive */}
           <div style={{ ...styles.vlcSetupBox, backgroundColor: "rgba(16, 185, 129, 0.1)", borderColor: "#10b981" }}>
             <FolderArchive size={24} color="#10b981" />
             <div style={{ flex: 1 }}>
-              <div style={styles.vlcSetupTitle}>Download Playlists Folder (.ZIP)</div>
+              <div style={styles.vlcSetupTitle}>Export Playlists Catalog (.ZIP)</div>
               <p style={styles.vlcSetupSub}>
-                Download a `.zip` archive containing separate `.m3u` files organized in `Movies/` and `Series/` folders for transferring to other devices!
+                Export a `.zip` archive containing separate `.m3u` catalog files organized in `Movies/` and `Series/` folders!
               </p>
             </div>
             <button
@@ -169,16 +70,17 @@ export const SettingsModal = ({ onClose }) => {
                 await exportPlaylistsAsZip(items, addToast);
               }}
             >
-              <Download size={14} /> Download ZIP
+              <Download size={14} /> Export ZIP
             </button>
           </div>
+
           {/* Export Master Library Playlist (.m3u) */}
           <div style={{ ...styles.vlcSetupBox, backgroundColor: "rgba(59, 130, 246, 0.1)", borderColor: "#3b82f6" }}>
             <List size={24} color="#3b82f6" />
             <div style={{ flex: 1 }}>
-              <div style={styles.vlcSetupTitle}>Export Master VLC Playlist</div>
+              <div style={styles.vlcSetupTitle}>Export Master Catalog Playlist (.M3U)</div>
               <p style={styles.vlcSetupSub}>
-                Export a single `.m3u` playlist containing all your movies & TV series episodes for instant access in VLC!
+                Export a single master playlist containing your complete collection catalog for offline backup!
               </p>
             </div>
             <button
@@ -191,43 +93,6 @@ export const SettingsModal = ({ onClose }) => {
             >
               <Download size={14} /> Export Master `.m3u`
             </button>
-          </div>
-          {/* Windows VLC 1-Click Protocol Setup */}
-          <div style={styles.vlcSetupBox}>
-            <Tv size={24} color="var(--accent-green)" />
-            <div style={{ flex: 1 }}>
-              <div style={styles.vlcSetupTitle}>1-Click Windows VLC Protocol Setup</div>
-              <p style={styles.vlcSetupSub}>
-                Download this 1-click Registry file (`.reg`) and run it once on Windows to enable automatic direct VLC launching from Chrome!
-              </p>
-            </div>
-            <button
-              type="button"
-              style={styles.downloadRegBtn}
-              onClick={() => {
-                downloadWindowsRegistryFix();
-                addToast("Downloaded Registry Fix! Double-click file on PC to enable direct VLC opening.", "success");
-              }}
-            >
-              <Download size={14} /> Download `.reg` Fix
-            </button>
-          </div>
-
-          {/* Security Token Section */}
-          <div style={styles.section}>
-            <label style={styles.label}>
-              <ShieldCheck size={16} color="var(--accent-green)" /> Companion Security Token
-            </label>
-            <input
-              type="text"
-              value={token}
-              onChange={(e) => setTokenState(e.target.value)}
-              placeholder="e.g. FILM_LIBRARY_SECRET_2026"
-              style={styles.input}
-            />
-            <span style={styles.helpText}>
-              Validates `filmlibrary://` VLC protocol commands against your local companion launcher.
-            </span>
           </div>
 
           {/* TMDB API Key */}

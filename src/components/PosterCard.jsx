@@ -1,7 +1,5 @@
 import React, { useState, memo } from "react";
-import { Star, Play, CheckCircle2, Bookmark, Monitor, Tv, Film, Edit3, Trash2, CheckSquare, Square } from "lucide-react";
-import { launchInVlc, resolveMediaPaths } from "../services/vlcLauncher";
-import { getNextEpisodeToPlay, saveContinueWatchingItem } from "../services/continueWatching";
+import { Star, CheckCircle2, Bookmark, Tv, Film, Edit3, Trash2, CheckSquare, Square, Info } from "lucide-react";
 import { useToast } from "../context/ToastContext";
 import { useAuth } from "../context/AuthContext";
 
@@ -13,8 +11,7 @@ export const PosterCard = memo(({
   isSelected = false, 
   isDimmed = false, 
   viewMode = "grid",
-  onToggleSelect = null,
-  onPlayMedia = null
+  onToggleSelect = null
 }) => {
   const { addToast } = useToast();
   const { currentUser } = useAuth();
@@ -27,44 +24,6 @@ export const PosterCard = memo(({
   const userProgress = (item.user_progress || {})[uid] || {};
   const isWatched = userProgress.status === "watched";
   const isWatchlist = userProgress.status === "watchlist";
-
-  const handleQuickPlay = (e) => {
-    e.stopPropagation();
-    const isSeries = item.type?.toLowerCase() === "series" || item.type?.toLowerCase() === "tv";
-
-    if (isSeries) {
-      const nextInfo = getNextEpisodeToPlay(item, uid);
-      const { path, subPath } = resolveMediaPaths(item, uid, nextInfo.season, nextInfo.episode);
-
-      saveContinueWatchingItem({
-        mediaId: item.id || item.tmdb_id,
-        title: item.title,
-        type: item.type,
-        poster_url: item.poster_url,
-        backdrop_url: item.backdrop_url,
-        season: nextInfo.season,
-        episode: nextInfo.episode,
-        progressPct: 50
-      });
-
-      const targetPath = path || item.title;
-      launchInVlc(targetPath, `${item.title} ${nextInfo.epCode}`, addToast, subPath, item.type);
-    } else {
-      const { path, subPath } = resolveMediaPaths(item, uid);
-
-      saveContinueWatchingItem({
-        mediaId: item.id || item.tmdb_id,
-        title: item.title,
-        type: item.type,
-        poster_url: item.poster_url,
-        backdrop_url: item.backdrop_url,
-        progressPct: 50
-      });
-
-      const targetPath = path || item.title;
-      launchInVlc(targetPath, item.title, addToast, subPath, item.type);
-    }
-  };
 
   const handleQuickEdit = (e) => {
     e.stopPropagation();
@@ -141,8 +100,8 @@ export const PosterCard = memo(({
               <CheckCircle2 size={12} /> Watched
             </span>
           )}
-          <button style={styles.playBtnSmall} onClick={handleQuickPlay}>
-            <Play size={14} fill="#ffffff" /> Play
+          <button style={styles.playBtnSmall} onClick={onClick}>
+            <Info size={14} /> Details
           </button>
           {onEdit && (
             <button style={styles.listIconBtn} onClick={handleQuickEdit} title="Edit Item">
@@ -236,8 +195,8 @@ export const PosterCard = memo(({
               {item.overview ? `${item.overview.substring(0, 80)}...` : "Click to view media details."}
             </p>
 
-            <button style={styles.playBtn} onClick={handleQuickPlay}>
-              <Play size={16} fill="#ffffff" /> Play in VLC
+            <button style={styles.playBtn} onClick={onClick}>
+              <Info size={16} /> View Details
             </button>
 
             {/* Quick Edit & Delete Controls */}
