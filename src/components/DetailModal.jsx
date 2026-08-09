@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import { 
   X, Star, Clock, Film, Tv, CheckCircle2, Bookmark, 
-  Trash2, Edit3, Copy, HardDrive, Video, ExternalLink 
+  Trash2, Edit3, Copy, HardDrive, Video, ExternalLink, Check, Save
 } from "lucide-react";
 import { copyPathToClipboard, resolveMediaPaths } from "../services/vlcLauncher";
-import { updateWatchProgress } from "../services/storage";
+import { updateWatchProgress, saveMediaEntry } from "../services/storage";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 
@@ -17,6 +17,42 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate }) =
   const [activeSeason, setActiveSeason] = useState(1);
   const [showTrailer, setShowTrailer] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [editingPathIdx, setEditingPathIdx] = useState(null);
+  const [editedPathText, setEditedPathText] = useState("");
+
+  const handleStartEditPath = (currentPath, idx) => {
+    setEditingPathIdx(idx);
+    setEditedPathText(currentPath || "");
+  };
+
+  const handleSaveEditedPath = async (upIdx, epCodeKey = "default") => {
+    const newPath = editedPathText.trim();
+    if (!newPath) return;
+
+    const updatedUserPaths = [...(item.user_paths || [])];
+    if (updatedUserPaths[upIdx]) {
+      updatedUserPaths[upIdx] = {
+        ...updatedUserPaths[upIdx],
+        paths: {
+          ...(updatedUserPaths[upIdx].paths || {}),
+          [epCodeKey]: newPath
+        }
+      };
+    } else {
+      updatedUserPaths.push({
+        uid,
+        display_name: currentUser?.displayName || currentUser?.email?.split("@")[0] || "Ahmed",
+        paths: { [epCodeKey]: newPath }
+      });
+    }
+
+    const updatedItem = { ...item, user_paths: updatedUserPaths };
+    if (onItemUpdate) onItemUpdate(updatedItem);
+
+    await saveMediaEntry(updatedItem, currentUser);
+    addToast(`Updated local path to: "${newPath}"`, "success");
+    setEditingPathIdx(null);
+  };
 
   // Personal watch progress state for instant reactive UI updates
   const [localProgress, setLocalProgress] = useState(() => {
@@ -384,22 +420,65 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate }) =
                   <HardDrive size={16} /> User Local File Locations
                 </span>
                 <div style={styles.userPathsList}>
-                  {(item.user_paths || []).map((up, idx) => (
-                    <div key={idx} style={styles.userPathCard}>
-                      <div style={styles.userPathHeader}>
-                        <span style={styles.userPathName}>Available on {up.display_name}'s PC</span>
-                        {up.uid === currentUser?.uid && <span className="badge badge-dark">Your PC</span>}
-                      </div>
-                      <div style={styles.userPathText}>
-                        {up.paths?.default || Object.values(up.paths || {})[0] || "File path configured"}
-                      </div>
-                      {up.paths?.subtitle && (
-                        <div style={{ ...styles.userPathText, marginTop: "4px", color: "var(--accent-green)" }}>
-                          💬 Subtitle: {up.paths.subtitle}
+                  {(item.user_paths || []).map((up, idx) => {
+                    const currentPath = up.paths?.default || Object.values(up.paths || {})[0] || "File path configured";
+                    const isEditing = editingPathIdx === idx;
+
+                    return (
+                      <div key={idx} style={styles.userPathCard}>
+                        <div style={styles.userPathHeader}>
+                          <span style={styles.userPathName}>Available on {up.display_name}'s PC</span>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            {up.uid === currentUser?.uid && <span className="badge badge-dark">Your PC</span>}
+                            {up.uid === currentUser?.uid && !isEditing && (
+                              <button
+                                style={styles.editPathSmallBtn}
+                                onClick={() => handleStartEditPath(currentPath, idx)}
+                              >
+                                <Edit3 size={12} /> Edit Path
+                              </button>
+                            )}
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  ))}
+
+                        {isEditing ? (
+                          <div style={styles.inlinePathEditForm}>
+                            <input
+                              type="text"
+                              value={editedPathText}
+                              onChange={(e) => setEditedPathText(e.target.value)}
+                              placeholder="e.g. C:\Users\Ahmed\Downloads\English\Marvel Films\Inception (2010)\Inception.mp4"
+                              style={styles.inlinePathInput}
+                            />
+                            <div style={styles.inlinePathBtnRow}>
+                              <button
+                                style={styles.savePathBtn}
+                                onClick={() => handleSaveEditedPath(idx)}
+                              >
+                                Save Path
+                              </button>
+                              <button
+                                style={styles.cancelPathBtn}
+                                onClick={() => setEditingPathIdx(null)}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={styles.userPathText} title={currentPath}>
+                            📁 {currentPath}
+                          </div>
+                        )}
+
+                        {up.paths?.subtitle && (
+                          <div style={{ ...styles.userPathText, marginTop: "4px", color: "var(--accent-green)" }}>
+                            💬 Subtitle: {up.paths.subtitle}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                   {item.subtitle_path && !(item.user_paths || []).some((up) => up.paths?.subtitle === item.subtitle_path) && (
                     <div style={styles.userPathCard}>
                       <div style={styles.userPathHeader}>
@@ -911,6 +990,58 @@ const styles = {
     color: "var(--text-muted)",
     fontFamily: "monospace",
     wordBreak: "break-all"
+  },
+  editPathSmallBtn: {
+    padding: "3px 8px",
+    backgroundColor: "var(--bg-surface)",
+    border: "1px solid var(--border-subtle)",
+    color: "var(--accent-green)",
+    borderRadius: "4px",
+    fontSize: "0.75rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "4px"
+  },
+  inlinePathEditForm: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "6px",
+    marginTop: "6px"
+  },
+  inlinePathInput: {
+    width: "100%",
+    padding: "8px 10px",
+    backgroundColor: "var(--bg-surface)",
+    border: "1px solid var(--accent-green)",
+    borderRadius: "6px",
+    color: "#ffffff",
+    fontSize: "0.82rem",
+    fontFamily: "monospace"
+  },
+  inlinePathBtnRow: {
+    display: "flex",
+    gap: "6px"
+  },
+  savePathBtn: {
+    padding: "4px 10px",
+    backgroundColor: "var(--accent-green)",
+    color: "#000000",
+    border: "none",
+    borderRadius: "4px",
+    fontWeight: 700,
+    fontSize: "0.78rem",
+    cursor: "pointer"
+  },
+  cancelPathBtn: {
+    padding: "4px 10px",
+    backgroundColor: "transparent",
+    color: "var(--text-muted)",
+    border: "1px solid var(--border-subtle)",
+    borderRadius: "4px",
+    fontSize: "0.78rem",
+    cursor: "pointer"
   },
   trailerOverlay: {
     position: "fixed",

@@ -409,8 +409,10 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
     const pathParts = firstRelativePath.split("/");
     const detectedFolderName = pathParts.length > 1 ? pathParts[0] : "";
 
-    if (!folderPath && detectedFolderName) {
-      setFolderPath(detectedFolderName);
+    if (!folderPath || !folderPath.includes(":")) {
+      if (detectedFolderName) {
+        setFolderPath(`C:\\Users\\Ahmed\\Downloads\\English\\${detectedFolderName}`);
+      }
     }
 
     // Preserve relative subfolder structure (e.g., "Inception (2010)\Inception.mp4")
@@ -682,6 +684,25 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
     }
   };
 
+  const handleUpdateItemPath = (index, newPath) => {
+    setScannedResults((prev) =>
+      prev.map((item, idx) => {
+        if (idx === index) {
+          const updatedMedia = { ...item.mediaData };
+          if (updatedMedia.new_paths) {
+            updatedMedia.new_paths.default = newPath;
+          }
+          return {
+            ...item,
+            filePath: newPath,
+            mediaData: updatedMedia
+          };
+        }
+        return item;
+      })
+    );
+  };
+
   // Fast Batch Save & Automatic Direct Navigation to The Library
   const handleConfirmBatchSave = async () => {
     const selectedItems = scannedResults.filter((r) => r.selected);
@@ -929,8 +950,15 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
                         {(item.mediaData.genres || []).slice(0, 2).join(", ")}
                       </span>
                     </div>
-                    <div style={styles.resultPath} title={item.filePath}>
-                      📁 {item.rawFileName || item.filePath}
+                    <div style={styles.resultPathBox} onClick={(e) => e.stopPropagation()}>
+                      <span style={styles.resultPathLabel}>📁 Local PC File Path:</span>
+                      <input
+                        type="text"
+                        value={item.filePath || ""}
+                        onChange={(e) => handleUpdateItemPath(idx, e.target.value)}
+                        placeholder="C:\Users\Ahmed\Downloads\English\Marvel Films\..."
+                        style={styles.resultPathInput}
+                      />
                     </div>
 
                     {/* Interactive Change TMDB Match button */}
@@ -1303,13 +1331,27 @@ const styles = {
     overflow: "hidden",
     textOverflow: "ellipsis"
   },
-  resultPath: {
+  resultPathBox: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "3px",
+    marginTop: "4px"
+  },
+  resultPathLabel: {
     fontSize: "0.72rem",
-    color: "var(--text-muted)",
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    marginTop: "2px"
+    color: "var(--accent-green)",
+    fontWeight: 700
+  },
+  resultPathInput: {
+    width: "100%",
+    padding: "6px 8px",
+    backgroundColor: "var(--bg-surface)",
+    border: "1px solid var(--border-subtle)",
+    borderRadius: "4px",
+    color: "#ffffff",
+    fontSize: "0.75rem",
+    fontFamily: "monospace",
+    outline: "none"
   },
   fixMatchBtn: {
     marginTop: "6px",
