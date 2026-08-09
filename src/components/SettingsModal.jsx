@@ -1,8 +1,5 @@
 import React, { useState } from "react";
-import { X, Settings, Key, Database, Save, Download, List, FolderArchive } from "lucide-react";
-import { exportMasterM3uPlaylist } from "../services/vlcLauncher";
-import { fetchLibraryItems } from "../services/storage";
-import { exportPlaylistsAsZip } from "../services/folderSync";
+import { X, Settings, Key, Database, Save } from "lucide-react";
 import { getTmdbApiKey, setTmdbApiKey } from "../services/tmdb";
 import { useToast } from "../context/ToastContext";
 
@@ -53,48 +50,6 @@ export const SettingsModal = ({ onClose }) => {
         </div>
 
         <form onSubmit={handleSave} style={styles.form}>
-          {/* Export Playlists Folder as ZIP Archive */}
-          <div style={{ ...styles.vlcSetupBox, backgroundColor: "rgba(16, 185, 129, 0.1)", borderColor: "#10b981" }}>
-            <FolderArchive size={24} color="#10b981" />
-            <div style={{ flex: 1 }}>
-              <div style={styles.vlcSetupTitle}>Export Playlists Catalog (.ZIP)</div>
-              <p style={styles.vlcSetupSub}>
-                Export a `.zip` archive containing separate `.m3u` catalog files organized in `Movies/` and `Series/` folders!
-              </p>
-            </div>
-            <button
-              type="button"
-              style={{ ...styles.downloadRegBtn, backgroundColor: "#10b981", color: "#ffffff" }}
-              onClick={async () => {
-                const items = await fetchLibraryItems();
-                await exportPlaylistsAsZip(items, addToast);
-              }}
-            >
-              <Download size={14} /> Export ZIP
-            </button>
-          </div>
-
-          {/* Export Master Library Playlist (.m3u) */}
-          <div style={{ ...styles.vlcSetupBox, backgroundColor: "rgba(59, 130, 246, 0.1)", borderColor: "#3b82f6" }}>
-            <List size={24} color="#3b82f6" />
-            <div style={{ flex: 1 }}>
-              <div style={styles.vlcSetupTitle}>Export Master Catalog Playlist (.M3U)</div>
-              <p style={styles.vlcSetupSub}>
-                Export a single master playlist containing your complete collection catalog for offline backup!
-              </p>
-            </div>
-            <button
-              type="button"
-              style={{ ...styles.downloadRegBtn, backgroundColor: "#3b82f6", color: "#ffffff" }}
-              onClick={async () => {
-                const items = await fetchLibraryItems();
-                exportMasterM3uPlaylist(items, addToast);
-              }}
-            >
-              <Download size={14} /> Export Master `.m3u`
-            </button>
-          </div>
-
           {/* TMDB API Key */}
           <div style={styles.section}>
             <label style={styles.label}>
