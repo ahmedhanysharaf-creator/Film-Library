@@ -1,12 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { 
-  Search, Grid, List, Filter, ArrowUpDown, Check, X, Film, Tv, Star, CheckCircle2, Bookmark, User, Globe, History, Edit3, Trash2, Calendar, HardDrive, CheckSquare, Square, Layers, CheckCheck, FolderArchive 
+  Search, Grid, List, Filter, ArrowUpDown, Check, X, Film, Tv, Star, User, Globe, History, Edit3, Trash2, Calendar, HardDrive, CheckSquare, Square, Layers, CheckCheck 
 } from "lucide-react";
 import { fetchLibraryItems, deleteMediaEntry, deleteMediaEntriesBatch, updateWatchProgress } from "../services/storage";
-import { exportMasterM3uPlaylist } from "../services/vlcLauncher";
-import { exportPlaylistsAsZip } from "../services/folderSync";
 import { PosterCard } from "../components/PosterCard";
-import { ContinueWatchingRow } from "../components/ContinueWatchingRow";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 
@@ -34,7 +31,6 @@ export const Library = ({ onSelectItem, onEditItem, onPlayMedia }) => {
   const [typeFilter, setTypeFilter] = useState("all"); // "all" | "movie" | "series"
   const [selectedGenres, setSelectedGenres] = useState([]);
   const [genreLogic, setGenreLogic] = useState("OR");
-  const [watchFilter, setWatchFilter] = useState("all");
 
   const loadItems = useCallback(async () => {
     setLoading(true);
@@ -102,13 +98,7 @@ export const Library = ({ onSelectItem, onEditItem, onPlayMedia }) => {
       // 2. Type Filter
       if (typeFilter !== "all" && item.type !== typeFilter) return false;
 
-      // 3. Watch Status Filter
-      const userProgress = (item.user_progress || {})[currentUser?.uid || ""] || {};
-      if (watchFilter === "watched" && userProgress.status !== "watched") return false;
-      if (watchFilter === "watchlist" && userProgress.status !== "watchlist") return false;
-      if (watchFilter === "unwatched" && userProgress.status === "watched") return false;
-
-      // 4. Genre Filter
+      // 3. Genre Filter
       if (selectedGenres.length > 0) {
         const itemGenres = item.genres || [];
         if (genreLogic === "AND") {
@@ -127,7 +117,7 @@ export const Library = ({ onSelectItem, onEditItem, onPlayMedia }) => {
       if (sortBy === "year") return (b.year || 0) - (a.year || 0);
       return new Date(b.added_at || 0) - new Date(a.added_at || 0);
     });
-  }, [items, libraryScope, searchQuery, typeFilter, watchFilter, selectedGenres, genreLogic, sortBy, currentUser]);
+  }, [items, libraryScope, searchQuery, typeFilter, selectedGenres, genreLogic, sortBy, currentUser]);
 
   // Multi-Select Helpers
   const isAllSelected = filteredItems.length > 0 && filteredItems.every((item) => selectedItemIds.has(item.id));
@@ -201,9 +191,6 @@ export const Library = ({ onSelectItem, onEditItem, onPlayMedia }) => {
 
   return (
     <div style={styles.container} className="animate-fade">
-      {/* Netflix-style Continue Watching Section */}
-      <ContinueWatchingRow libraryItems={items} onSelectMedia={onSelectItem} />
-
       {/* Top Header & Toolbar */}
       <div style={styles.topBar}>
         <div style={styles.titleSection}>
@@ -246,45 +233,6 @@ export const Library = ({ onSelectItem, onEditItem, onPlayMedia }) => {
 
           <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
             <span style={styles.itemCount}>Showing {filteredItems.length} of {items.length} items</span>
-            <button
-              style={{
-                backgroundColor: "rgba(59, 130, 246, 0.15)",
-                border: "1px solid #3b82f6",
-                color: "#3b82f6",
-                borderRadius: "6px",
-                padding: "6px 12px",
-                fontSize: "0.82rem",
-                fontWeight: 700,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: "6px"
-              }}
-              onClick={() => exportMasterM3uPlaylist(items, addToast, currentUser?.uid)}
-              title="Download a single Master Playlist file containing all movies & TV episodes for VLC"
-            >
-              <List size={14} /> Export Master Playlist (.m3u)
-            </button>
-
-            <button
-              style={{
-                backgroundColor: "rgba(16, 185, 129, 0.15)",
-                border: "1px solid #10b981",
-                color: "#10b981",
-                borderRadius: "6px",
-                padding: "6px 12px",
-                fontSize: "0.82rem",
-                fontWeight: 700,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: "6px"
-              }}
-              onClick={() => exportPlaylistsAsZip(items, addToast)}
-              title="Download a ZIP archive containing Movies/ and Series/ folders with individual .m3u files"
-            >
-              <FolderArchive size={14} /> Download Playlists Folder (.ZIP)
-            </button>
           </div>
         </div>
 
@@ -326,28 +274,6 @@ export const Library = ({ onSelectItem, onEditItem, onPlayMedia }) => {
                 onClick={() => setTypeFilter("series")}
               >
                 <Tv size={14} /> Series
-              </button>
-            </div>
-
-            {/* Watch Status Filter Tabs */}
-            <div style={styles.segmentedGroup}>
-              <button
-                style={{ ...styles.segmentBtn, ...(watchFilter === "all" ? styles.segmentActive : {}) }}
-                onClick={() => setWatchFilter("all")}
-              >
-                All Status
-              </button>
-              <button
-                style={{ ...styles.segmentBtn, ...(watchFilter === "watchlist" ? styles.segmentActiveGold : {}) }}
-                onClick={() => setWatchFilter("watchlist")}
-              >
-                <Bookmark size={14} fill={watchFilter === "watchlist" ? "#f5c518" : "none"} color={watchFilter === "watchlist" ? "#f5c518" : "currentColor"} /> Watchlist
-              </button>
-              <button
-                style={{ ...styles.segmentBtn, ...(watchFilter === "watched" ? styles.segmentActiveGreen : {}) }}
-                onClick={() => setWatchFilter("watched")}
-              >
-                <CheckCircle2 size={14} color={watchFilter === "watched" ? "var(--accent-green)" : "currentColor"} /> Watched
               </button>
             </div>
 
