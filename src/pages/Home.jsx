@@ -114,7 +114,6 @@ export const Home = ({ setActivePage, onSelectItem, onPlayMedia }) => {
                 key={item.id}
                 item={item}
                 onClick={() => onSelectItem(item)}
-                onPlayMedia={onPlayMedia}
               />
             ))}
           </div>

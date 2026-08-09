@@ -651,7 +651,6 @@ export const Library = ({ onSelectItem, onEditItem, onPlayMedia }) => {
                     isDimmed={isDimmed}
                     viewMode={viewMode}
                     onToggleSelect={isMultiSelectActive || selectedItemIds.size > 0 ? handleToggleSelectItem : null}
-                    onPlayMedia={onPlayMedia}
                   />
                 );
               })}
