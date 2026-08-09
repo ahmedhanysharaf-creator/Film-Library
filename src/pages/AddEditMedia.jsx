@@ -377,37 +377,7 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
   const { currentUser } = useAuth();
   const { addToast } = useToast();
 
-  const [mode, setMode] = useState("single");
   const folderInputRef = useRef(null);
-
-  // Single Entry Form State
-  const [type, setType] = useState(editItem?.type || "movie");
-  const [tmdbId, setTmdbId] = useState(editItem?.tmdb_id || "");
-  const [title, setTitle] = useState(editItem?.title || "");
-  const [year, setYear] = useState(editItem?.year || new Date().getFullYear());
-  const [posterUrl, setPosterUrl] = useState(editItem?.poster_url || "");
-  const [backdropUrl, setBackdropUrl] = useState(editItem?.backdrop_url || "");
-  const [trailerUrl, setTrailerUrl] = useState(editItem?.trailer_url || "");
-  const [genresStr, setGenresStr] = useState((editItem?.genres || []).join(", "));
-  const [imdbRating, setImdbRating] = useState(editItem?.imdb_rating || "");
-  const [overview, setOverview] = useState(editItem?.overview || "");
-  const [releaseDate, setReleaseDate] = useState(editItem?.release_date || "");
-  const [runtime, setRuntime] = useState(editItem?.runtime || "");
-  const [director, setDirector] = useState(editItem?.director || "");
-  const [creator, setCreator] = useState(editItem?.creator || "");
-  const [studio, setStudio] = useState(editItem?.studio || "");
-  const [castStr, setCastStr] = useState(
-    (editItem?.cast || []).map((c) => `${c.name} as ${c.character}`).join("\n")
-  );
-
-  const [seasonCount, setSeasonCount] = useState(editItem?.seasons?.length || 1);
-  const [episodesPerSeason, setEpisodesPerSeason] = useState(editItem?.seasons?.[0]?.episode_count || 10);
-  const [isOngoing, setIsOngoing] = useState(editItem?.is_ongoing || false);
-
-  const initialUserPaths = editItem?.user_paths?.find((up) => up.uid === currentUser?.uid)?.paths || {};
-  const [defaultPath, setDefaultPath] = useState(initialUserPaths.default || "");
-  const [subtitlePath, setSubtitlePath] = useState(initialUserPaths.subtitle || editItem?.subtitle_path || "");
-  const [episodePaths, setEpisodePaths] = useState(initialUserPaths || {});
 
   // Batch Scanner 3-Step State: "input" -> "scanning" -> "confirm"
   const [batchStep, setBatchStep] = useState("input");
@@ -418,65 +388,6 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
   const [savingBatch, setSavingBatch] = useState(false);
   const [saveProgressData, setSaveProgressData] = useState({ current: 0, total: 0, title: "", percentage: 0 });
   const [editingResultIndex, setEditingResultIndex] = useState(null);
-
-  const handleTmdbSelect = async (selected) => {
-    try {
-      addToast(`Fetching metadata from TMDB for "${selected.title}"...`, "info");
-      const details = await getTmdbDetails(selected.tmdb_id, selected.type);
-      
-      setTmdbId(details.tmdb_id);
-      setType(details.type);
-      setTitle(details.title);
-      setYear(details.year);
-      setPosterUrl(details.poster_url);
-      setBackdropUrl(details.backdrop_url);
-      setTrailerUrl(details.trailer_url);
-      setGenresStr(details.genres.join(", "));
-      setImdbRating(details.imdb_rating);
-      setOverview(details.overview);
-      setReleaseDate(details.release_date);
-      setStudio(details.studio);
-      
-      if (details.type === "movie") {
-        setRuntime(details.runtime);
-        setDirector(details.director);
-      } else {
-        setCreator(details.creator);
-        setSeasonCount(details.seasons?.length || 1);
-        setEpisodesPerSeason(details.seasons?.[0]?.episode_count || 10);
-        setIsOngoing(details.is_ongoing);
-      }
-
-      setCastStr((details.cast || []).map((c) => `${c.name} as ${c.character}`).join("\n"));
-      addToast(`Metadata auto-populated!`, "success");
-    } catch (err) {
-      addToast(`Error fetching TMDB details: ${err.message}`, "error");
-    }
-  };
-
-  const handleDefaultPathChange = async (newPath) => {
-    setDefaultPath(newPath);
-
-    const isVideoFile = VIDEO_EXTENSIONS.some((ext) => newPath.toLowerCase().endsWith(ext));
-    if (isVideoFile) {
-      if (!subtitlePath) {
-        const autoSub = findBestMatchingSubtitle(newPath);
-        if (autoSub) setSubtitlePath(autoSub);
-      }
-      const { cleanTitle, year: parsedYear } = extractTitleAndYearFromPath(newPath);
-      if (cleanTitle && (!title || title === "Untitled")) {
-        setTitle(cleanTitle);
-        if (parsedYear) setYear(parsedYear);
-        try {
-          const searchResults = await searchTmdb(cleanTitle, parsedYear);
-          if (searchResults && searchResults.length > 0) {
-            const exactMatch = searchResults.find((r) => r.year === parsedYear) || searchResults[0];
-            handleTmdbSelect(exactMatch);
-          }
-        } catch (e) {}
-      }
-    }
-  };
 
   const handleSelectFolderFiles = (e) => {
     const files = Array.from(e.target.files || []);
@@ -517,71 +428,6 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
     const subCount = files.filter((f) => SUB_EXTENSIONS.some((ext) => f.name.toLowerCase().endsWith(ext))).length;
     const subMsg = subCount > 0 ? ` & ${subCount} subtitle track(s) (.srt)!` : "!";
     addToast(`Discovered ${videoFiles.length} video file(s)${subMsg}`, "success");
-  };
-
-  const handleEpisodePathChange = (code, value) => {
-    setEpisodePaths((prev) => ({ ...prev, [code]: value }));
-  };
-
-  const handleSubmitSingle = async (e) => {
-    e.preventDefault();
-
-    let finalTitle = title.trim();
-    if (!finalTitle) {
-      finalTitle = extractCleanTitleFromPath(defaultPath) || "Untitled Media";
-    }
-
-    const parsedGenres = genresStr.split(",").map((g) => g.trim()).filter(Boolean);
-    const parsedCast = castStr
-      .split("\n")
-      .map((line) => {
-        const parts = line.split(" as ");
-        return { name: parts[0]?.trim() || "", character: parts[1]?.trim() || "" };
-      })
-      .filter((c) => c.name);
-
-    let pathsObj = type === "movie" 
-      ? { default: defaultPath, subtitle: subtitlePath } 
-      : { default: defaultPath, subtitle: subtitlePath, ...episodePaths };
-
-    const seasonsArr = Array.from({ length: parseInt(seasonCount) || 1 }).map((_, idx) => ({
-      season_number: idx + 1,
-      episode_count: parseInt(episodesPerSeason) || 10
-    }));
-
-    const mediaData = {
-      ...(editItem || {}),
-      id: editItem?.id,
-      tmdb_id: tmdbId ? parseInt(tmdbId) : (editItem?.tmdb_id || Date.now()),
-      type,
-      title: finalTitle,
-      year: parseInt(year) || new Date().getFullYear(),
-      poster_url: posterUrl || "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500&auto=format&fit=crop&q=60",
-      backdrop_url: backdropUrl || "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=1920&auto=format&fit=crop&q=80",
-      trailer_url: trailerUrl,
-      genres: parsedGenres.length > 0 ? parsedGenres : ["Cinema"],
-      imdb_rating: parseFloat(imdbRating) || 8.0,
-      overview: overview || `Local file: ${defaultPath}`,
-      release_date: releaseDate,
-      runtime: parseInt(runtime) || 0,
-      director,
-      creator,
-      studio,
-      cast: parsedCast,
-      seasons: seasonsArr,
-      total_episodes: seasonsArr.reduce((acc, s) => acc + s.episode_count, 0),
-      is_ongoing: isOngoing,
-      subtitle_path: subtitlePath,
-      new_paths: pathsObj
-    };
-
-    try {
-      await saveMediaEntry(mediaData, currentUser);
-      addToast(`"${finalTitle}" saved to library!`, "success");
-      onSaveSuccess();
-    } catch (err) {
-      addToast(`Failed to save entry: ${err.message}`, "error");
-    }
   };
 
   // Step 1 -> Step 2: Smart Batch Scanning (Groups TV Series subfolders into 1 Card!)
@@ -959,543 +805,199 @@ export const AddEditMedia = ({ editItem, onSaveSuccess, onCancel }) => {
         <h1 style={styles.title}>{editItem ? "Edit Media Entry" : "Add New Films or TV Series"}</h1>
       </div>
 
-      {/* Mode Selector Tabs */}
-      <div style={styles.modeTabs}>
-        <button
-          type="button"
-          className={`mode-tab-btn ${mode === "single" ? "mode-active" : ""}`}
-          onClick={() => {
-            setMode("single");
-            setBatchStep("input");
-          }}
-        >
-          <Film size={18} color={mode === "single" ? "#ffffff" : "#a3a3a3"} /> Single Entry Mode
-        </button>
-
-        <button
-          type="button"
-          className={`mode-tab-btn ${mode === "batch" ? "mode-active" : ""}`}
-          onClick={() => setMode("batch")}
-        >
-          <FolderPlus size={18} color={mode === "batch" ? "#ffffff" : "var(--accent-green)"} /> 📁 Batch Folder Scanner & Preview
-        </button>
-      </div>
-
-      {mode === "batch" ? (
-        /* BATCH FOLDER SCANNER 3-STEP WIZARD UI */
-        <div style={styles.batchCard} className="glass-panel">
-          {batchStep === "input" && (
-            <form onSubmit={handleStartBatchScan} style={styles.batchInnerForm}>
-              <div style={styles.batchHeader}>
-                <FolderPlus size={32} color="var(--accent-green)" />
-                <div>
-                  <h3 style={styles.batchTitle}>Step 1: Select Local Folder or Paste Video Files</h3>
-                  <p style={styles.batchSub}>
-                    Click **Select Local PC Folder** below. Chrome will read every video file (.mp4, .mkv) in your folder, ignore subtitle files (.srt), fetch full metadata, and present a review checklist before adding anything!
-                  </p>
-                </div>
-              </div>
-
-              {/* Native Folder Selector Button */}
-              <div style={styles.folderPickerSection}>
-                <input
-                  type="file"
-                  ref={folderInputRef}
-                  onChange={handleSelectFolderFiles}
-                  style={{ display: "none" }}
-                  webkitdirectory="true"
-                  directory="true"
-                  multiple
-                />
-                <button
-                  type="button"
-                  style={styles.folderPickBtn}
-                  onClick={() => folderInputRef.current && folderInputRef.current.click()}
-                >
-                  <FolderSearch size={24} /> Step 1: Click Here to Select Your Local PC Movie Folder
-                </button>
-              </div>
-
-              <div style={styles.field}>
-                <label style={styles.label}>Base Folder Path on PC</label>
-                <input
-                  type="text"
-                  value={folderPath}
-                  onChange={(e) => setFolderPath(e.target.value)}
-                  placeholder="C:\Users\Ahmed\Downloads\English\Marvel Films"
-                  style={styles.input}
-                  required
-                />
-              </div>
-
-              <div style={styles.field}>
-                <label style={styles.label}>Video Files to Scan (One video file per line)</label>
-                <textarea
-                  rows={6}
-                  value={fileListText}
-                  onChange={(e) => setFileListText(e.target.value)}
-                  placeholder="M02 - (1998) - Blade.mp4&#10;M03 - (2000) - X-Men.mp4&#10;M04 - (2002) - Blade II.mp4&#10;(Click the green button above to auto-detect all video files in your folder!)"
-                  style={styles.textarea}
-                  required
-                />
-                <span style={styles.helpText}>
-                  Scene prefixes like 'M02 - ' are automatically stripped, and years like '1998' are matched with TMDB automatically!
-                </span>
-              </div>
-
-              <button type="submit" style={styles.batchSubmitBtn}>
-                <Sparkles size={18} /> 🔍 Step 2: Scan Movies & Extract TMDB Details
-              </button>
-            </form>
-          )}
-
-          {batchStep === "scanning" && (
-            <div style={styles.loadingState}>
-              <Loader2 size={42} color="var(--accent-green)" className="animate-spin" />
-              <h3 style={styles.loadingTitle}>Scanning Folder Movies & Extracting TMDB Metadata...</h3>
-              <p style={styles.loadingSub}>{scanProgress}</p>
-            </div>
-          )}
-
-          {batchStep === "confirm" && (
-            <div style={styles.confirmState}>
-              <div style={styles.confirmHeader}>
-                <CheckCircle2 size={28} color="var(--accent-green)" />
-                <div>
-                  <h3 style={styles.batchTitle}>Step 3: Verify TMDB Information & Confirm</h3>
-                  <p style={styles.batchSub}>
-                    We scanned {scannedResults.length} movie(s). Verify the information below! If any TMDB match is wrong, click **Change TMDB Match** to fix it before saving!
-                  </p>
-                </div>
-              </div>
-
-              {/* Scanned Results Checklist & TMDB Match Adjuster Grid */}
-              <div style={styles.resultsGrid}>
-                {scannedResults.map((item, idx) => (
-                  <div
-                    key={idx}
-                    style={{
-                      ...styles.resultCard,
-                      ...(item.selected ? styles.resultCardSelected : {})
-                    }}
-                  >
-                    <div style={styles.checkboxArea} onClick={() => toggleItemSelection(idx)}>
-                      {item.selected ? (
-                        <CheckSquare size={24} color="var(--accent-green)" />
-                      ) : (
-                        <Square size={24} color="var(--text-muted)" />
-                      )}
-                    </div>
-
-                    <img
-                      src={item.mediaData.poster_url}
-                      alt={item.mediaData.title}
-                      style={styles.resultPoster}
-                      onClick={() => toggleItemSelection(idx)}
-                    />
-
-                    <div style={styles.resultInfo}>
-                      <div style={styles.resultTitleRow}>
-                        <span style={styles.resultTitle}>{item.mediaData.title}</span>
-                        <span style={styles.resultYear}>({item.mediaData.year})</span>
-                      </div>
-                      <div style={styles.resultMeta}>
-                        <span style={styles.resultBadge}>{item.mediaData.type.toUpperCase()}</span>
-                        <span style={styles.resultRating}>⭐ {item.mediaData.imdb_rating}</span>
-                        <span style={styles.resultGenres}>
-                          {(item.mediaData.genres || []).slice(0, 2).join(", ")}
-                        </span>
-                      </div>
-                      <div style={styles.resultPath} title={item.filePath}>
-                        📁 {item.rawFileName || item.filePath}
-                      </div>
-
-                      {/* Interactive Change TMDB Match button */}
-                      {editingResultIndex === idx ? (
-                        <div style={styles.editTmdbBox} onClick={(e) => e.stopPropagation()}>
-                          <label style={styles.label}>Search Correct TMDB Entry:</label>
-                          <TmdbSearchInput
-                            onSelectMedia={(selected) => handleUpdateItemTmdbMatch(idx, selected)}
-                            initialQuery={item.mediaData.title}
-                          />
-                          <button
-                            type="button"
-                            style={styles.cancelEditBtn}
-                            onClick={() => setEditingResultIndex(null)}
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          style={styles.fixMatchBtn}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingResultIndex(idx);
-                          }}
-                        >
-                          <Edit3 size={13} /> Change TMDB Match
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Confirm Actions */}
-              <div style={styles.confirmActionRow}>
-                <button
-                  type="button"
-                  style={styles.reScanBtn}
-                  onClick={() => setBatchStep("input")}
-                  disabled={savingBatch}
-                >
-                  <RefreshCw size={16} /> Back to Scan Input
-                </button>
-
-                <button
-                  type="button"
-                  style={styles.doneBtn}
-                  onClick={handleConfirmBatchSave}
-                  disabled={savingBatch}
-                >
-                  {savingBatch ? (
-                    <Loader2 size={18} className="animate-spin" />
-                  ) : (
-                    <CheckCircle2 size={18} />
-                  )}
-                  {savingBatch
-                    ? "Saving Entries..."
-                    : `Done — Add Verified (${scannedResults.filter((r) => r.selected).length}) Items to Library`}
-                </button>
+      {/* BATCH FOLDER SCANNER 3-STEP WIZARD UI */}
+      <div style={styles.batchCard} className="glass-panel">
+        {batchStep === "input" && (
+          <form onSubmit={handleStartBatchScan} style={styles.batchInnerForm}>
+            <div style={styles.batchHeader}>
+              <FolderPlus size={32} color="var(--accent-green)" />
+              <div>
+                <h3 style={styles.batchTitle}>Step 1: Select Local Folder or Paste Video Files</h3>
+                <p style={styles.batchSub}>
+                  Click **Select Local PC Folder** below. Chrome will read every video file (.mp4, .mkv) in your folder, ignore subtitle files (.srt), fetch full metadata, and present a review checklist before adding anything!
+                </p>
               </div>
             </div>
-          )}
-        </div>
-      ) : (
-        /* SINGLE ENTRY FORM UI */
-        <form onSubmit={handleSubmitSingle} style={styles.formGrid}>
-          {/* Left Form Block — TMDB Search & Metadata */}
-          <div style={styles.leftCol} className="glass-panel">
-            <h3 style={styles.sectionTitle}>
-              <Sparkles size={18} color="var(--accent-red)" /> TMDB Auto-Fetch Metadata
-            </h3>
 
-            <div style={styles.typeToggle}>
+            {/* Native Folder Selector Button */}
+            <div style={styles.folderPickerSection}>
+              <input
+                type="file"
+                ref={folderInputRef}
+                onChange={handleSelectFolderFiles}
+                style={{ display: "none" }}
+                webkitdirectory="true"
+                directory="true"
+                multiple
+              />
               <button
                 type="button"
-                className={`type-tab-btn ${type === "movie" ? "type-active-red" : ""}`}
-                onClick={() => setType("movie")}
+                style={styles.folderPickBtn}
+                onClick={() => folderInputRef.current && folderInputRef.current.click()}
               >
-                <Film size={16} /> Movie
-              </button>
-              <button
-                type="button"
-                className={`type-tab-btn ${type === "series" ? "type-active-green" : ""}`}
-                onClick={() => setType("series")}
-              >
-                <Tv size={16} /> TV Series
+                <FolderSearch size={24} /> Step 1: Click Here to Select Your Local PC Movie Folder
               </button>
             </div>
 
             <div style={styles.field}>
-              <label style={styles.label}>Live TMDB Search</label>
-              <TmdbSearchInput onSelectMedia={handleTmdbSelect} initialQuery={title} />
-            </div>
-
-            <div style={styles.row}>
-              <div style={styles.field}>
-                <label style={styles.label}>Title</label>
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Movie or TV Series Title..."
-                  style={styles.input}
-                />
-              </div>
-              <div style={{ ...styles.field, maxWidth: "120px" }}>
-                <label style={styles.label}>Year</label>
-                <input
-                  type="number"
-                  value={year}
-                  onChange={(e) => setYear(e.target.value)}
-                  style={styles.input}
-                />
-              </div>
-            </div>
-
-            <div style={styles.row}>
-              <div style={styles.field}>
-                <label style={styles.label}>Poster Image URL</label>
-                <input
-                  type="text"
-                  value={posterUrl}
-                  onChange={(e) => setPosterUrl(e.target.value)}
-                  placeholder="https://image.tmdb.org/t/p/w500/..."
-                  style={styles.input}
-                />
-              </div>
-              <div style={styles.field}>
-                <label style={styles.label}>Backdrop Image URL</label>
-                <input
-                  type="text"
-                  value={backdropUrl}
-                  onChange={(e) => setBackdropUrl(e.target.value)}
-                  placeholder="https://image.tmdb.org/t/p/original/..."
-                  style={styles.input}
-                />
-              </div>
-            </div>
-
-            <div style={styles.row}>
-              <div style={styles.field}>
-                <label style={styles.label}>YouTube Trailer URL</label>
-                <input
-                  type="text"
-                  value={trailerUrl}
-                  onChange={(e) => setTrailerUrl(e.target.value)}
-                  placeholder="https://www.youtube.com/watch?v=..."
-                  style={styles.input}
-                />
-              </div>
-              <div style={{ ...styles.field, maxWidth: "140px" }}>
-                <label style={styles.label}>IMDb Rating</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  value={imdbRating}
-                  onChange={(e) => setImdbRating(e.target.value)}
-                  placeholder="8.8"
-                  style={styles.input}
-                />
-              </div>
-            </div>
-
-            <div style={styles.field}>
-              <label style={styles.label}>Genres (comma-separated)</label>
+              <label style={styles.label}>Base Folder Path on PC</label>
               <input
                 type="text"
-                value={genresStr}
-                onChange={(e) => setGenresStr(e.target.value)}
-                placeholder="Action, Sci-Fi, Adventure"
+                value={folderPath}
+                onChange={(e) => setFolderPath(e.target.value)}
+                placeholder="C:\Users\Ahmed\Downloads\English\Marvel Films"
                 style={styles.input}
+                required
               />
             </div>
 
             <div style={styles.field}>
-              <label style={styles.label}>Overview</label>
+              <label style={styles.label}>Video Files to Scan (One video file per line)</label>
               <textarea
-                rows={3}
-                value={overview}
-                onChange={(e) => setOverview(e.target.value)}
+                rows={6}
+                value={fileListText}
+                onChange={(e) => setFileListText(e.target.value)}
+                placeholder="M02 - (1998) - Blade.mp4&#10;M03 - (2000) - X-Men.mp4&#10;M04 - (2002) - Blade II.mp4&#10;(Click the green button above to auto-detect all video files in your folder!)"
                 style={styles.textarea}
+                required
               />
+              <span style={styles.helpText}>
+                Scene prefixes like 'M02 - ' are automatically stripped, and years like '1998' are matched with TMDB automatically!
+              </span>
             </div>
 
-            <div style={styles.row}>
-              {type === "movie" ? (
-                <>
-                  <div style={styles.field}>
-                    <label style={styles.label}>Director</label>
-                    <input
-                      type="text"
-                      value={director}
-                      onChange={(e) => setDirector(e.target.value)}
-                      style={styles.input}
-                    />
-                  </div>
-                  <div style={styles.field}>
-                    <label style={styles.label}>Runtime (mins)</label>
-                    <input
-                      type="number"
-                      value={runtime}
-                      onChange={(e) => setRuntime(e.target.value)}
-                      style={styles.input}
-                    />
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div style={styles.field}>
-                    <label style={styles.label}>Creator</label>
-                    <input
-                      type="text"
-                      value={creator}
-                      onChange={(e) => setCreator(e.target.value)}
-                      style={styles.input}
-                    />
-                  </div>
-                  <div style={{ ...styles.field, maxWidth: "120px" }}>
-                    <label style={styles.label}>Seasons</label>
-                    <input
-                      type="number"
-                      value={seasonCount}
-                      onChange={(e) => setSeasonCount(e.target.value)}
-                      style={styles.input}
-                    />
-                  </div>
-                </>
-              )}
-            </div>
+            <button type="submit" style={styles.batchSubmitBtn}>
+              <Sparkles size={18} /> 🔍 Step 2: Scan Movies & Extract TMDB Details
+            </button>
+          </form>
+        )}
 
-            <div style={styles.field}>
-              <label style={styles.label}>Top Cast (One per line: Name as Character)</label>
-              <textarea
-                rows={3}
-                value={castStr}
-                onChange={(e) => setCastStr(e.target.value)}
-                placeholder="Leonardo DiCaprio as Cobb&#10;Joseph Gordon-Levitt as Arthur"
-                style={styles.textarea}
-              />
-            </div>
+        {batchStep === "scanning" && (
+          <div style={styles.loadingState}>
+            <Loader2 size={42} color="var(--accent-green)" className="animate-spin" />
+            <h3 style={styles.loadingTitle}>Scanning Folder Movies & Extracting TMDB Metadata...</h3>
+            <p style={styles.loadingSub}>{scanProgress}</p>
           </div>
+        )}
 
-          {/* Right Form Block — Local PC File Path Configuration */}
-          <div style={styles.rightCol} className="glass-panel">
-            <h3 style={styles.sectionTitle}>
-              <HardDrive size={18} color="var(--accent-green)" /> Local PC Media File Locations
-            </h3>
-
-            <div style={styles.field}>
-              <label style={styles.label}>Paste Local File Path ({currentUser?.displayName})</label>
-              <input
-                type="text"
-                value={defaultPath}
-                onChange={(e) => handleDefaultPathChange(e.target.value)}
-                placeholder="e.g. C:\Downloads\Marvel Films\Avengers.mp4"
-                style={styles.input}
-              />
-              <span style={styles.helpText}>
-                Pasting a single video file path (.mp4/.mkv) auto-fetches TMDB metadata.
-              </span>
-            </div>
-
-            <div style={styles.field}>
-              <label style={styles.label}>💬 Subtitle Track File Path (.srt / .ass / .vtt)</label>
-              <div style={{ display: "flex", gap: "8px" }}>
-                <input
-                  type="text"
-                  value={subtitlePath}
-                  onChange={(e) => setSubtitlePath(e.target.value)}
-                  placeholder="e.g. C:\Downloads\Marvel Films\Avengers.srt"
-                  style={{ ...styles.input, flex: 1 }}
-                />
-                <label style={styles.subBrowseBtn}>
-                  Browse .srt
-                  <input
-                    type="file"
-                    accept=".srt,.ass,.vtt,.sub"
-                    style={{ display: "none" }}
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        const basePath = defaultPath && defaultPath.includes("\\")
-                          ? defaultPath.substring(0, defaultPath.lastIndexOf("\\") + 1)
-                          : "C:\\Users\\Ahmed\\Downloads\\";
-                        setSubtitlePath(`${basePath}${file.name}`);
-                        addToast(`Attached subtitle file: ${file.name}`, "success");
-                      }
-                    }}
-                  />
-                </label>
+        {batchStep === "confirm" && (
+          <div style={styles.confirmState}>
+            <div style={styles.confirmHeader}>
+              <CheckCircle2 size={28} color="var(--accent-green)" />
+              <div>
+                <h3 style={styles.batchTitle}>Step 3: Verify TMDB Information & Confirm</h3>
+                <p style={styles.batchSub}>
+                  We scanned {scannedResults.length} movie(s). Verify the information below! If any TMDB match is wrong, click **Change TMDB Match** to fix it before saving!
+                </p>
               </div>
-              <span style={styles.helpText}>
-                Select or paste your local subtitle file (.srt). VLC will auto-display this subtitle track when playing!
-              </span>
             </div>
 
-            {defaultPath && !VIDEO_EXTENSIONS.some((ext) => defaultPath.toLowerCase().endsWith(ext)) && (
-              <div style={styles.folderNotice}>
-                <FolderPlus size={20} color="var(--accent-green)" />
-                <div style={{ flex: 1 }}>
-                  <strong>Folder Path Detected!</strong>
-                  <p style={{ fontSize: "0.8rem", margin: "2px 0 0 0" }}>
-                    This folder contains multiple movies. Switch to **Batch Folder Scanner** to scan and add all movies automatically!
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  style={styles.switchModeBtn}
-                  onClick={() => {
-                    setFolderPath(defaultPath);
-                    setMode("batch");
+            {/* Scanned Results Checklist & TMDB Match Adjuster Grid */}
+            <div style={styles.resultsGrid}>
+              {scannedResults.map((item, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    ...styles.resultCard,
+                    ...(item.selected ? styles.resultCardSelected : {})
                   }}
                 >
-                  Launch Scanner
-                </button>
-              </div>
-            )}
+                  <div style={styles.checkboxArea} onClick={() => toggleItemSelection(idx)}>
+                    {item.selected ? (
+                      <CheckSquare size={24} color="var(--accent-green)" />
+                    ) : (
+                      <Square size={24} color="var(--text-muted)" />
+                    )}
+                  </div>
 
-            {type === "series" && (
-              <div style={styles.episodeMapperSection}>
-                <h4 style={styles.subSectionTitle}>Episode Multi-File Mapping</h4>
-                <p style={styles.helpText}>Map individual episode codes to local video files (.mp4, .mkv):</p>
+                  <img
+                    src={item.mediaData.poster_url}
+                    alt={item.mediaData.title}
+                    style={styles.resultPoster}
+                    onClick={() => toggleItemSelection(idx)}
+                  />
 
-                <div style={styles.epMapperGrid}>
-                  {Array.from({ length: Math.min(parseInt(seasonCount) || 1, 3) }).map((_, sIdx) => {
-                    const sNum = sIdx + 1;
-                    return Array.from({ length: 3 }).map((_, eIdx) => {
-                      const eNum = eIdx + 1;
-                      const code = `S${sNum}E${eNum}`;
-                      return (
-                        <div key={code} style={styles.epFieldRow}>
-                          <span style={styles.epBadge}>{code}</span>
-                          <input
-                            type="text"
-                            value={episodePaths[code] || ""}
-                            onChange={(e) => handleEpisodePathChange(code, e.target.value)}
-                            placeholder={`D:\\Series\\${title || 'Show'}\\${code}.mp4`}
-                            style={styles.epInput}
-                          />
-                        </div>
-                      );
-                    });
-                  })}
+                  <div style={styles.resultInfo}>
+                    <div style={styles.resultTitleRow}>
+                      <span style={styles.resultTitle}>{item.mediaData.title}</span>
+                      <span style={styles.resultYear}>({item.mediaData.year})</span>
+                    </div>
+                    <div style={styles.resultMeta}>
+                      <span style={styles.resultBadge}>{item.mediaData.type.toUpperCase()}</span>
+                      <span style={styles.resultRating}>⭐ {item.mediaData.imdb_rating}</span>
+                      <span style={styles.resultGenres}>
+                        {(item.mediaData.genres || []).slice(0, 2).join(", ")}
+                      </span>
+                    </div>
+                    <div style={styles.resultPath} title={item.filePath}>
+                      📁 {item.rawFileName || item.filePath}
+                    </div>
+
+                    {/* Interactive Change TMDB Match button */}
+                    {editingResultIndex === idx ? (
+                      <div style={styles.editTmdbBox} onClick={(e) => e.stopPropagation()}>
+                        <label style={styles.label}>Search Correct TMDB Entry:</label>
+                        <TmdbSearchInput
+                          onSelectMedia={(selected) => handleUpdateItemTmdbMatch(idx, selected)}
+                          initialQuery={item.mediaData.title}
+                        />
+                        <button
+                          type="button"
+                          style={styles.cancelEditBtn}
+                          onClick={() => setEditingResultIndex(null)}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        style={styles.fixMatchBtn}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingResultIndex(idx);
+                        }}
+                      >
+                        <Edit3 size={13} /> Change TMDB Match
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              ))}
+            </div>
 
-            {posterUrl && (
-              <div style={styles.previewBox}>
-                <span style={styles.label}>Poster Live Preview</span>
-                <img src={posterUrl} alt="Preview" style={styles.previewImg} />
-              </div>
-            )}
+            {/* Confirm Actions */}
+            <div style={styles.confirmActionRow}>
+              <button
+                type="button"
+                style={styles.reScanBtn}
+                onClick={() => setBatchStep("input")}
+                disabled={savingBatch}
+              >
+                <RefreshCw size={16} /> Back to Scan Input
+              </button>
 
-            <div style={styles.submitSection}>
-              <button type="submit" style={styles.submitBtn}>
-                <Save size={18} /> Save Entry to Shared Library
+              <button
+                type="button"
+                style={styles.doneBtn}
+                onClick={handleConfirmBatchSave}
+                disabled={savingBatch}
+              >
+                {savingBatch ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : (
+                  <CheckCircle2 size={18} />
+                )}
+                {savingBatch
+                  ? "Saving Entries..."
+                  : `Done — Add Verified (${scannedResults.filter((r) => r.selected).length}) Items to Library`}
               </button>
             </div>
           </div>
-        </form>
-      )}
+        )}
+      </div>
     </div>
   );
-};
-
-const getModeTabStyle = (tabMode) => {
-  const isActive = mode === tabMode;
-  return {
-    flex: 1,
-    padding: "12px 18px",
-    backgroundColor: isActive ? "var(--accent-red)" : "#1c1c1c",
-    color: isActive ? "#ffffff" : "#a3a3a3",
-    border: isActive ? "1px solid var(--accent-red)" : "1px solid #2a2a2a",
-    boxShadow: isActive ? "0 4px 14px rgba(229, 9, 20, 0.4)" : "none",
-    fontWeight: isActive ? 800 : 600,
-    fontSize: "0.95rem",
-    borderRadius: "8px",
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: "10px",
-    transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-    outline: "none"
-  };
 };
 
 const styles = {
