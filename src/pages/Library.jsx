@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { 
-  Search, Grid, List, Filter, ArrowUpDown, Check, X, Film, Tv, Star, User, Globe, History, Edit3, Trash2, Calendar, HardDrive, CheckSquare, Square, Layers, CheckCheck 
+  Search, Grid, List, ArrowUpDown, X, Film, Tv, User, Globe, History, Edit3, Trash2, CheckSquare, Square, CheckCheck, CheckCircle2, Bookmark 
 } from "lucide-react";
 import { fetchLibraryItems, deleteMediaEntry, deleteMediaEntriesBatch, updateWatchProgress } from "../services/storage";
 import { PosterCard } from "../components/PosterCard";
@@ -29,6 +29,7 @@ export const Library = ({ onSelectItem, onEditItem, onPlayMedia }) => {
   const [viewMode, setViewMode] = useState("grid"); // "grid" | "list"
   const [sortBy, setSortBy] = useState("added"); // "added" | "title" | "rating" | "year"
   const [typeFilter, setTypeFilter] = useState("all"); // "all" | "movie" | "series"
+  const [watchFilter, setWatchFilter] = useState("all"); // "all" | "watched" | "watchlist" | "unwatched"
   const [selectedGenres, setSelectedGenres] = useState([]);
   const [genreLogic, setGenreLogic] = useState("OR");
 
@@ -98,7 +99,17 @@ export const Library = ({ onSelectItem, onEditItem, onPlayMedia }) => {
       // 2. Type Filter
       if (typeFilter !== "all" && item.type !== typeFilter) return false;
 
-      // 3. Genre Filter
+      // 3. Watch Status Filter
+      if (watchFilter !== "all") {
+        const userStatus = item.user_progress?.[currentUser?.uid]?.status || "unwatched";
+        if (watchFilter === "unwatched") {
+          if (userStatus === "watched" || userStatus === "watchlist") return false;
+        } else if (userStatus !== watchFilter) {
+          return false;
+        }
+      }
+
+      // 4. Genre Filter
       if (selectedGenres.length > 0) {
         const itemGenres = item.genres || [];
         if (genreLogic === "AND") {
@@ -117,7 +128,7 @@ export const Library = ({ onSelectItem, onEditItem, onPlayMedia }) => {
       if (sortBy === "year") return (b.year || 0) - (a.year || 0);
       return new Date(b.added_at || 0) - new Date(a.added_at || 0);
     });
-  }, [items, libraryScope, searchQuery, typeFilter, selectedGenres, genreLogic, sortBy, currentUser]);
+  }, [items, libraryScope, searchQuery, typeFilter, watchFilter, selectedGenres, genreLogic, sortBy, currentUser]);
 
   // Multi-Select Helpers
   const isAllSelected = filteredItems.length > 0 && filteredItems.every((item) => selectedItemIds.has(item.id));
