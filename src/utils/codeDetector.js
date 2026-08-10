@@ -6,23 +6,34 @@ export function transformFilenamePreview(rawName = "", category = "movie", showN
   const ext = dotIdx > 0 ? rawName.substring(dotIdx).toLowerCase() : ".mkv";
   const baseName = dotIdx > 0 ? rawName.substring(0, dotIdx) : rawName;
 
-  if (category === "movie") {
-    const yearMatch = baseName.match(/\b(19\d{2}|20\d{2})\b/);
-    if (yearMatch) {
-      const year = yearMatch[1];
-      const rawTitle = baseName.substring(0, yearMatch.index);
-      let cleanTitle = rawTitle.replace(/[._\-+\[\]()]/g, ' ').trim();
-      cleanTitle = cleanTitle.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
-      return `${cleanTitle || 'Movie'} (${year})${ext}`;
-    } else {
-      let cleanTitle = baseName.replace(/[._\-+\[\]()]/g, ' ').trim();
-      cleanTitle = cleanTitle.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
-      return `${cleanTitle}${ext}`;
-    }
+  // Extract Mxx prefix or default to M01
+  const mMatch = baseName.match(/\bM(\d{1,3})\b/i) || baseName.match(/^(\d{1,2})\b/);
+  const mIndex = mMatch ? `M${String(mMatch[1]).padStart(2, '0')}` : "M01";
+
+  // Extract Resolution (1080p, 2160p, 720p, 4k)
+  const resMatch = baseName.match(/\b(2160p|1080p|720p|480p|4k)\b/i);
+  const resPart = resMatch ? ` - ${resMatch[1].toLowerCase()}` : "";
+
+  // Extract Part/CD (Part 1, Part 02, cd1)
+  const partMatch = baseName.match(/\b(part\s*\d+|cd\s*\d+)\b/i);
+  const partTag = partMatch ? ` - ${partMatch[1].replace(/\s+/, ' ').toUpperCase()}` : "";
+
+  // Extract 4-digit Year (19xx or 20xx)
+  const yearMatch = baseName.match(/\b(19\d{2}|20\d{2})\b/);
+  const year = yearMatch ? yearMatch[1] : "2024";
+
+  // Clean Title
+  let rawTitle = baseName;
+  if (yearMatch) {
+    rawTitle = baseName.substring(0, yearMatch.index);
   }
+  // Remove Mxx or leading digits from title
+  rawTitle = rawTitle.replace(/\bM\d{1,3}\b/gi, '').replace(/^\d{1,2}\s*/, '');
+  let cleanTitle = rawTitle.replace(/[._\-+\[\]()]/g, ' ').trim();
+  cleanTitle = cleanTitle.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+  if (!cleanTitle) cleanTitle = "Movie";
 
   if (category === "series") {
-    // S01E01, 1x01, Season 1 Episode 1
     const sEPattern = /[sS](\d{1,2})[eE](\d{1,2})|(\d{1,2})x(\d{1,2})|[sS]eason\s*(\d{1,2})\s*[eE]pisode\s*(\d{1,2})/;
     const match = baseName.match(sEPattern);
     if (match) {
@@ -36,22 +47,11 @@ export function transformFilenamePreview(rawName = "", category = "movie", showN
         show = cleanPrefix.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
       }
       return `${show || 'TV Show'} - S${String(season).padStart(2, '0')}E${String(episode).padStart(2, '0')}${ext}`;
-    } else {
-      return `${showNameOverride || 'TV Show'} - S01E01${ext}`;
     }
   }
 
-  if (category === "subtitle") {
-    const isSub = ['.srt', '.ass', '.vtt', '.sub'].includes(ext);
-    let cleanBase = baseName.replace(/[._\-+\[\]()]/g, ' ').trim();
-    cleanBase = cleanBase.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
-    return isSub ? `${cleanBase}.srt` : `${cleanBase}${ext}`;
-  }
-
-  // Multi-part / Generic Folder & File Mapper
-  let clean = baseName.replace(/[._\-+\[\]()]/g, ' ').trim();
-  clean = clean.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
-  return `${clean}${ext}`;
+  // Exact User Format: Mxx - (Year) - Moviename[ - Part][ - Resolution].ext
+  return `${mIndex} - (${year}) - ${cleanTitle}${partTag}${resPart}${ext}`;
 }
 
 export function detectCodeFormat(parts = []) {
@@ -93,6 +93,9 @@ export function detectCodeFormat(parts = []) {
 
   // 3. Detect Naming Patterns & Regexes
   const detectedPatterns = [];
+  if (/M\d+|Mxx|Year|Moviename/i.test(combinedCode) || /M\d+\s*-\s*\(\d{4}\)/i.test(combinedCode)) {
+    detectedPatterns.push({ label: "Mxx - (Year) - Moviename Format", icon: "film" });
+  }
   if (/S\d+E\d+|season|episode|\d+x\d+/i.test(combinedCode)) {
     detectedPatterns.push({ label: "Season & Episode Formatter (S01E01)", icon: "tv" });
   }
@@ -101,9 +104,6 @@ export function detectCodeFormat(parts = []) {
   }
   if (/srt|ass|vtt|subtitle|sub_file/i.test(combinedCode)) {
     detectedPatterns.push({ label: "Subtitle Synchronizer (.srt / .ass)", icon: "file-text" });
-  }
-  if (/{title}|{year}|{season}|{episode}/i.test(combinedCode)) {
-    detectedPatterns.push({ label: "Token Placeholders ({title}, {year})", icon: "code" });
   }
   if (/os\.walk|os\.listdir|pathlib/i.test(combinedCode)) {
     detectedPatterns.push({ label: "Recursive File System Walker", icon: "folder" });
@@ -129,40 +129,39 @@ export function detectCodeFormat(parts = []) {
     category = "series";
     categoryName = "TV Series Episode Renamer";
     badge = "TV Series Parser";
-  } else if (/19\d{2}|20\d{2}|clean_movie_name|movie/i.test(combinedCode)) {
+  } else if (/19\d{2}|20\d{2}|clean_movie_name|movie|M\d+/i.test(combinedCode)) {
     category = "movie";
-    categoryName = "Movie Title & Year Renamer";
+    categoryName = "Movie Collection Renamer [Mxx - (Year) - Moviename]";
     badge = "Movie Standardizer";
   }
 
-  // 6. Generate Concrete BEFORE -> AFTER Format Examples
+  // 6. Generate Concrete BEFORE -> AFTER Format Examples in User Format:
+  // "Mxx - (Year) - Moviename[ - Part][ - Resolution].ext"
   let examples = [];
   if (category === "movie") {
     examples = [
       { before: "Inception.2010.1080p.BluRay.x264.mkv", after: transformFilenamePreview("Inception.2010.1080p.BluRay.x264.mkv", "movie") },
-      { before: "Gladiator.II.2024.2160p.WEB-DL.DDP5.1.mkv", after: transformFilenamePreview("Gladiator.II.2024.2160p.WEB-DL.DDP5.1.mkv", "movie") },
+      { before: "Gladiator.II.2024.2160p.WEB-DL.mkv", after: transformFilenamePreview("Gladiator.II.2024.2160p.WEB-DL.mkv", "movie") },
       { before: "The.Dark.Knight.2008.720p.BrRip.mp4", after: transformFilenamePreview("The.Dark.Knight.2008.720p.BrRip.mp4", "movie") }
+    ];
+  } else if (category === "subtitle") {
+    examples = [
+      { before: "Inception.2010.1080p.BluRay.Arabic.srt", after: transformFilenamePreview("Inception.2010.1080p.BluRay.Arabic.srt", "movie").replace(/\.[^.]+$/, ".srt") },
+      { before: "Gladiator.II.2024.2160p.Arabic.ass", after: transformFilenamePreview("Gladiator.II.2024.2160p.Arabic.ass", "movie").replace(/\.[^.]+$/, ".ass") }
     ];
   } else if (category === "series") {
     examples = [
       { before: "Breaking.Bad.S01E01.720p.HDTV.mkv", after: transformFilenamePreview("Breaking.Bad.S01E01.720p.HDTV.mkv", "series") },
-      { before: "Game.of.Thrones.1x01.Winter.Is.Coming.mkv", after: transformFilenamePreview("Game.of.Thrones.1x01.Winter.Is.Coming.mkv", "series") },
-      { before: "Stranger.Things.Season.4.Episode.9.mkv", after: transformFilenamePreview("Stranger.Things.Season.4.Episode.9.mkv", "series") }
-    ];
-  } else if (category === "subtitle") {
-    examples = [
-      { before: "Inception.2010.1080p.BluRay.Arabic.srt", after: "Inception (2010).srt" },
-      { before: "Breaking.Bad.S01E01.sub.ass", after: "Breaking Bad - S01E01.ass" }
+      { before: "Game.of.Thrones.1x01.Winter.Is.Coming.mkv", after: transformFilenamePreview("Game.of.Thrones.1x01.Winter.Is.Coming.mkv", "series") }
     ];
   } else {
     examples = [
-      { before: "1.folder.name.unprocessed", after: "1 Folder Name Unprocessed" },
-      { before: "01.media.file.part.mkv", after: "01 Media File Part.mkv" }
+      { before: "01.movie.title.2024.1080p.mkv", after: transformFilenamePreview("01.movie.title.2024.1080p.mkv", "movie") },
+      { before: "marvel.movie.part1.2020.mkv", after: transformFilenamePreview("marvel.movie.part1.2020.mkv", "movie") }
     ];
   }
 
-  // Summary string
-  const summary = `Detected format: ${categoryName}. ` +
+  const summary = `Detected format: ${categoryName}. Formats output as Mxx - (Year) - Moviename[ - Part][ - Resolution].ext. ` +
     (isMultiPart ? `Contains ${parts.length} sequential Python scripts. ` : `Single Python script. `) +
     (hasDryRun ? `Supports safe Dry-Run previewing.` : `Direct filesystem renaming.`);
 

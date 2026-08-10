@@ -2,13 +2,13 @@
 import { db, isFirebaseConfigured } from "./firebase";
 import { collection, getDocs, doc, setDoc, deleteDoc } from "firebase/firestore";
 
-const RENAMER_STORAGE_KEY = "filmlibrary_renamer_codes_v2";
+const RENAMER_STORAGE_KEY = "filmlibrary_renamer_codes_v3";
 
 export const DEFAULT_RENAMER_PRESETS = [
   {
     id: "preset_movie_standard",
-    name: "Movie Title & Year Standardizer",
-    description: "Cleans cluttered movie filenames (e.g. Inception.2010.1080p.Bluray.x264.mkv) into clean 'Title (Year).ext' format.",
+    name: "Movie Collection Renamer [Mxx - (Year) - Moviename]",
+    description: "Formats movies into exact format: Mxx - (Year) - Moviename[ - Part][ - Resolution].ext (e.g. M01 - (2010) - Inception - 1080p.mkv).",
     category: "movie",
     badge: "Movie Standardizer",
     created_at: new Date().toISOString(),
@@ -24,49 +24,64 @@ import sys
 TARGET_DIR = r"{TARGET_DIR}"
 DRY_RUN = False  # Set to True to preview without renaming files
 
-VIDEO_EXTS = {'.mkv', '.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm'}
+VIDEO_EXTS = {'.mkv', '.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm', '.srt', '.ass', '.vtt'}
 
-def clean_movie_name(filename):
+def parse_movie_format(filename, index=1):
     name, ext = os.path.splitext(filename)
     if ext.lower() not in VIDEO_EXTS:
         return None
-    
-    # Extract 4-digit year (19xx or 20xx)
+
+    # 1. Detect or Assign Mxx prefix
+    m_match = re.search(r'\\bM(\\d{1,3})\\b', name, re.IGNORECASE)
+    m_prefix = f"M{int(m_match.group(1)):02d}" if m_match else f"M{index:02d}"
+
+    # 2. Extract 4-digit Year (19xx or 20xx)
     year_match = re.search(r'\\b(19\\d{2}|20\\d{2})\\b', name)
     if not year_match:
         return None
-    
     year = year_match.group(1)
-    # Extract title before the year string
+
+    # 3. Extract Resolution if present (1080p, 2160p, 720p, 4k)
+    res_match = re.search(r'\\b(2160p|1080p|720p|480p|4k)\\b', name, re.IGNORECASE)
+    res_str = f" - {res_match.group(1).lower()}" if res_match else ""
+
+    # 4. Extract Part tag if present (Part 1, Part 02, CD1)
+    part_match = re.search(r'\\b(part\\s*\\d+|cd\\s*\\d+)\\b', name, re.IGNORECASE)
+    part_str = f" - {part_match.group(1).replace(' ', ' ').title()}" if part_match else ""
+
+    # 5. Clean Title before Year
     raw_title = name[:year_match.start()]
+    raw_title = re.sub(r'\\bM\\d{1,3}\\b', '', raw_title, flags=re.IGNORECASE)
     clean_title = re.sub(r'[._\\-\\+\\[\\]\\(\\)]', ' ', raw_title).strip()
     clean_title = ' '.join(word.capitalize() for word in clean_title.split())
-    
+
     if not clean_title:
-        return None
-        
-    return f"{clean_title} ({year}){ext.lower()}"
+        clean_title = "Movie"
+
+    # Exact Format: Mxx - (Year) - Moviename[ - Part][ - Resolution].ext
+    return f"{m_prefix} - ({year}) - {clean_title}{part_str}{res_str}{ext.lower()}"
 
 def run_renamer():
     if not os.path.exists(TARGET_DIR):
         print(f"[ERROR] Directory not found: {TARGET_DIR}")
         return
 
-    print(f"Scanning movies in: {TARGET_DIR}")
+    print(f"Scanning movie library in: {TARGET_DIR}")
     renamed_count = 0
 
     for root, dirs, files in os.walk(TARGET_DIR):
-        for file in files:
-            new_name = clean_movie_name(file)
+        valid_files = [f for f in sorted(files) if os.path.splitext(f)[1].lower() in VIDEO_EXTS]
+        for idx, file in enumerate(valid_files, start=1):
+            new_name = parse_movie_format(file, index=idx)
             if new_name and new_name != file:
                 old_path = os.path.join(root, file)
                 new_path = os.path.join(root, new_name)
-                print(f"[RENAME] '{file}' -> '{new_name}'")
+                print(f"[RENAME] '{file}' ==> '{new_name}'")
                 if not DRY_RUN:
                     os.rename(old_path, new_path)
                 renamed_count += 1
 
-    print(f"Finished! Total files renamed: {renamed_count}")
+    print(f"Finished! Total files formatted: {renamed_count}")
 
 if __name__ == "__main__":
     run_renamer()
@@ -114,7 +129,6 @@ def parse_episode_info(filename):
             season = int(match.group(1))
             episode = int(match.group(2))
             
-            # Try to grab show name from before the match if not explicitly set
             detected_show = SHOW_NAME
             if not detected_show:
                 raw_prefix = name[:match.start()]
@@ -155,7 +169,7 @@ if __name__ == "__main__":
   {
     id: "preset_multipart_pipeline",
     name: "Multi-Part Pipeline: Folder Cleaner & Media Mapper",
-    description: "Two-stage renamer pipeline: Part 1 normalizes root folders and removes invalid characters; Part 2 renames media files inside.",
+    description: "Two-stage renamer pipeline: Part 1 normalizes root folders; Part 2 renames media files inside into Mxx format.",
     category: "multi_part",
     badge: "2-Part Pipeline",
     created_at: new Date().toISOString(),
@@ -217,7 +231,7 @@ def batch_rename_files():
         for index, file in enumerate(sorted(files), start=1):
             ext = os.path.splitext(file)[1].lower()
             if ext in MEDIA_EXTS:
-                new_filename = f"{folder_name} - Part {index:02d}{ext}"
+                new_filename = f"M{index:02d} - (2024) - {folder_name} - Part {index:02d}{ext}"
                 old_file = os.path.join(root, file)
                 new_file = os.path.join(root, new_filename)
                 if file != new_filename:
@@ -236,7 +250,7 @@ if __name__ == "__main__":
   {
     id: "preset_subtitle_sync_renamer",
     name: "Subtitle & Video Synchronizer Pipeline",
-    description: "Two-stage pipeline: Part 1 identifies video files, Part 2 finds matching subtitle files (.srt/.ass) and renames them to match the video exactly.",
+    description: "Two-stage pipeline: Part 1 identifies video files, Part 2 matches external subtitle files (.srt/.ass) to exact Mxx - (Year) - Moviename structure.",
     category: "subtitle",
     badge: "Subtitle Sync",
     created_at: new Date().toISOString(),
@@ -285,13 +299,12 @@ def match_subtitles():
 
         for sub in subs:
             sub_base, sub_ext = os.path.splitext(sub)
-            # Find closest video match using sequence matcher
             matches = difflib.get_close_matches(sub_base, [os.path.splitext(v)[0] for v in videos], n=1, cutoff=0.3)
             if matches:
                 matched_vid_base = matches[0]
                 new_sub_name = f"{matched_vid_base}{sub_ext.lower()}"
                 if new_sub_name != sub:
-                    print(f"[SUBTITLE MATCH] '{sub}' -> '{new_sub_name}'")
+                    print(f"[SUBTITLE MATCH] '{sub}' ==> '{new_sub_name}'")
                     os.rename(os.path.join(root, sub), os.path.join(root, new_sub_name))
 
 if __name__ == "__main__":
@@ -306,7 +319,6 @@ export async function getRenamerCodes() {
   try {
     const local = localStorage.getItem(RENAMER_STORAGE_KEY);
     if (!local) {
-      // Seed initial presets into localStorage on first load
       localStorage.setItem(RENAMER_STORAGE_KEY, JSON.stringify(DEFAULT_RENAMER_PRESETS));
       return DEFAULT_RENAMER_PRESETS;
     }
