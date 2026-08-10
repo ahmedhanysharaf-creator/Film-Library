@@ -23,7 +23,10 @@ import {
   ArrowRight,
   FolderPlus,
   RotateCcw,
-  UploadCloud
+  UploadCloud,
+  FolderSearch,
+  Sliders,
+  Box
 } from "lucide-react";
 import { useToast } from "../context/ToastContext";
 import { getRenamerCodes, saveRenamerCode, deleteRenamerCode, resetRenamerPresetsToDefault } from "../services/renamerStorage";
@@ -41,6 +44,7 @@ export const Renamer = () => {
   // File explorer hidden inputs refs
   const headerFileInputRef = useRef(null);
   const modalFileInputRef = useRef(null);
+  const folderInputRef = useRef(null);
 
   // PowerShell Generator parameters
   const [targetPath, setTargetPath] = useState("D:\\Movies\\Action");
@@ -112,6 +116,40 @@ export const Renamer = () => {
     addToast(`Downloaded ${filename}`, "info");
   };
 
+  // Folder Selector Handler (Directory Picker)
+  const handlePickTargetFolder = async () => {
+    if (window.showDirectoryPicker) {
+      try {
+        const handle = await window.showDirectoryPicker();
+        if (handle && handle.name) {
+          // Construct path string from handle
+          const cleanName = handle.name;
+          // Prepend last drive letter or full name
+          setTargetPath(`C:\\Media\\${cleanName}`);
+          addToast(`Target folder set to: ${cleanName}`, "success");
+        }
+      } catch (err) {
+        if (err.name !== "AbortError" && folderInputRef.current) {
+          folderInputRef.current.click();
+        }
+      }
+    } else if (folderInputRef.current) {
+      folderInputRef.current.click();
+    }
+  };
+
+  const handleFolderInputChange = (event) => {
+    const files = event.target.files;
+    if (files && files.length > 0) {
+      const firstFile = files[0];
+      const relativePath = firstFile.webkitRelativePath || firstFile.name;
+      const folderName = relativePath.split("/")[0] || relativePath.split("\\")[0];
+      setTargetPath(`C:\\Media\\${folderName}`);
+      addToast(`Selected local folder: ${folderName}`, "success");
+    }
+    event.target.value = "";
+  };
+
   // Import Python files directly from Laptop File Explorer
   const handleFileImport = (event) => {
     const files = Array.from(event.target.files || []);
@@ -132,14 +170,12 @@ export const Renamer = () => {
 
     Promise.all(readPromises).then((importedFiles) => {
       if (isModalOpen) {
-        // Appending/replacing in active modal
         const newParts = importedFiles.map((item, idx) => ({
           id: `part_${Date.now()}_${idx}`,
           name: item.name,
           code: item.code
         }));
         
-        // If current formParts has only 1 blank part, replace it; otherwise append
         if (formParts.length === 1 && (!formParts[0].code || formParts[0].code.includes("Write your python"))) {
           setFormParts(newParts);
           setActivePartIndex(0);
@@ -148,7 +184,6 @@ export const Renamer = () => {
         }
         addToast(`Imported ${importedFiles.length} Python script file(s) into renamer editor!`, "success");
       } else {
-        // Open Modal pre-populated with imported files
         const primaryTitle = files[0].name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " ").toUpperCase();
         setEditingCodeObj(null);
         setFormName(primaryTitle);
@@ -302,6 +337,14 @@ export const Renamer = () => {
         multiple
         style={{ display: "none" }}
       />
+      <input
+        type="file"
+        ref={folderInputRef}
+        onChange={handleFolderInputChange}
+        webkitdirectory="true"
+        directory="true"
+        style={{ display: "none" }}
+      />
 
       {/* Top Banner Header */}
       <div style={styles.header}>
@@ -312,7 +355,7 @@ export const Renamer = () => {
           </div>
           <h1 style={styles.title}>Media File Renamer Suite</h1>
           <p style={styles.subtitle}>
-            Manage single or multi-part Python renamers for movies and series, automatically detect code formats, import Python files directly from your PC, and generate ready-to-run PowerShell execution commands.
+            Manage single or multi-part Python renamers for movies and series, automatically detect code formats, choose target folders from your PC, and generate ready-to-run PowerShell execution commands.
           </p>
         </div>
 
@@ -379,6 +422,7 @@ export const Renamer = () => {
               filteredCodes.map((codeItem) => {
                 const isSelected = selectedCodeId === codeItem.id;
                 const hasMultiParts = codeItem.parts && codeItem.parts.length > 1;
+                const itemFormat = detectCodeFormat(codeItem.parts);
 
                 return (
                   <div
@@ -406,11 +450,17 @@ export const Renamer = () => {
                       </div>
 
                       <span style={styles.presetBadge}>
-                        {hasMultiParts ? `${codeItem.parts.length} Parts` : codeItem.badge || "Script"}
+                        {hasMultiParts ? `${codeItem.parts.length} Parts` : itemFormat.badge || "Script"}
                       </span>
                     </div>
 
                     <p style={styles.presetDesc}>{codeItem.description}</p>
+
+                    {/* Detected Format Tag Pill on Preset Card */}
+                    <div style={styles.presetFormatMiniPill}>
+                      <Sparkles size={12} color="#e50914" />
+                      <span>Detected Format: {itemFormat.categoryName}</span>
+                    </div>
 
                     <div style={styles.presetCardFooter}>
                       <span style={styles.presetSourceTag}>
@@ -475,27 +525,71 @@ export const Renamer = () => {
               </div>
               <p style={styles.inspectorDesc}>{selectedCode.description}</p>
 
-              {/* Format Detection Breakdown */}
-              <div style={styles.detectionBox}>
-                <div style={styles.detectionRow}>
-                  <Sparkles size={16} color="#e50914" />
-                  <span style={styles.detectionText}>{detectedFormat?.summary}</span>
+              {/* 🌟 PROMINENT RENAMER FORMAT DETECTOR BANNER 🌟 */}
+              <div style={styles.formatInspectionCard}>
+                <div style={styles.formatInspectionCardHeader}>
+                  <div style={styles.formatHeaderBadgeGroup}>
+                    <Sparkles size={18} color="#e50914" />
+                    <span style={styles.formatInspectionTitle}>Detected Code Format & Rules Inspection</span>
+                  </div>
+                  <span style={styles.formatCategoryBadge}>
+                    Format: {detectedFormat?.categoryName}
+                  </span>
                 </div>
 
+                <p style={styles.formatSummaryText}>{detectedFormat?.summary}</p>
+
+                {/* Grid Breakdown of Detected Formats & Rules */}
+                <div style={styles.formatDetailsGrid}>
+                  <div style={styles.formatDetailItem}>
+                    <span style={styles.formatDetailLabel}>Target Media Format:</span>
+                    <span style={styles.formatDetailValue}>
+                      {detectedFormat?.category === "movie" && "🎬 Movie Standardizer (Title + Year)"}
+                      {detectedFormat?.category === "series" && "📺 TV Series Parser (S01E01 / Season Episode)"}
+                      {detectedFormat?.category === "subtitle" && "📝 Subtitle Sync Matcher (.srt/.ass)"}
+                      {detectedFormat?.category === "multi_part" && "🔗 Multi-Part Sequential Pipeline"}
+                      {detectedFormat?.category === "generic" && "📄 Generic File Renamer"}
+                    </span>
+                  </div>
+
+                  <div style={styles.formatDetailItem}>
+                    <span style={styles.formatDetailLabel}>Structure & Parts:</span>
+                    <span style={styles.formatDetailValue}>
+                      {detectedFormat?.isMultiPart
+                        ? `${detectedFormat.partsCount} Sequential Python Files`
+                        : "Single Python Execution Script"}
+                    </span>
+                  </div>
+
+                  <div style={styles.formatDetailItem}>
+                    <span style={styles.formatDetailLabel}>Extracted Path Variables:</span>
+                    <span style={styles.formatDetailValue}>
+                      {detectedFormat?.detectedVariables?.length > 0
+                        ? detectedFormat.detectedVariables.map((v) => v.key).join(", ")
+                        : "None (Standard sys.argv / r'{TARGET_DIR}')"}
+                    </span>
+                  </div>
+
+                  <div style={styles.formatDetailItem}>
+                    <span style={styles.formatDetailLabel}>Python Dependencies:</span>
+                    <span style={styles.formatDetailValue}>
+                      {detectedFormat?.detectedModules?.length > 0
+                        ? detectedFormat.detectedModules.join(", ")
+                        : "Standard Library"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Pattern & Safety Badges */}
                 <div style={styles.tagsRow}>
                   {detectedFormat?.detectedPatterns.map((pat, idx) => (
                     <span key={idx} style={styles.formatTag}>
-                      ✓ {pat.label}
+                      ✓ Rule: {pat.label}
                     </span>
                   ))}
                   {detectedFormat?.hasDryRun && (
                     <span style={{ ...styles.formatTag, borderColor: "#3b82f6", color: "#60a5fa" }}>
-                      🛡️ Safe Dry-Run Support
-                    </span>
-                  )}
-                  {detectedFormat?.partsCount > 1 && (
-                    <span style={{ ...styles.formatTag, borderColor: "#f59e0b", color: "#fbbf24" }}>
-                      🔗 Multi-Part Sequence ({detectedFormat.partsCount} Scripts)
+                      🛡️ Safe Dry-Run Mode Supported
                     </span>
                   )}
                 </div>
@@ -505,11 +599,13 @@ export const Renamer = () => {
             {/* Target Path & Options Configuration Bar */}
             <div style={styles.configCard}>
               <h3 style={styles.configSectionTitle}>
-                <Folder size={16} color="#e50914" /> Target Location & Execution Parameters
+                <FolderSearch size={16} color="#e50914" /> Target Location & Execution Parameters
               </h3>
 
               <div style={styles.inputGroup}>
-                <label style={styles.inputLabel}>Local Media Folder Path (Where the code will run):</label>
+                <label style={styles.inputLabel}>
+                  Select Target Folder Path (Choose from Laptop or Type Path):
+                </label>
                 <div style={styles.pathInputWrapper}>
                   <input
                     type="text"
@@ -518,6 +614,14 @@ export const Renamer = () => {
                     placeholder="e.g. D:\Movies\Action or C:\Media\TV Shows"
                     style={styles.pathInput}
                   />
+                  <button
+                    type="button"
+                    style={styles.browseFolderBtn}
+                    onClick={handlePickTargetFolder}
+                    title="Open Windows File Explorer to pick target media folder"
+                  >
+                    <FolderSearch size={16} /> Choose Folder from Laptop...
+                  </button>
                 </div>
                 <div style={styles.quickPathButtons}>
                   <span style={styles.quickLabel}>Quick Paths:</span>
@@ -837,7 +941,7 @@ export const Renamer = () => {
                 )}
               </div>
 
-              {/* Real-time Code Format Detector Preview */}
+              {/* Real-time Code Format Detector Preview in Modal */}
               <div style={styles.liveDetectionCard}>
                 <div style={styles.liveDetectionTitle}>
                   <Sparkles size={14} color="#e50914" /> Auto-Detected Code Format Inspector:
@@ -1034,8 +1138,20 @@ const styles = {
   presetDesc: {
     fontSize: "0.85rem",
     color: "#a3a3a3",
-    margin: "0 0 12px 0",
+    margin: "0 0 10px 0",
     lineHeight: "1.4"
+  },
+  presetFormatMiniPill: {
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    fontSize: "0.75rem",
+    color: "#f59e0b",
+    backgroundColor: "rgba(245, 158, 11, 0.1)",
+    padding: "4px 8px",
+    borderRadius: "6px",
+    marginBottom: "12px",
+    fontWeight: 600
   },
   presetCardFooter: {
     display: "flex",
@@ -1132,24 +1248,69 @@ const styles = {
     margin: "0 0 14px 0",
     fontSize: "0.92rem"
   },
-  detectionBox: {
-    backgroundColor: "#161616",
-    padding: "12px 16px",
-    borderRadius: "10px",
-    border: "1px solid #282828",
+  // High Visibility Renamer Format Box
+  formatInspectionCard: {
+    backgroundColor: "#161618",
+    padding: "16px 20px",
+    borderRadius: "12px",
+    border: "1px solid rgba(229, 9, 20, 0.3)",
+    boxShadow: "0 4px 20px rgba(0, 0, 0, 0.4)",
     display: "flex",
     flexDirection: "column",
-    gap: "8px"
+    gap: "12px"
   },
-  detectionRow: {
+  formatInspectionCardHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center"
+  },
+  formatHeaderBadgeGroup: {
     display: "flex",
     alignItems: "center",
     gap: "8px"
   },
-  detectionText: {
-    fontSize: "0.88rem",
-    color: "#e5e5e5",
+  formatInspectionTitle: {
+    fontWeight: 800,
+    fontSize: "1rem",
+    color: "#ffffff"
+  },
+  formatCategoryBadge: {
+    backgroundColor: "var(--accent-red)",
+    color: "#ffffff",
+    fontSize: "0.78rem",
+    padding: "3px 10px",
+    borderRadius: "12px",
+    fontWeight: 700
+  },
+  formatSummaryText: {
+    fontSize: "0.9rem",
+    color: "#e2e8f0",
+    margin: 0,
+    lineHeight: "1.5"
+  },
+  formatDetailsGrid: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "10px",
+    backgroundColor: "#0d0d0f",
+    padding: "12px 14px",
+    borderRadius: "8px",
+    border: "1px solid #262626"
+  },
+  formatDetailItem: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "2px"
+  },
+  formatDetailLabel: {
+    fontSize: "0.75rem",
+    color: "#a3a3a3",
     fontWeight: 600
+  },
+  formatDetailValue: {
+    fontSize: "0.85rem",
+    color: "#38bdf8",
+    fontWeight: 700
   },
   tagsRow: {
     display: "flex",
@@ -1159,7 +1320,7 @@ const styles = {
   },
   formatTag: {
     fontSize: "0.75rem",
-    padding: "2px 8px",
+    padding: "3px 9px",
     borderRadius: "8px",
     backgroundColor: "#202020",
     border: "1px solid #333333",
@@ -1206,6 +1367,20 @@ const styles = {
     color: "#ffffff",
     fontSize: "0.92rem",
     fontFamily: "monospace"
+  },
+  browseFolderBtn: {
+    backgroundColor: "#1f2937",
+    color: "#38bdf8",
+    border: "1px solid #0284c7",
+    padding: "10px 16px",
+    borderRadius: "8px",
+    fontSize: "0.85rem",
+    fontWeight: 700,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    whiteSpace: "nowrap"
   },
   quickPathButtons: {
     display: "flex",
