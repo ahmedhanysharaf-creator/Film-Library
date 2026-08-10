@@ -14,23 +14,18 @@ import {
   FileText,
   Tv,
   Film,
-  CheckCircle2,
-  AlertCircle,
-  HelpCircle,
-  Play,
-  FileCode,
-  ShieldAlert,
-  ArrowRight,
-  FolderPlus,
+  FolderSearch,
   RotateCcw,
   UploadCloud,
-  FolderSearch,
-  Sliders,
-  Box
+  ArrowRight,
+  Eye,
+  EyeOff,
+  CheckCircle2,
+  FileCheck
 } from "lucide-react";
 import { useToast } from "../context/ToastContext";
 import { getRenamerCodes, saveRenamerCode, deleteRenamerCode, resetRenamerPresetsToDefault } from "../services/renamerStorage";
-import { detectCodeFormat } from "../utils/codeDetector";
+import { detectCodeFormat, transformFilenamePreview } from "../utils/codeDetector";
 import { generatePowerShellCommands } from "../utils/powershellGenerator";
 
 export const Renamer = () => {
@@ -50,8 +45,11 @@ export const Renamer = () => {
   const [targetPath, setTargetPath] = useState("D:\\Movies\\Action");
   const [dryRun, setDryRun] = useState(true);
   const [showName, setShowName] = useState("");
-  const [activeOutputTab, setActiveOutputTab] = useState("ps1"); // "ps1" | "oneliner" | "python"
-  const [copiedType, setCopiedType] = useState(null); // null | "ps1" | "oneliner" | "python"
+  const [copied, setCopied] = useState(false);
+
+  // Custom Test Filename Sandbox
+  const [testFilename, setTestFilename] = useState("Inception.2010.1080p.BluRay.x264.mkv");
+  const [showRawCode, setShowRawCode] = useState(false);
 
   // Modal State for Adding/Editing Code
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -90,17 +88,22 @@ export const Renamer = () => {
   const detectedFormat = selectedCode ? detectCodeFormat(selectedCode.parts) : null;
   const generatedCommands = selectedCode
     ? generatePowerShellCommands(selectedCode, targetPath, { dryRun, showName })
-    : { powershellScript: "", powershellOneLiner: "", pythonStandaloneFiles: [] };
+    : { powershellShortCommand: "", powershellScript: "", pythonStandaloneFiles: [] };
 
   // Form detection real-time preview
   const liveFormDetection = detectCodeFormat(formParts);
 
-  const handleCopy = (text, typeKey) => {
+  // Live sandbox calculation
+  const liveTestResult = selectedCode
+    ? transformFilenamePreview(testFilename, selectedCode.category || detectedFormat?.category, showName)
+    : "";
+
+  const handleCopy = (text) => {
     if (!text) return;
     navigator.clipboard.writeText(text);
-    setCopiedType(typeKey);
-    addToast("Copied code to clipboard!", "success");
-    setTimeout(() => setCopiedType(null), 2500);
+    setCopied(true);
+    addToast("Copied PowerShell command!", "success");
+    setTimeout(() => setCopied(false), 2500);
   };
 
   const handleDownloadFile = (content, filename, type = "text/plain") => {
@@ -122,11 +125,8 @@ export const Renamer = () => {
       try {
         const handle = await window.showDirectoryPicker();
         if (handle && handle.name) {
-          // Construct path string from handle
-          const cleanName = handle.name;
-          // Prepend last drive letter or full name
-          setTargetPath(`C:\\Media\\${cleanName}`);
-          addToast(`Target folder set to: ${cleanName}`, "success");
+          setTargetPath(`C:\\Media\\${handle.name}`);
+          addToast(`Target folder updated: ${handle.name}`, "success");
         }
       } catch (err) {
         if (err.name !== "AbortError" && folderInputRef.current) {
@@ -145,7 +145,7 @@ export const Renamer = () => {
       const relativePath = firstFile.webkitRelativePath || firstFile.name;
       const folderName = relativePath.split("/")[0] || relativePath.split("\\")[0];
       setTargetPath(`C:\\Media\\${folderName}`);
-      addToast(`Selected local folder: ${folderName}`, "success");
+      addToast(`Selected folder: ${folderName}`, "success");
     }
     event.target.value = "";
   };
@@ -182,12 +182,12 @@ export const Renamer = () => {
         } else {
           setFormParts((prev) => [...prev, ...newParts]);
         }
-        addToast(`Imported ${importedFiles.length} Python script file(s) into renamer editor!`, "success");
+        addToast(`Imported ${importedFiles.length} Python file(s)!`, "success");
       } else {
         const primaryTitle = files[0].name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " ").toUpperCase();
         setEditingCodeObj(null);
         setFormName(primaryTitle);
-        setFormDesc(`Imported from local system files: ${files.map((f) => f.name).join(", ")}`);
+        setFormDesc(`Imported from local files: ${files.map((f) => f.name).join(", ")}`);
         setFormCategory("movie");
         setFormParts(
           importedFiles.map((item, idx) => ({
@@ -301,7 +301,7 @@ export const Renamer = () => {
   };
 
   const handleResetDefaults = async () => {
-    if (!window.confirm("Restore default preset templates? This will restore original presets.")) return;
+    if (!window.confirm("Restore default preset templates?")) return;
     try {
       const defaultData = await resetRenamerPresetsToDefault();
       setCodes(defaultData);
@@ -355,7 +355,7 @@ export const Renamer = () => {
           </div>
           <h1 style={styles.title}>Media File Renamer Suite</h1>
           <p style={styles.subtitle}>
-            Manage single or multi-part Python renamers for movies and series, automatically detect code formats, choose target folders from your PC, and generate ready-to-run PowerShell execution commands.
+            Select target media folders from your computer, view live BEFORE ➔ AFTER filename format previews, and copy short PowerShell execution commands directly.
           </p>
         </div>
 
@@ -456,10 +456,10 @@ export const Renamer = () => {
 
                     <p style={styles.presetDesc}>{codeItem.description}</p>
 
-                    {/* Detected Format Tag Pill on Preset Card */}
+                    {/* Format Preview Badge */}
                     <div style={styles.presetFormatMiniPill}>
                       <Sparkles size={12} color="#e50914" />
-                      <span>Detected Format: {itemFormat.categoryName}</span>
+                      <span>Format: {itemFormat.categoryName}</span>
                     </div>
 
                     <div style={styles.presetCardFooter}>
@@ -498,10 +498,10 @@ export const Renamer = () => {
           </div>
         </div>
 
-        {/* Right Column: Interactive Code Inspector & PowerShell Generator Workspace */}
+        {/* Right Column: Interactive Workspace & PowerShell Generator */}
         {selectedCode ? (
           <div style={styles.workspaceColumn} className="glass-panel">
-            {/* Active Code Inspector Banner */}
+            {/* Header Title & Quick Actions */}
             <div style={styles.inspectorHeader}>
               <div style={styles.inspectorTitleGroup}>
                 <h2 style={styles.inspectorTitle}>{selectedCode.name}</h2>
@@ -512,120 +512,100 @@ export const Renamer = () => {
                     style={styles.editHeaderBtn}
                     onClick={() => handleOpenEditModal(selectedCode)}
                   >
-                    <Edit3 size={14} /> Edit Code / Parts
+                    <Edit3 size={14} /> Edit Script
                   </button>
 
                   <button
                     style={styles.deleteHeaderBtn}
                     onClick={() => handleDeleteCode(selectedCode.id, selectedCode.name)}
                   >
-                    <Trash2 size={14} /> Delete Preset
+                    <Trash2 size={14} /> Delete
                   </button>
                 </div>
               </div>
               <p style={styles.inspectorDesc}>{selectedCode.description}</p>
+            </div>
 
-              {/* 🌟 PROMINENT RENAMER FORMAT DETECTOR BANNER 🌟 */}
-              <div style={styles.formatInspectionCard}>
-                <div style={styles.formatInspectionCardHeader}>
-                  <div style={styles.formatHeaderBadgeGroup}>
-                    <Sparkles size={18} color="#e50914" />
-                    <span style={styles.formatInspectionTitle}>Detected Code Format & Rules Inspection</span>
+            {/* 🎯 SECTION 1: VISUAL FILENAME FORMAT PREVIEW (BEFORE ➔ AFTER) 🎯 */}
+            <div style={styles.formatPreviewCard}>
+              <div style={styles.formatPreviewCardHeader}>
+                <Sparkles size={18} color="#e50914" />
+                <h3 style={styles.formatPreviewCardTitle}>
+                  Renamed Output Format (Final Look Preview)
+                </h3>
+              </div>
+
+              <div style={styles.examplesList}>
+                {detectedFormat?.examples.map((ex, idx) => (
+                  <div key={idx} style={styles.exampleRow}>
+                    <div style={styles.exampleBeforeBox}>
+                      <span style={styles.exampleLabel}>Original Messy Filename:</span>
+                      <code style={styles.beforeCode}>{ex.before}</code>
+                    </div>
+
+                    <div style={styles.arrowBox}>
+                      <ArrowRight size={18} color="#e50914" />
+                    </div>
+
+                    <div style={styles.exampleAfterBox}>
+                      <span style={styles.exampleLabelGreen}>Renamed Final Look:</span>
+                      <code style={styles.afterCode}>{ex.after}</code>
+                    </div>
                   </div>
-                  <span style={styles.formatCategoryBadge}>
-                    Format: {detectedFormat?.categoryName}
-                  </span>
-                </div>
+                ))}
+              </div>
 
-                <p style={styles.formatSummaryText}>{detectedFormat?.summary}</p>
-
-                {/* Grid Breakdown of Detected Formats & Rules */}
-                <div style={styles.formatDetailsGrid}>
-                  <div style={styles.formatDetailItem}>
-                    <span style={styles.formatDetailLabel}>Target Media Format:</span>
-                    <span style={styles.formatDetailValue}>
-                      {detectedFormat?.category === "movie" && "🎬 Movie Standardizer (Title + Year)"}
-                      {detectedFormat?.category === "series" && "📺 TV Series Parser (S01E01 / Season Episode)"}
-                      {detectedFormat?.category === "subtitle" && "📝 Subtitle Sync Matcher (.srt/.ass)"}
-                      {detectedFormat?.category === "multi_part" && "🔗 Multi-Part Sequential Pipeline"}
-                      {detectedFormat?.category === "generic" && "📄 Generic File Renamer"}
-                    </span>
-                  </div>
-
-                  <div style={styles.formatDetailItem}>
-                    <span style={styles.formatDetailLabel}>Structure & Parts:</span>
-                    <span style={styles.formatDetailValue}>
-                      {detectedFormat?.isMultiPart
-                        ? `${detectedFormat.partsCount} Sequential Python Files`
-                        : "Single Python Execution Script"}
-                    </span>
-                  </div>
-
-                  <div style={styles.formatDetailItem}>
-                    <span style={styles.formatDetailLabel}>Extracted Path Variables:</span>
-                    <span style={styles.formatDetailValue}>
-                      {detectedFormat?.detectedVariables?.length > 0
-                        ? detectedFormat.detectedVariables.map((v) => v.key).join(", ")
-                        : "None (Standard sys.argv / r'{TARGET_DIR}')"}
-                    </span>
-                  </div>
-
-                  <div style={styles.formatDetailItem}>
-                    <span style={styles.formatDetailLabel}>Python Dependencies:</span>
-                    <span style={styles.formatDetailValue}>
-                      {detectedFormat?.detectedModules?.length > 0
-                        ? detectedFormat.detectedModules.join(", ")
-                        : "Standard Library"}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Pattern & Safety Badges */}
-                <div style={styles.tagsRow}>
-                  {detectedFormat?.detectedPatterns.map((pat, idx) => (
-                    <span key={idx} style={styles.formatTag}>
-                      ✓ Rule: {pat.label}
-                    </span>
-                  ))}
-                  {detectedFormat?.hasDryRun && (
-                    <span style={{ ...styles.formatTag, borderColor: "#3b82f6", color: "#60a5fa" }}>
-                      🛡️ Safe Dry-Run Mode Supported
-                    </span>
-                  )}
+              {/* Interactive Test Sandbox */}
+              <div style={styles.sandboxBox}>
+                <span style={styles.sandboxTitle}>🧪 Try Your Own Filename:</span>
+                <div style={styles.sandboxInputRow}>
+                  <input
+                    type="text"
+                    value={testFilename}
+                    onChange={(e) => setTestFilename(e.target.value)}
+                    placeholder="e.g. Gladiator.II.2024.2160p.WEB-DL.mkv"
+                    style={styles.sandboxInput}
+                  />
+                  <div style={styles.sandboxArrow}>➔</div>
+                  <div style={styles.sandboxResult}>{liveTestResult || "Formatted Filename"}</div>
                 </div>
               </div>
             </div>
 
-            {/* Target Path & Options Configuration Bar */}
+            {/* 🎯 SECTION 2: TARGET FOLDER & SHORT POWERSHELL COMMAND GENERATOR 🎯 */}
             <div style={styles.configCard}>
               <h3 style={styles.configSectionTitle}>
-                <FolderSearch size={16} color="#e50914" /> Target Location & Execution Parameters
+                <FolderSearch size={16} color="#e50914" /> Target Folder Location & Short PowerShell Command
               </h3>
 
               <div style={styles.inputGroup}>
                 <label style={styles.inputLabel}>
-                  Select Target Folder Path (Choose from Laptop or Type Path):
+                  Target Folder (Where you will run the code):
                 </label>
                 <div style={styles.pathInputWrapper}>
                   <input
                     type="text"
                     value={targetPath}
                     onChange={(e) => setTargetPath(e.target.value)}
-                    placeholder="e.g. D:\Movies\Action or C:\Media\TV Shows"
+                    placeholder="e.g. D:\Movies\Action or C:\Users\Ahmed\Downloads\Marvel Films"
                     style={styles.pathInput}
                   />
                   <button
                     type="button"
                     style={styles.browseFolderBtn}
                     onClick={handlePickTargetFolder}
-                    title="Open Windows File Explorer to pick target media folder"
+                    title="Open Windows File Explorer to select target folder"
                   >
                     <FolderSearch size={16} /> Choose Folder from Laptop...
                   </button>
                 </div>
                 <div style={styles.quickPathButtons}>
                   <span style={styles.quickLabel}>Quick Paths:</span>
-                  {["D:\\Movies\\Action", "C:\\Media\\Series", "E:\\Downloads\\Unprocessed"].map((p) => (
+                  {[
+                    "C:\\Users\\Ahmed\\Downloads\\Marvel Films",
+                    "D:\\Movies\\Action",
+                    "C:\\Media\\Series"
+                  ].map((p) => (
                     <button key={p} style={styles.quickPathBtn} onClick={() => setTargetPath(p)}>
                       {p}
                     </button>
@@ -633,157 +613,74 @@ export const Renamer = () => {
                 </div>
               </div>
 
-              <div style={styles.optionsRow}>
-                {selectedCode.category === "series" && (
-                  <div style={styles.optionItem}>
-                    <label style={styles.inputLabel}>Show Name Override (Optional):</label>
-                    <input
-                      type="text"
-                      value={showName}
-                      onChange={(e) => setShowName(e.target.value)}
-                      placeholder="e.g. Breaking Bad"
-                      style={styles.textInputSmall}
-                    />
-                  </div>
-                )}
-
+              {selectedCode.category === "series" && (
                 <div style={styles.optionItem}>
-                  <label style={styles.checkboxLabel}>
-                    <input
-                      type="checkbox"
-                      checked={dryRun}
-                      onChange={(e) => setDryRun(e.target.checked)}
-                      style={styles.checkbox}
-                    />
-                    Enable Dry-Run Mode (Preview changes without renaming actual files)
-                  </label>
+                  <label style={styles.inputLabel}>Show Name Override (Optional):</label>
+                  <input
+                    type="text"
+                    value={showName}
+                    onChange={(e) => setShowName(e.target.value)}
+                    placeholder="e.g. Breaking Bad"
+                    style={styles.textInputSmall}
+                  />
                 </div>
+              )}
+
+              {/* 🚀 SHORT CLEAN POWERSHELL COMMAND BOX 🚀 */}
+              <div style={styles.shortCommandBox}>
+                <div style={styles.shortCommandHeader}>
+                  <span style={styles.shortCommandTitle}>
+                    <Terminal size={15} color="#f59e0b" /> Ready-to-Run PowerShell Command:
+                  </span>
+                  <button
+                    style={styles.copyBtn}
+                    onClick={() => handleCopy(generatedCommands.powershellShortCommand)}
+                  >
+                    {copied ? <Check size={14} color="#10b981" /> : <Copy size={14} />}
+                    {copied ? "Copied Command!" : "Copy PowerShell Command"}
+                  </button>
+                </div>
+
+                <div style={styles.commandCodeBlock}>
+                  {generatedCommands.powershellShortCommand}
+                </div>
+                <p style={styles.commandHint}>
+                  Copy and paste this short command into Windows PowerShell terminal to execute.
+                </p>
               </div>
             </div>
 
-            {/* PowerShell Commands Output Box */}
-            <div style={styles.outputCard}>
-              <div style={styles.outputHeader}>
-                <div style={styles.outputTabs}>
-                  <button
-                    style={{
-                      ...styles.outputTabBtn,
-                      borderBottom: activeOutputTab === "ps1" ? "2px solid var(--accent-red)" : "none",
-                      color: activeOutputTab === "ps1" ? "#ffffff" : "#a3a3a3"
-                    }}
-                    onClick={() => setActiveOutputTab("ps1")}
-                  >
-                    <Terminal size={15} /> PowerShell Script (.ps1)
-                  </button>
+            {/* Optional Python Technical Code Toggle */}
+            <div style={styles.codeToggleSection}>
+              <button
+                style={styles.toggleCodeBtn}
+                onClick={() => setShowRawCode(!showRawCode)}
+              >
+                {showRawCode ? <EyeOff size={14} /> : <Eye size={14} />}
+                {showRawCode ? "Hide Python Source Code" : "Show Technical Python Source Code"}
+              </button>
 
-                  <button
-                    style={{
-                      ...styles.outputTabBtn,
-                      borderBottom: activeOutputTab === "oneliner" ? "2px solid var(--accent-red)" : "none",
-                      color: activeOutputTab === "oneliner" ? "#ffffff" : "#a3a3a3"
-                    }}
-                    onClick={() => setActiveOutputTab("oneliner")}
-                  >
-                    <ArrowRight size={15} /> PowerShell One-Liner
-                  </button>
+              {showRawCode && (
+                <div style={styles.rawCodeCard}>
+                  {generatedCommands.pythonStandaloneFiles.map((pyFile, idx) => (
+                    <div key={pyFile.id} style={styles.pyFileBox}>
+                      <div style={styles.pyFileHeader}>
+                        <span style={styles.pyFileName}>
+                          <FileCode size={16} color="#e50914" /> Script Part {idx + 1}: {pyFile.name}
+                        </span>
 
-                  <button
-                    style={{
-                      ...styles.outputTabBtn,
-                      borderBottom: activeOutputTab === "python" ? "2px solid var(--accent-red)" : "none",
-                      color: activeOutputTab === "python" ? "#ffffff" : "#a3a3a3"
-                    }}
-                    onClick={() => setActiveOutputTab("python")}
-                  >
-                    <Code size={15} /> Python Source Files ({generatedCommands.pythonStandaloneFiles.length})
-                  </button>
-                </div>
-
-                <div style={styles.outputActions}>
-                  {activeOutputTab === "ps1" && (
-                    <>
-                      <button
-                        style={styles.copyBtn}
-                        onClick={() => handleCopy(generatedCommands.powershellScript, "ps1")}
-                      >
-                        {copiedType === "ps1" ? <Check size={14} color="#10b981" /> : <Copy size={14} />}
-                        {copiedType === "ps1" ? "Copied!" : "Copy PowerShell Script"}
-                      </button>
-
-                      <button
-                        style={styles.downloadBtn}
-                        onClick={() =>
-                          handleDownloadFile(
-                            generatedCommands.powershellScript,
-                            `run_renamer_${selectedCode.id}.ps1`,
-                            "text/plain"
-                          )
-                        }
-                      >
-                        <Download size={14} /> Download .ps1
-                      </button>
-                    </>
-                  )}
-
-                  {activeOutputTab === "oneliner" && (
-                    <button
-                      style={styles.copyBtn}
-                      onClick={() => handleCopy(generatedCommands.powershellOneLiner, "oneliner")}
-                    >
-                      {copiedType === "oneliner" ? <Check size={14} color="#10b981" /> : <Copy size={14} />}
-                      {copiedType === "oneliner" ? "Copied!" : "Copy One-Liner"}
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Code Viewer Panel */}
-              <div style={styles.codeContainer}>
-                {activeOutputTab === "ps1" && (
-                  <pre style={styles.codeBlock}>{generatedCommands.powershellScript}</pre>
-                )}
-
-                {activeOutputTab === "oneliner" && (
-                  <div style={styles.oneLinerBox}>
-                    <p style={styles.oneLinerInstruction}>
-                      Copy and paste this command into any Windows PowerShell terminal to execute immediately:
-                    </p>
-                    <pre style={styles.codeBlock}>{generatedCommands.powershellOneLiner}</pre>
-                  </div>
-                )}
-
-                {activeOutputTab === "python" && (
-                  <div style={styles.pyFilesContainer}>
-                    {generatedCommands.pythonStandaloneFiles.map((pyFile, idx) => (
-                      <div key={pyFile.id} style={styles.pyFileBox}>
-                        <div style={styles.pyFileHeader}>
-                          <span style={styles.pyFileName}>
-                            <FileCode size={16} color="#e50914" /> Part {idx + 1}: {pyFile.name}
-                          </span>
-
-                          <div style={styles.pyFileHeaderActions}>
-                            <button
-                              style={styles.miniCopyBtn}
-                              onClick={() => handleCopy(pyFile.code, `py_${idx}`)}
-                            >
-                              <Copy size={12} /> Copy Code
-                            </button>
-
-                            <button
-                              style={styles.miniCopyBtn}
-                              onClick={() => handleDownloadFile(pyFile.code, pyFile.name, "text/x-python")}
-                            >
-                              <Download size={12} /> Download .py
-                            </button>
-                          </div>
-                        </div>
-
-                        <pre style={styles.codeBlock}>{pyFile.code}</pre>
+                        <button
+                          style={styles.miniCopyBtn}
+                          onClick={() => handleDownloadFile(pyFile.code, pyFile.name, "text/x-python")}
+                        >
+                          <Download size={12} /> Download .py File
+                        </button>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+                      <pre style={styles.codeBlock}>{pyFile.code}</pre>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         ) : (
@@ -791,12 +688,6 @@ export const Renamer = () => {
             <div style={styles.emptyWorkspace}>
               <h3>No Renamer Preset Selected</h3>
               <p>Select a preset from the sidebar or import Python files from your computer to generate PowerShell commands.</p>
-              <button
-                style={styles.addBtn}
-                onClick={() => headerFileInputRef.current && headerFileInputRef.current.click()}
-              >
-                <UploadCloud size={16} /> Choose .py File from Laptop
-              </button>
             </div>
           </div>
         )}
@@ -934,31 +825,11 @@ export const Renamer = () => {
                           setFormParts(updated);
                         }}
                         style={styles.codeTextarea}
-                        placeholder="# Paste your python code here or click 'Import .py File from PC'..."
+                        placeholder="# Paste your python code here..."
                       />
                     </div>
                   </div>
                 )}
-              </div>
-
-              {/* Real-time Code Format Detector Preview in Modal */}
-              <div style={styles.liveDetectionCard}>
-                <div style={styles.liveDetectionTitle}>
-                  <Sparkles size={14} color="#e50914" /> Auto-Detected Code Format Inspector:
-                </div>
-                <p style={styles.liveDetectionText}>{liveFormDetection.summary}</p>
-                <div style={styles.tagsRow}>
-                  {liveFormDetection.detectedVariables.map((v, i) => (
-                    <span key={i} style={styles.formatTag}>
-                      Var: {v.key}
-                    </span>
-                  ))}
-                  {liveFormDetection.detectedModules.map((m, i) => (
-                    <span key={i} style={{ ...styles.formatTag, borderColor: "#3b82f6", color: "#60a5fa" }}>
-                      Import: {m}
-                    </span>
-                  ))}
-                </div>
               </div>
 
               <div style={styles.modalFooter}>
@@ -1245,96 +1116,133 @@ const styles = {
   },
   inspectorDesc: {
     color: "#a3a3a3",
-    margin: "0 0 14px 0",
+    margin: "0 0 4px 0",
     fontSize: "0.92rem"
   },
-  // High Visibility Renamer Format Box
-  formatInspectionCard: {
-    backgroundColor: "#161618",
-    padding: "16px 20px",
+  // Visual Formatter Preview Box
+  formatPreviewCard: {
+    backgroundColor: "#141416",
     borderRadius: "12px",
     border: "1px solid rgba(229, 9, 20, 0.3)",
-    boxShadow: "0 4px 20px rgba(0, 0, 0, 0.4)",
+    padding: "18px 20px",
     display: "flex",
     flexDirection: "column",
-    gap: "12px"
+    gap: "14px",
+    boxShadow: "0 4px 20px rgba(0, 0, 0, 0.3)"
   },
-  formatInspectionCardHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center"
-  },
-  formatHeaderBadgeGroup: {
+  formatPreviewCardHeader: {
     display: "flex",
     alignItems: "center",
     gap: "8px"
   },
-  formatInspectionTitle: {
+  formatPreviewCardTitle: {
+    fontSize: "1.05rem",
     fontWeight: 800,
-    fontSize: "1rem",
+    margin: 0,
     color: "#ffffff"
   },
-  formatCategoryBadge: {
-    backgroundColor: "var(--accent-red)",
-    color: "#ffffff",
-    fontSize: "0.78rem",
-    padding: "3px 10px",
-    borderRadius: "12px",
-    fontWeight: 700
+  examplesList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "10px"
   },
-  formatSummaryText: {
-    fontSize: "0.9rem",
-    color: "#e2e8f0",
-    margin: 0,
-    lineHeight: "1.5"
-  },
-  formatDetailsGrid: {
+  exampleRow: {
     display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: "10px",
-    backgroundColor: "#0d0d0f",
-    padding: "12px 14px",
+    gridTemplateColumns: "1fr 40px 1fr",
+    alignItems: "center",
+    backgroundColor: "#0a0a0c",
+    padding: "10px 14px",
     borderRadius: "8px",
     border: "1px solid #262626"
   },
-  formatDetailItem: {
+  exampleBeforeBox: {
     display: "flex",
     flexDirection: "column",
     gap: "2px"
   },
-  formatDetailLabel: {
-    fontSize: "0.75rem",
-    color: "#a3a3a3",
-    fontWeight: 600
-  },
-  formatDetailValue: {
-    fontSize: "0.85rem",
-    color: "#38bdf8",
+  exampleLabel: {
+    fontSize: "0.72rem",
+    color: "#ef4444",
     fontWeight: 700
   },
-  tagsRow: {
+  beforeCode: {
+    fontSize: "0.86rem",
+    color: "#a3a3a3",
+    fontFamily: "monospace"
+  },
+  arrowBox: {
     display: "flex",
-    flexWrap: "wrap",
-    gap: "6px",
-    marginTop: "4px"
+    justifyContent: "center"
   },
-  formatTag: {
-    fontSize: "0.75rem",
-    padding: "3px 9px",
-    borderRadius: "8px",
-    backgroundColor: "#202020",
-    border: "1px solid #333333",
+  exampleAfterBox: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "2px"
+  },
+  exampleLabelGreen: {
+    fontSize: "0.72rem",
     color: "#10b981",
-    fontWeight: 600
+    fontWeight: 700
   },
+  afterCode: {
+    fontSize: "0.9rem",
+    color: "#38bdf8",
+    fontWeight: 700,
+    fontFamily: "monospace"
+  },
+  sandboxBox: {
+    backgroundColor: "#0f0f12",
+    padding: "12px",
+    borderRadius: "8px",
+    border: "1px dashed #333333",
+    display: "flex",
+    flexDirection: "column",
+    gap: "8px"
+  },
+  sandboxTitle: {
+    fontSize: "0.8rem",
+    fontWeight: 700,
+    color: "#f59e0b"
+  },
+  sandboxInputRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px"
+  },
+  sandboxInput: {
+    flex: 1,
+    backgroundColor: "#16161a",
+    border: "1px solid #333333",
+    borderRadius: "6px",
+    padding: "8px 12px",
+    color: "#ffffff",
+    fontSize: "0.88rem",
+    fontFamily: "monospace"
+  },
+  sandboxArrow: {
+    color: "#e50914",
+    fontWeight: 800
+  },
+  sandboxResult: {
+    flex: 1,
+    backgroundColor: "#111b15",
+    border: "1px solid #10b981",
+    borderRadius: "6px",
+    padding: "8px 12px",
+    color: "#34d399",
+    fontWeight: 700,
+    fontSize: "0.88rem",
+    fontFamily: "monospace"
+  },
+
   configCard: {
     backgroundColor: "#141414",
-    padding: "16px",
+    padding: "18px",
     borderRadius: "12px",
     border: "1px solid #2a2a2a",
     display: "flex",
     flexDirection: "column",
-    gap: "14px"
+    gap: "16px"
   },
   configSectionTitle: {
     fontSize: "1rem",
@@ -1401,12 +1309,6 @@ const styles = {
     borderRadius: "6px",
     cursor: "pointer"
   },
-  optionsRow: {
-    display: "flex",
-    gap: "20px",
-    alignItems: "center",
-    flexWrap: "wrap"
-  },
   optionItem: {
     display: "flex",
     flexDirection: "column",
@@ -1420,50 +1322,29 @@ const styles = {
     color: "#ffffff",
     fontSize: "0.88rem"
   },
-  checkboxLabel: {
+
+  // Short Clean PowerShell Command Box
+  shortCommandBox: {
+    backgroundColor: "#0a0a0d",
+    borderRadius: "10px",
+    border: "1px solid #2a2a30",
+    padding: "14px 16px",
     display: "flex",
-    alignItems: "center",
-    gap: "8px",
-    fontSize: "0.88rem",
-    color: "#f59e0b",
-    fontWeight: 600,
-    cursor: "pointer"
+    flexDirection: "column",
+    gap: "10px"
   },
-  checkbox: {
-    accentColor: "#f59e0b"
-  },
-  outputCard: {
-    backgroundColor: "#0d0d0d",
-    borderRadius: "12px",
-    border: "1px solid #2a2a2a",
-    overflow: "hidden"
-  },
-  outputHeader: {
+  shortCommandHeader: {
     display: "flex",
     justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: "#161616",
-    padding: "10px 16px",
-    borderBottom: "1px solid #2a2a2a"
+    alignItems: "center"
   },
-  outputTabs: {
-    display: "flex",
-    gap: "12px"
-  },
-  outputTabBtn: {
-    background: "none",
-    border: "none",
-    padding: "8px 12px",
-    fontSize: "0.88rem",
+  shortCommandTitle: {
     fontWeight: 700,
-    cursor: "pointer",
+    fontSize: "0.9rem",
+    color: "#f59e0b",
     display: "flex",
     alignItems: "center",
     gap: "6px"
-  },
-  outputActions: {
-    display: "flex",
-    gap: "8px"
   },
   copyBtn: {
     backgroundColor: "var(--accent-red)",
@@ -1478,71 +1359,59 @@ const styles = {
     alignItems: "center",
     gap: "6px"
   },
-  downloadBtn: {
-    backgroundColor: "#262626",
-    color: "#ffffff",
-    border: "1px solid #3a3a3a",
-    padding: "6px 14px",
-    borderRadius: "8px",
+  commandCodeBlock: {
+    backgroundColor: "#000000",
+    border: "1px solid #3b82f640",
+    borderRadius: "6px",
+    padding: "12px 14px",
+    color: "#38bdf8",
+    fontFamily: "Consolas, Monaco, monospace",
+    fontSize: "0.95rem",
+    fontWeight: 700,
+    wordBreak: "break-all"
+  },
+  commandHint: {
+    fontSize: "0.78rem",
+    color: "#737373",
+    margin: 0
+  },
+
+  codeToggleSection: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "10px"
+  },
+  toggleCodeBtn: {
+    backgroundColor: "transparent",
+    color: "#a3a3a3",
+    border: "none",
     fontSize: "0.82rem",
     fontWeight: 600,
     cursor: "pointer",
     display: "flex",
     alignItems: "center",
-    gap: "6px"
+    gap: "6px",
+    alignSelf: "flex-start"
   },
-  codeContainer: {
-    padding: "16px",
-    maxHeight: "450px",
-    overflowY: "auto"
-  },
-  codeBlock: {
-    margin: 0,
-    fontFamily: "Consolas, Monaco, 'Courier New', monospace",
-    fontSize: "0.88rem",
-    color: "#38bdf8",
-    whiteSpace: "pre-wrap",
-    lineHeight: "1.5"
-  },
-  oneLinerBox: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "10px"
-  },
-  oneLinerInstruction: {
-    fontSize: "0.85rem",
-    color: "#a3a3a3",
-    margin: 0
-  },
-  pyFilesContainer: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "16px"
+  rawCodeCard: {
+    backgroundColor: "#0d0d0d",
+    borderRadius: "10px",
+    border: "1px solid #262626",
+    padding: "14px"
   },
   pyFileBox: {
-    backgroundColor: "#141414",
-    border: "1px solid #2a2a2a",
-    borderRadius: "8px",
-    padding: "12px"
+    marginBottom: "12px"
   },
   pyFileHeader: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: "10px",
-    borderBottom: "1px solid #262626",
-    paddingBottom: "8px"
+    marginBottom: "6px"
   },
   pyFileName: {
     fontWeight: 700,
-    fontSize: "0.9rem",
-    display: "flex",
-    alignItems: "center",
-    gap: "6px"
-  },
-  pyFileHeaderActions: {
-    display: "flex",
-    gap: "6px"
+    fontSize: "0.88rem",
+    color: "#e2e8f0"
   },
   miniCopyBtn: {
     backgroundColor: "#222222",
@@ -1551,11 +1420,16 @@ const styles = {
     fontSize: "0.75rem",
     padding: "4px 8px",
     borderRadius: "6px",
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    gap: "4px"
+    cursor: "pointer"
   },
+  codeBlock: {
+    margin: 0,
+    fontFamily: "Consolas, Monaco, monospace",
+    fontSize: "0.85rem",
+    color: "#38bdf8",
+    whiteSpace: "pre-wrap"
+  },
+
   // Modal Styles
   modalOverlay: {
     position: "fixed",
@@ -1722,26 +1596,6 @@ const styles = {
     fontFamily: "Consolas, Monaco, monospace",
     fontSize: "0.88rem",
     lineHeight: "1.4"
-  },
-  liveDetectionCard: {
-    backgroundColor: "#161616",
-    padding: "12px",
-    borderRadius: "8px",
-    border: "1px dashed #333333"
-  },
-  liveDetectionTitle: {
-    fontSize: "0.82rem",
-    fontWeight: 700,
-    color: "#e50914",
-    display: "flex",
-    alignItems: "center",
-    gap: "6px",
-    marginBottom: "4px"
-  },
-  liveDetectionText: {
-    fontSize: "0.82rem",
-    color: "#a3a3a3",
-    margin: "0 0 6px 0"
   },
   modalFooter: {
     display: "flex",
