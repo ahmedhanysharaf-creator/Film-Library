@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Film, Plus, Shield, Settings, LogOut, User, ChevronDown, MonitorPlay, Download, Wrench, Search, FileText, LayoutGrid, FolderSync } from "lucide-react";
+import { Film, Plus, Shield, Settings, LogOut, User, ChevronDown, MonitorPlay, Download, Wrench, Search, FileText, LayoutGrid, FolderSync, Terminal } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 export const Navbar = ({ activePage, setActivePage, onSelectTool, onOpenWhitelist, onOpenSettings }) => {
@@ -67,7 +67,18 @@ export const Navbar = ({ activePage, setActivePage, onSelectTool, onOpenWhitelis
             The Library
           </button>
 
-          {/* Subtitle Tools Dropdown Menu (Option 3) */}
+          <button
+            style={getTabStyle("renamer")}
+            onClick={() => {
+              setToolsDropdownOpen(false);
+              setActivePage("renamer");
+            }}
+          >
+            <Terminal size={16} color={activePage === "renamer" ? "#ffffff" : "#a3a3a3"} />
+            Renamer
+          </button>
+
+          {/* Subtitle Tools Dropdown Menu */}
           <div style={styles.dropdownWrapper}>
             <button
               style={getTabStyle("tools")}
@@ -89,6 +100,17 @@ export const Navbar = ({ activePage, setActivePage, onSelectTool, onOpenWhitelis
                 >
                   <LayoutGrid size={16} color="var(--accent-red)" />
                   Tools Hub Dashboard
+                </button>
+
+                <button
+                  style={styles.menuItem}
+                  onClick={() => {
+                    setToolsDropdownOpen(false);
+                    setActivePage("renamer");
+                  }}
+                >
+                  <Terminal size={16} color="#f59e0b" />
+                  Media Renamer Suite
                 </button>
 
                 <div style={styles.divider} />

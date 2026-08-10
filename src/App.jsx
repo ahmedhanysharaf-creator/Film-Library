@@ -11,6 +11,7 @@ import { Home } from "./pages/Home";
 import { Library } from "./pages/Library";
 import { AddEditMedia } from "./pages/AddEditMedia";
 import { ToolsHub } from "./pages/ToolsHub";
+import { Renamer } from "./pages/Renamer";
 import { Login } from "./pages/Login";
 import { deleteMediaEntry } from "./services/storage";
 
@@ -18,7 +19,7 @@ const AppContent = () => {
   const { currentUser, isWhitelisted, loading } = useAuth();
   const { addToast } = useToast();
 
-  const [activePage, setActivePage] = useState("home"); // "home" | "library" | "add" | "tools" | "login"
+  const [activePage, setActivePage] = useState("home"); // "home" | "library" | "renamer" | "add" | "tools" | "login"
   const [selectedToolId, setSelectedToolId] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
   const [editItem, setEditItem] = useState(null);
@@ -92,6 +93,8 @@ const AppContent = () => {
             onEditItem={handleEdit}
           />
         )}
+
+        {activePage === "renamer" && <Renamer />}
 
         {activePage === "tools" && (
           <ToolsHub key={selectedToolId || "all"} initialToolId={selectedToolId} />

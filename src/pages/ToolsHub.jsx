@@ -1,11 +1,21 @@
 import React, { useState } from "react";
-import { Search, Download, FileText, ExternalLink, RefreshCw, Sparkles, MonitorPlay } from "lucide-react";
+import { Search, Download, FileText, ExternalLink, RefreshCw, Sparkles, MonitorPlay, Terminal } from "lucide-react";
 
-export const ToolsHub = ({ initialToolId = null }) => {
+export const ToolsHub = ({ initialToolId = null, onOpenRenamer }) => {
   const [activeToolId, setActiveToolId] = useState(initialToolId);
   const [iframeKey, setIframeKey] = useState(0);
 
   const tools = [
+    {
+      id: "renamer",
+      name: "Python Media Renamer",
+      tagline: "Movie & Series Renamer Suite",
+      description: "Manage multi-part Python renamers, auto-detect code formats, and generate copy-pasteable PowerShell execution commands.",
+      icon: Terminal,
+      badge: "PowerShell & Python",
+      isInternal: true,
+      color: "#f59e0b"
+    },
     {
       id: "subdetect",
       name: "SubDetect Pro",
