@@ -2,16 +2,15 @@
 import { db, isFirebaseConfigured } from "./firebase";
 import { collection, getDocs, doc, setDoc, deleteDoc } from "firebase/firestore";
 
-const RENAMER_STORAGE_KEY = "filmlibrary_renamer_codes_v1";
+const RENAMER_STORAGE_KEY = "filmlibrary_renamer_codes_v2";
 
-export const BUILTIN_RENAMER_PRESETS = [
+export const DEFAULT_RENAMER_PRESETS = [
   {
     id: "preset_movie_standard",
     name: "Movie Title & Year Standardizer",
     description: "Cleans cluttered movie filenames (e.g. Inception.2010.1080p.Bluray.x264.mkv) into clean 'Title (Year).ext' format.",
     category: "movie",
     badge: "Movie Standardizer",
-    isBuiltin: true,
     created_at: new Date().toISOString(),
     parts: [
       {
@@ -81,7 +80,6 @@ if __name__ == "__main__":
     description: "Detects S01E01, 1x01, or Season 1 Episode 1 patterns in TV show filenames and formats them neatly as 'Show Title - S01E01.ext'.",
     category: "series",
     badge: "TV Series Parser",
-    isBuiltin: true,
     created_at: new Date().toISOString(),
     parts: [
       {
@@ -160,7 +158,6 @@ if __name__ == "__main__":
     description: "Two-stage renamer pipeline: Part 1 normalizes root folders and removes invalid characters; Part 2 renames media files inside.",
     category: "multi_part",
     badge: "2-Part Pipeline",
-    isBuiltin: true,
     created_at: new Date().toISOString(),
     parts: [
       {
@@ -242,7 +239,6 @@ if __name__ == "__main__":
     description: "Two-stage pipeline: Part 1 identifies video files, Part 2 finds matching subtitle files (.srt/.ass) and renames them to match the video exactly.",
     category: "subtitle",
     badge: "Subtitle Sync",
-    isBuiltin: true,
     created_at: new Date().toISOString(),
     parts: [
       {
@@ -309,27 +305,27 @@ if __name__ == "__main__":
 export async function getRenamerCodes() {
   try {
     const local = localStorage.getItem(RENAMER_STORAGE_KEY);
-    let customItems = [];
-    if (local) {
-      customItems = JSON.parse(local);
+    if (!local) {
+      // Seed initial presets into localStorage on first load
+      localStorage.setItem(RENAMER_STORAGE_KEY, JSON.stringify(DEFAULT_RENAMER_PRESETS));
+      return DEFAULT_RENAMER_PRESETS;
     }
-    
-    // Combine builtins with custom items
-    return [...BUILTIN_RENAMER_PRESETS, ...customItems];
+    return JSON.parse(local);
   } catch (err) {
     console.error("Error reading renamer codes:", err);
-    return BUILTIN_RENAMER_PRESETS;
+    return DEFAULT_RENAMER_PRESETS;
   }
 }
 
 export async function saveRenamerCode(renamerObj) {
   try {
-    const local = localStorage.getItem(RENAMER_STORAGE_KEY);
-    let customItems = local ? JSON.parse(local) : [];
+    const currentList = await getRenamerCodes();
+    const existingIndex = currentList.findIndex(i => i.id === renamerObj.id);
 
-    const existingIndex = customItems.findIndex(i => i.id === renamerObj.id);
+    let updatedList;
     if (existingIndex >= 0) {
-      customItems[existingIndex] = {
+      updatedList = [...currentList];
+      updatedList[existingIndex] = {
         ...renamerObj,
         updated_at: new Date().toISOString()
       };
@@ -337,25 +333,23 @@ export async function saveRenamerCode(renamerObj) {
       const newItem = {
         ...renamerObj,
         id: renamerObj.id || `renamer_custom_${Date.now()}`,
-        isBuiltin: false,
         created_at: new Date().toISOString()
       };
-      customItems.unshift(newItem);
+      updatedList = [newItem, ...currentList];
     }
 
-    localStorage.setItem(RENAMER_STORAGE_KEY, JSON.stringify(customItems));
-    
-    // Optional Firestore Sync
+    localStorage.setItem(RENAMER_STORAGE_KEY, JSON.stringify(updatedList));
+
     if (isFirebaseConfigured()) {
       try {
-        const itemToSave = customItems.find(i => i.id === renamerObj.id) || customItems[0];
+        const itemToSave = updatedList.find(i => i.id === renamerObj.id) || updatedList[0];
         await setDoc(doc(db, "renamer_codes", itemToSave.id), itemToSave);
       } catch (e) {
         console.warn("Firestore renamer save warning:", e);
       }
     }
 
-    return customItems;
+    return updatedList;
   } catch (err) {
     console.error("Failed to save renamer code:", err);
     throw err;
@@ -364,11 +358,10 @@ export async function saveRenamerCode(renamerObj) {
 
 export async function deleteRenamerCode(renamerId) {
   try {
-    const local = localStorage.getItem(RENAMER_STORAGE_KEY);
-    let customItems = local ? JSON.parse(local) : [];
-    customItems = customItems.filter(item => item.id !== renamerId);
+    const currentList = await getRenamerCodes();
+    const updatedList = currentList.filter(item => item.id !== renamerId);
 
-    localStorage.setItem(RENAMER_STORAGE_KEY, JSON.stringify(customItems));
+    localStorage.setItem(RENAMER_STORAGE_KEY, JSON.stringify(updatedList));
 
     if (isFirebaseConfigured()) {
       try {
@@ -378,9 +371,19 @@ export async function deleteRenamerCode(renamerId) {
       }
     }
 
-    return customItems;
+    return updatedList;
   } catch (err) {
     console.error("Failed to delete renamer code:", err);
+    throw err;
+  }
+}
+
+export async function resetRenamerPresetsToDefault() {
+  try {
+    localStorage.setItem(RENAMER_STORAGE_KEY, JSON.stringify(DEFAULT_RENAMER_PRESETS));
+    return DEFAULT_RENAMER_PRESETS;
+  } catch (err) {
+    console.error("Failed to reset renamer presets:", err);
     throw err;
   }
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Terminal,
   Folder,
@@ -20,10 +20,13 @@ import {
   Play,
   FileCode,
   ShieldAlert,
-  ArrowRight
+  ArrowRight,
+  FolderPlus,
+  RotateCcw,
+  UploadCloud
 } from "lucide-react";
 import { useToast } from "../context/ToastContext";
-import { getRenamerCodes, saveRenamerCode, deleteRenamerCode } from "../services/renamerStorage";
+import { getRenamerCodes, saveRenamerCode, deleteRenamerCode, resetRenamerPresetsToDefault } from "../services/renamerStorage";
 import { detectCodeFormat } from "../utils/codeDetector";
 import { generatePowerShellCommands } from "../utils/powershellGenerator";
 
@@ -34,6 +37,10 @@ export const Renamer = () => {
   const [selectedCodeId, setSelectedCodeId] = useState(null);
   const [filterCategory, setFilterCategory] = useState("all");
   const [loading, setLoading] = useState(true);
+
+  // File explorer hidden inputs refs
+  const headerFileInputRef = useRef(null);
+  const modalFileInputRef = useRef(null);
 
   // PowerShell Generator parameters
   const [targetPath, setTargetPath] = useState("D:\\Movies\\Action");
@@ -105,6 +112,64 @@ export const Renamer = () => {
     addToast(`Downloaded ${filename}`, "info");
   };
 
+  // Import Python files directly from Laptop File Explorer
+  const handleFileImport = (event) => {
+    const files = Array.from(event.target.files || []);
+    if (files.length === 0) return;
+
+    const readPromises = files.map((file) => {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          resolve({
+            name: file.name,
+            code: e.target.result || ""
+          });
+        };
+        reader.readAsText(file);
+      });
+    });
+
+    Promise.all(readPromises).then((importedFiles) => {
+      if (isModalOpen) {
+        // Appending/replacing in active modal
+        const newParts = importedFiles.map((item, idx) => ({
+          id: `part_${Date.now()}_${idx}`,
+          name: item.name,
+          code: item.code
+        }));
+        
+        // If current formParts has only 1 blank part, replace it; otherwise append
+        if (formParts.length === 1 && (!formParts[0].code || formParts[0].code.includes("Write your python"))) {
+          setFormParts(newParts);
+          setActivePartIndex(0);
+        } else {
+          setFormParts((prev) => [...prev, ...newParts]);
+        }
+        addToast(`Imported ${importedFiles.length} Python script file(s) into renamer editor!`, "success");
+      } else {
+        // Open Modal pre-populated with imported files
+        const primaryTitle = files[0].name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " ").toUpperCase();
+        setEditingCodeObj(null);
+        setFormName(primaryTitle);
+        setFormDesc(`Imported from local system files: ${files.map((f) => f.name).join(", ")}`);
+        setFormCategory("movie");
+        setFormParts(
+          importedFiles.map((item, idx) => ({
+            id: `part_${Date.now()}_${idx}`,
+            name: item.name,
+            code: item.code
+          }))
+        );
+        setActivePartIndex(0);
+        setIsModalOpen(true);
+        addToast(`Loaded ${files.length} Python file(s) from your PC!`, "success");
+      }
+    });
+
+    event.target.value = "";
+  };
+
   // Modal Open Handlers
   const handleOpenAddModal = () => {
     setEditingCodeObj(null);
@@ -172,7 +237,6 @@ export const Renamer = () => {
       description: formDesc.trim(),
       category: formCategory,
       badge: formParts.length > 1 ? `${formParts.length}-Step Pipeline` : `${formCategory.toUpperCase()} Code`,
-      isBuiltin: false,
       parts: formParts
     };
 
@@ -181,7 +245,7 @@ export const Renamer = () => {
       setCodes(updatedList);
       setSelectedCodeId(newCodeObj.id);
       setIsModalOpen(false);
-      addToast(`Renamer code '${newCodeObj.name}' saved successfully!`, "success");
+      addToast(`Renamer preset '${newCodeObj.name}' saved!`, "success");
     } catch (err) {
       addToast(`Failed to save code: ${err.message}`, "error");
     }
@@ -201,6 +265,18 @@ export const Renamer = () => {
     }
   };
 
+  const handleResetDefaults = async () => {
+    if (!window.confirm("Restore default preset templates? This will restore original presets.")) return;
+    try {
+      const defaultData = await resetRenamerPresetsToDefault();
+      setCodes(defaultData);
+      if (defaultData.length > 0) setSelectedCodeId(defaultData[0].id);
+      addToast("Restored original renamer presets!", "info");
+    } catch (err) {
+      addToast(`Failed to reset presets: ${err.message}`, "error");
+    }
+  };
+
   const filteredCodes = codes.filter((c) => {
     if (filterCategory === "all") return true;
     if (filterCategory === "multi_part") return c.parts && c.parts.length > 1;
@@ -209,6 +285,24 @@ export const Renamer = () => {
 
   return (
     <div style={styles.container}>
+      {/* Hidden File Inputs for PC Explorer File Picking */}
+      <input
+        type="file"
+        ref={headerFileInputRef}
+        onChange={handleFileImport}
+        accept=".py,.txt"
+        multiple
+        style={{ display: "none" }}
+      />
+      <input
+        type="file"
+        ref={modalFileInputRef}
+        onChange={handleFileImport}
+        accept=".py,.txt"
+        multiple
+        style={{ display: "none" }}
+      />
+
       {/* Top Banner Header */}
       <div style={styles.header}>
         <div style={styles.headerTitleGroup}>
@@ -218,99 +312,126 @@ export const Renamer = () => {
           </div>
           <h1 style={styles.title}>Media File Renamer Suite</h1>
           <p style={styles.subtitle}>
-            Manage single or multi-part Python renamers for movies and series, automatically detect code formats, and generate ready-to-run PowerShell execution commands.
+            Manage single or multi-part Python renamers for movies and series, automatically detect code formats, import Python files directly from your PC, and generate ready-to-run PowerShell execution commands.
           </p>
         </div>
 
-        <button style={styles.addBtn} onClick={handleOpenAddModal}>
-          <Plus size={16} /> Add New Renamer Code
-        </button>
+        <div style={styles.headerActionsGroup}>
+          <button
+            style={styles.importPcBtn}
+            onClick={() => headerFileInputRef.current && headerFileInputRef.current.click()}
+            title="Browse and select .py code files from your PC"
+          >
+            <UploadCloud size={16} /> Choose .py File from Laptop
+          </button>
+
+          <button style={styles.addBtn} onClick={handleOpenAddModal}>
+            <Plus size={16} /> Add New Code Preset
+          </button>
+        </div>
       </div>
 
       {/* Main Grid & Generator Section */}
       <div style={styles.mainLayout}>
         {/* Left Column: Preset & Code Selector */}
         <div style={styles.sidebarColumn}>
-          {/* Category Filters */}
-          <div style={styles.filterBar}>
-            {["all", "movie", "series", "subtitle", "multi_part"].map((cat) => (
-              <button
-                key={cat}
-                style={{
-                  ...styles.filterBtn,
-                  backgroundColor: filterCategory === cat ? "var(--accent-red)" : "#1f1f1f",
-                  color: filterCategory === cat ? "#ffffff" : "#a3a3a3"
-                }}
-                onClick={() => setFilterCategory(cat)}
-              >
-                {cat === "all" && "All Presets"}
-                {cat === "movie" && "Movies"}
-                {cat === "series" && "TV Series"}
-                {cat === "subtitle" && "Subtitles"}
-                {cat === "multi_part" && "Multi-Part"}
-              </button>
-            ))}
+          {/* Category Filters & Reset Option */}
+          <div style={styles.filterBarHeader}>
+            <div style={styles.filterBar}>
+              {["all", "movie", "series", "subtitle", "multi_part"].map((cat) => (
+                <button
+                  key={cat}
+                  style={{
+                    ...styles.filterBtn,
+                    backgroundColor: filterCategory === cat ? "var(--accent-red)" : "#1f1f1f",
+                    color: filterCategory === cat ? "#ffffff" : "#a3a3a3"
+                  }}
+                  onClick={() => setFilterCategory(cat)}
+                >
+                  {cat === "all" && "All Presets"}
+                  {cat === "movie" && "Movies"}
+                  {cat === "series" && "TV Series"}
+                  {cat === "subtitle" && "Subtitles"}
+                  {cat === "multi_part" && "Multi-Part"}
+                </button>
+              ))}
+            </div>
+
+            <button
+              style={styles.resetDefaultsBtn}
+              onClick={handleResetDefaults}
+              title="Reset presets list to original built-in templates"
+            >
+              <RotateCcw size={12} /> Reset Presets
+            </button>
           </div>
 
           {/* List of Codes */}
           <div style={styles.presetList}>
-            {filteredCodes.map((codeItem) => {
-              const isSelected = selectedCodeId === codeItem.id;
-              const hasMultiParts = codeItem.parts && codeItem.parts.length > 1;
+            {filteredCodes.length === 0 ? (
+              <div style={styles.emptyPresetsBox}>
+                <p>No presets found in this category.</p>
+                <button style={styles.quickPathBtn} onClick={handleResetDefaults}>
+                  Restore Default Presets
+                </button>
+              </div>
+            ) : (
+              filteredCodes.map((codeItem) => {
+                const isSelected = selectedCodeId === codeItem.id;
+                const hasMultiParts = codeItem.parts && codeItem.parts.length > 1;
 
-              return (
-                <div
-                  key={codeItem.id}
-                  style={{
-                    ...styles.presetCard,
-                    borderColor: isSelected ? "var(--accent-red)" : "#2a2a2a",
-                    backgroundColor: isSelected ? "#1e1415" : "#141414"
-                  }}
-                  onClick={() => setSelectedCodeId(codeItem.id)}
-                  className="glass-panel hover-card"
-                >
-                  <div style={styles.presetCardHeader}>
-                    <div style={styles.presetTitleGroup}>
-                      {hasMultiParts ? (
-                        <Layers size={18} color="#e50914" />
-                      ) : codeItem.category === "series" ? (
-                        <Tv size={18} color="#3b82f6" />
-                      ) : codeItem.category === "subtitle" ? (
-                        <FileText size={18} color="#10b981" />
-                      ) : (
-                        <Film size={18} color="#f59e0b" />
-                      )}
-                      <span style={styles.presetName}>{codeItem.name}</span>
+                return (
+                  <div
+                    key={codeItem.id}
+                    style={{
+                      ...styles.presetCard,
+                      borderColor: isSelected ? "var(--accent-red)" : "#2a2a2a",
+                      backgroundColor: isSelected ? "#1e1415" : "#141414"
+                    }}
+                    onClick={() => setSelectedCodeId(codeItem.id)}
+                    className="glass-panel hover-card"
+                  >
+                    <div style={styles.presetCardHeader}>
+                      <div style={styles.presetTitleGroup}>
+                        {hasMultiParts ? (
+                          <Layers size={18} color="#e50914" />
+                        ) : codeItem.category === "series" ? (
+                          <Tv size={18} color="#3b82f6" />
+                        ) : codeItem.category === "subtitle" ? (
+                          <FileText size={18} color="#10b981" />
+                        ) : (
+                          <Film size={18} color="#f59e0b" />
+                        )}
+                        <span style={styles.presetName}>{codeItem.name}</span>
+                      </div>
+
+                      <span style={styles.presetBadge}>
+                        {hasMultiParts ? `${codeItem.parts.length} Parts` : codeItem.badge || "Script"}
+                      </span>
                     </div>
 
-                    <span style={styles.presetBadge}>
-                      {hasMultiParts ? `${codeItem.parts.length} Parts` : codeItem.badge || "Script"}
-                    </span>
-                  </div>
+                    <p style={styles.presetDesc}>{codeItem.description}</p>
 
-                  <p style={styles.presetDesc}>{codeItem.description}</p>
+                    <div style={styles.presetCardFooter}>
+                      <span style={styles.presetSourceTag}>
+                        {hasMultiParts ? "Pipeline" : "Python Script"}
+                      </span>
 
-                  <div style={styles.presetCardFooter}>
-                    <span style={styles.presetSourceTag}>
-                      {codeItem.isBuiltin ? "Official Preset" : "Custom Code"}
-                    </span>
-
-                    <div style={styles.presetActions}>
-                      <button
-                        style={styles.iconBtn}
-                        title="View / Edit Code"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenEditModal(codeItem);
-                        }}
-                      >
-                        <Edit3 size={14} color="#a3a3a3" />
-                      </button>
-
-                      {!codeItem.isBuiltin && (
+                      <div style={styles.presetActions}>
                         <button
                           style={styles.iconBtn}
-                          title="Delete Custom Code"
+                          title="Edit Preset"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenEditModal(codeItem);
+                          }}
+                        >
+                          <Edit3 size={14} color="#a3a3a3" />
+                        </button>
+
+                        <button
+                          style={styles.iconBtn}
+                          title="Delete Preset"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleDeleteCode(codeItem.id, codeItem.name);
@@ -318,23 +439,39 @@ export const Renamer = () => {
                         >
                           <Trash2 size={14} color="#ef4444" />
                         </button>
-                      )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </div>
 
         {/* Right Column: Interactive Code Inspector & PowerShell Generator Workspace */}
-        {selectedCode && (
+        {selectedCode ? (
           <div style={styles.workspaceColumn} className="glass-panel">
             {/* Active Code Inspector Banner */}
             <div style={styles.inspectorHeader}>
               <div style={styles.inspectorTitleGroup}>
                 <h2 style={styles.inspectorTitle}>{selectedCode.name}</h2>
                 <span style={styles.inspectorBadge}>{detectedFormat?.badge || "Format"}</span>
+
+                <div style={styles.presetTopActions}>
+                  <button
+                    style={styles.editHeaderBtn}
+                    onClick={() => handleOpenEditModal(selectedCode)}
+                  >
+                    <Edit3 size={14} /> Edit Code / Parts
+                  </button>
+
+                  <button
+                    style={styles.deleteHeaderBtn}
+                    onClick={() => handleDeleteCode(selectedCode.id, selectedCode.name)}
+                  >
+                    <Trash2 size={14} /> Delete Preset
+                  </button>
+                </div>
               </div>
               <p style={styles.inspectorDesc}>{selectedCode.description}</p>
 
@@ -378,7 +515,7 @@ export const Renamer = () => {
                     type="text"
                     value={targetPath}
                     onChange={(e) => setTargetPath(e.target.value)}
-                    placeholder="e.g. D:\Movies\Inception or C:\Media\TV Shows"
+                    placeholder="e.g. D:\Movies\Action or C:\Media\TV Shows"
                     style={styles.pathInput}
                   />
                 </div>
@@ -545,6 +682,19 @@ export const Renamer = () => {
               </div>
             </div>
           </div>
+        ) : (
+          <div style={styles.workspaceColumn} className="glass-panel">
+            <div style={styles.emptyWorkspace}>
+              <h3>No Renamer Preset Selected</h3>
+              <p>Select a preset from the sidebar or import Python files from your computer to generate PowerShell commands.</p>
+              <button
+                style={styles.addBtn}
+                onClick={() => headerFileInputRef.current && headerFileInputRef.current.click()}
+              >
+                <UploadCloud size={16} /> Choose .py File from Laptop
+              </button>
+            </div>
+          </div>
         )}
       </div>
 
@@ -553,7 +703,7 @@ export const Renamer = () => {
         <div style={styles.modalOverlay}>
           <div style={styles.modalContent} className="glass-panel">
             <div style={styles.modalHeader}>
-              <h2>{editingCodeObj ? "Edit Custom Renamer Code" : "Add Custom Renamer Code"}</h2>
+              <h2>{editingCodeObj ? `Edit Renamer Preset: ${formName}` : "Add New Renamer Code"}</h2>
               <button style={styles.closeModalBtn} onClick={() => setIsModalOpen(false)}>
                 ✕
               </button>
@@ -605,9 +755,21 @@ export const Renamer = () => {
                   <label style={styles.inputLabel}>
                     Python Code Parts ({formParts.length} {formParts.length === 1 ? "File" : "Files / Sequence"}):
                   </label>
-                  <button type="button" style={styles.addPartBtn} onClick={handleAddPartToForm}>
-                    <Plus size={14} /> + Add Another Code Part
-                  </button>
+
+                  <div style={styles.partsHeaderActions}>
+                    <button
+                      type="button"
+                      style={styles.importPcModalBtn}
+                      onClick={() => modalFileInputRef.current && modalFileInputRef.current.click()}
+                      title="Choose .py file from your PC explorer"
+                    >
+                      <UploadCloud size={14} /> Import .py File from PC
+                    </button>
+
+                    <button type="button" style={styles.addPartBtn} onClick={handleAddPartToForm}>
+                      <Plus size={14} /> + Add Blank Part
+                    </button>
+                  </div>
                 </div>
 
                 {/* Tabs for Parts */}
@@ -668,7 +830,7 @@ export const Renamer = () => {
                           setFormParts(updated);
                         }}
                         style={styles.codeTextarea}
-                        placeholder="# Paste your python code here..."
+                        placeholder="# Paste your python code here or click 'Import .py File from PC'..."
                       />
                     </div>
                   </div>
@@ -755,6 +917,23 @@ const styles = {
     margin: 0,
     maxWidth: "750px"
   },
+  headerActionsGroup: {
+    display: "flex",
+    gap: "12px"
+  },
+  importPcBtn: {
+    backgroundColor: "#1f2937",
+    color: "#38bdf8",
+    border: "1px solid #0284c7",
+    padding: "10px 18px",
+    borderRadius: "20px",
+    fontWeight: 700,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    transition: "all 0.2s"
+  },
   addBtn: {
     backgroundColor: "var(--accent-red)",
     color: "#ffffff",
@@ -779,6 +958,11 @@ const styles = {
     flexDirection: "column",
     gap: "16px"
   },
+  filterBarHeader: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "8px"
+  },
   filterBar: {
     display: "flex",
     flexWrap: "wrap",
@@ -793,10 +977,29 @@ const styles = {
     cursor: "pointer",
     transition: "all 0.2s"
   },
+  resetDefaultsBtn: {
+    backgroundColor: "transparent",
+    color: "#737373",
+    border: "none",
+    fontSize: "0.75rem",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "4px",
+    alignSelf: "flex-end"
+  },
   presetList: {
     display: "flex",
     flexDirection: "column",
     gap: "12px"
+  },
+  emptyPresetsBox: {
+    padding: "30px",
+    textAlign: "center",
+    backgroundColor: "#141414",
+    borderRadius: "12px",
+    color: "#a3a3a3",
+    fontSize: "0.9rem"
   },
   presetCard: {
     padding: "16px",
@@ -861,6 +1064,14 @@ const styles = {
     flexDirection: "column",
     gap: "20px"
   },
+  emptyWorkspace: {
+    padding: "60px 20px",
+    textAlign: "center",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: "16px"
+  },
   inspectorHeader: {
     borderBottom: "1px solid #2a2a2a",
     paddingBottom: "16px"
@@ -869,7 +1080,8 @@ const styles = {
     display: "flex",
     alignItems: "center",
     gap: "12px",
-    marginBottom: "6px"
+    marginBottom: "6px",
+    justifyContent: "space-between"
   },
   inspectorTitle: {
     fontSize: "1.5rem",
@@ -883,6 +1095,37 @@ const styles = {
     borderRadius: "12px",
     fontSize: "0.8rem",
     fontWeight: 700
+  },
+  presetTopActions: {
+    display: "flex",
+    gap: "8px",
+    marginLeft: "auto"
+  },
+  editHeaderBtn: {
+    backgroundColor: "#262626",
+    color: "#ffffff",
+    border: "1px solid #3a3a3a",
+    padding: "6px 12px",
+    borderRadius: "8px",
+    fontSize: "0.8rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px"
+  },
+  deleteHeaderBtn: {
+    backgroundColor: "#ef444420",
+    color: "#ef4444",
+    border: "1px solid #ef444440",
+    padding: "6px 12px",
+    borderRadius: "8px",
+    fontSize: "0.8rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px"
   },
   inspectorDesc: {
     color: "#a3a3a3",
@@ -1230,13 +1473,31 @@ const styles = {
     justifyContent: "space-between",
     alignItems: "center"
   },
+  partsHeaderActions: {
+    display: "flex",
+    gap: "8px"
+  },
+  importPcModalBtn: {
+    backgroundColor: "#1f2937",
+    color: "#38bdf8",
+    border: "1px solid #0284c7",
+    padding: "6px 12px",
+    borderRadius: "6px",
+    fontSize: "0.8rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px"
+  },
   addPartBtn: {
     backgroundColor: "#262626",
     color: "#ffffff",
     border: "1px solid #3a3a3a",
-    padding: "4px 10px",
+    padding: "6px 12px",
     borderRadius: "6px",
     fontSize: "0.8rem",
+    fontWeight: 600,
     cursor: "pointer",
     display: "flex",
     alignItems: "center",
