@@ -1240,6 +1240,48 @@ function makeEmptyState(text) {
   return el;
 }
 
+function formatBytes(bytes) {
+  if (bytes === undefined || bytes === null || isNaN(bytes)) return '';
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
+async function deleteSingleFile(type, item) {
+  if (!confirm(`Are you sure you want to delete file "${item.name}"?`)) return;
+
+  showLoading(`Deleting ${item.name}…`);
+  try {
+    if (state.mode === 'fs') {
+      const removed = await removeSourceFile(item);
+      if (!removed) {
+        showToast(`Could not delete "${item.name}" from disk`, 'warning');
+      }
+    }
+
+    const match = getMatchForItem(type, item);
+    if (match) {
+      removeMatch(match.id);
+    }
+
+    if (type === 'subtitle') {
+      state.subtitles = state.subtitles.filter(s => s.name !== item.name);
+    } else {
+      state.videos = state.videos.filter(v => v.name !== item.name);
+    }
+
+    renderAll();
+    updateDoneButton();
+    showToast(`🗑️ Deleted ${type === 'subtitle' ? 'subtitle' : 'film'}: "${item.name}"`, 'info');
+  } catch (err) {
+    showToast(`Failed to delete file: ${err.message}`, 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
 function makeFileItem(type, item, match, pending) {
   const el = document.createElement('div');
   el.className = 'list-item ' + type + '-item'
@@ -1259,13 +1301,49 @@ function makeFileItem(type, item, match, pending) {
   icon.className = 'item-icon';
   icon.textContent = type === 'subtitle' ? '📄' : '🎬';
 
-  const name = document.createElement('span');
-  name.className = 'item-name';
-  name.textContent = item.name;
-  name.title = item.name;
+  // Item details container: title above, storage size under it
+  const details = document.createElement('div');
+  details.className = 'item-details';
+
+  const nameText = document.createElement('span');
+  nameText.className = 'item-name-text';
+  nameText.textContent = item.name;
+  nameText.title = item.name;
+
+  const sizeText = document.createElement('span');
+  sizeText.className = 'item-size-text';
+
+  let initialSize = item.file ? item.file.size : item.size;
+  if (initialSize !== undefined && initialSize !== null) {
+    sizeText.textContent = `💾 ${formatBytes(initialSize)}`;
+  } else if (item.handle && typeof item.handle.getFile === 'function') {
+    sizeText.textContent = '💾 Loading size...';
+    item.handle.getFile().then(f => {
+      item.size = f.size;
+      sizeText.textContent = `💾 ${formatBytes(f.size)}`;
+    }).catch(() => {
+      sizeText.textContent = '';
+    });
+  }
+
+  details.appendChild(nameText);
+  if (sizeText.textContent || item.handle) {
+    details.appendChild(sizeText);
+  }
+
+  // Delete File Button
+  const delBtn = document.createElement('button');
+  delBtn.className = 'item-delete-btn';
+  delBtn.title = `Delete ${item.name}`;
+  delBtn.innerHTML = '🗑️';
+  delBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    deleteSingleFile(type, item);
+  });
 
   el.appendChild(icon);
-  el.appendChild(name);
+  el.appendChild(details);
+  el.appendChild(delBtn);
 
   if (!match) {
     el.addEventListener('click', () => handleItemClick(type, item));
