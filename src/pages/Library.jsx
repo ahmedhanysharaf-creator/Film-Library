@@ -287,17 +287,23 @@ export const Library = ({ onSelectItem, onEditItem, onPlayMedia, activeUniverse 
               <button
                 style={{
                   ...styles.universeSegmentBtn,
-                  ...(universe === "all" ? styles.universeSegmentActiveBlue : {})
+                  backgroundColor: universe === "all" ? "#0066ff" : "#18181c",
+                  color: universe === "all" ? "#ffffff" : "#a1a1aa",
+                  border: universe === "all" ? "1px solid #3b82f6" : "1px solid #27272a",
+                  boxShadow: universe === "all" ? "0 2px 10px rgba(0, 102, 255, 0.45)" : "none"
                 }}
                 onClick={() => onSelectUniverse && onSelectUniverse("all")}
               >
-                All Universes
+                All Universes ({items.length})
               </button>
 
               <button
                 style={{
                   ...styles.universeSegmentBtn,
-                  ...(universe === "marvel" ? styles.universeSegmentActiveBlue : {})
+                  backgroundColor: universe === "marvel" ? "#0066ff" : "#18181c",
+                  color: universe === "marvel" ? "#ffffff" : "#a1a1aa",
+                  border: universe === "marvel" ? "1px solid #3b82f6" : "1px solid #27272a",
+                  boxShadow: universe === "marvel" ? "0 2px 10px rgba(0, 102, 255, 0.45)" : "none"
                 }}
                 onClick={() => onSelectUniverse && onSelectUniverse("marvel")}
                 title="View Marvel movies and series"
@@ -311,13 +317,16 @@ export const Library = ({ onSelectItem, onEditItem, onPlayMedia, activeUniverse 
                 >
                   MARVEL
                 </span>
-                Marvel ({marvelItems.length})
+                ({marvelItems.length})
               </button>
 
               <button
                 style={{
                   ...styles.universeSegmentBtn,
-                  ...(universe === "dc" ? styles.universeSegmentActiveBlue : {})
+                  backgroundColor: universe === "dc" ? "#0066ff" : "#18181c",
+                  color: universe === "dc" ? "#ffffff" : "#a1a1aa",
+                  border: universe === "dc" ? "1px solid #3b82f6" : "1px solid #27272a",
+                  boxShadow: universe === "dc" ? "0 2px 10px rgba(0, 102, 255, 0.45)" : "none"
                 }}
                 onClick={() => onSelectUniverse && onSelectUniverse("dc")}
                 title="View DC movies and series"
@@ -331,7 +340,7 @@ export const Library = ({ onSelectItem, onEditItem, onPlayMedia, activeUniverse 
                 >
                   DC
                 </span>
-                DC ({dcItems.length})
+                ({dcItems.length})
               </button>
             </div>
 
