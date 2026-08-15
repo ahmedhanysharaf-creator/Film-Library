@@ -44,9 +44,12 @@ export const Renamer = () => {
 
   // PowerShell Generator parameters
   const [targetPath, setTargetPath] = useState("D:\\Movies\\Action");
+  const [scriptsFolder, setScriptsFolder] = useState("");
   const [dryRun, setDryRun] = useState(true);
   const [showName, setShowName] = useState("");
   const [copied, setCopied] = useState(false);
+  const scriptsFolderInputRef = useRef(null);
+  const [scriptsFolderCopied, setScriptsFolderCopied] = useState(false);
 
   // Custom Test Filename Sandbox
   const [testFilename, setTestFilename] = useState("Inception.2010.1080p.BluRay.x264.mkv");
@@ -88,7 +91,7 @@ export const Renamer = () => {
   // Active Code Detection & PowerShell Outputs
   const detectedFormat = selectedCode ? detectCodeFormat(selectedCode.parts) : null;
   const generatedCommands = selectedCode
-    ? generatePowerShellCommands(selectedCode, targetPath, { dryRun, showName })
+    ? generatePowerShellCommands(selectedCode, targetPath, { dryRun, showName, scriptsFolder })
     : { powershellShortCommand: "", powershellScript: "", pythonStandaloneFiles: [] };
 
   // Form detection real-time preview
@@ -639,12 +642,55 @@ export const Renamer = () => {
             {/* 🎯 SECTION 2: TARGET FOLDER & SHORT POWERSHELL COMMAND GENERATOR 🎯 */}
             <div style={styles.configCard}>
               <h3 style={styles.configSectionTitle}>
-                <FolderSearch size={16} color="#e50914" /> Target Folder Location & Short PowerShell Command
+                <FolderSearch size={16} color="#e50914" /> Target Folder & Command Generator
               </h3>
 
+              {/* Scripts Folder — where main.py lives */}
               <div style={styles.inputGroup}>
                 <label style={styles.inputLabel}>
-                  Target Folder (Where you will run the code):
+                  📂 Scripts Folder (where your Python scripts / <code style={{color:"#f59e0b"}}>main.py</code> are saved):
+                </label>
+                <div style={styles.pathInputWrapper}>
+                  <input
+                    type="text"
+                    value={scriptsFolder}
+                    onChange={(e) => setScriptsFolder(e.target.value)}
+                    placeholder="e.g. C:\Users\Ahmed\Downloads\Marvel Renamer Scripts"
+                    style={styles.pathInput}
+                  />
+                  <button
+                    type="button"
+                    style={styles.browseFolderBtn}
+                    onClick={() => scriptsFolderInputRef.current && scriptsFolderInputRef.current.click()}
+                    title="Select the folder where your Python scripts (main.py) are located"
+                  >
+                    <FolderSearch size={16} /> Browse...
+                  </button>
+                </div>
+                <input
+                  type="file"
+                  ref={scriptsFolderInputRef}
+                  webkitdirectory="true"
+                  directory="true"
+                  style={{ display: "none" }}
+                  onChange={(e) => {
+                    const f = e.target.files && e.target.files[0];
+                    if (f) {
+                      const rel = f.webkitRelativePath || f.name;
+                      const folder = rel.split("/")[0] || rel.split("\\")[0];
+                      // We can only get folder name, not full path in browser
+                      setScriptsFolder(`C:\\Users\\Ahmed\\Downloads\\${folder}`);
+                      addToast(`Scripts folder set to: ${folder}`, "success");
+                    }
+                    e.target.value = "";
+                  }}
+                />
+              </div>
+
+              {/* Target Media Folder */}
+              <div style={styles.inputGroup}>
+                <label style={styles.inputLabel}>
+                  🎬 Target Media Folder (folder containing your video files to rename):
                 </label>
                 <div style={styles.pathInputWrapper}>
                   <input
@@ -658,9 +704,9 @@ export const Renamer = () => {
                     type="button"
                     style={styles.browseFolderBtn}
                     onClick={handlePickTargetFolder}
-                    title="Open Windows File Explorer to select target folder"
+                    title="Select the folder containing video files you want to rename"
                   >
-                    <FolderSearch size={16} /> Choose Folder from Laptop...
+                    <FolderSearch size={16} /> Browse...
                   </button>
                 </div>
                 <div style={styles.quickPathButtons}>
@@ -689,6 +735,37 @@ export const Renamer = () => {
                   />
                 </div>
               )}
+
+              {/* Dry Run / Execute Toggle */}
+              <div style={styles.optionItem}>
+                <label style={styles.inputLabel}>Run Mode:</label>
+                <div style={styles.toggleRow}>
+                  <button
+                    style={{
+                      ...styles.toggleModeBtn,
+                      backgroundColor: dryRun ? "#1a2e1a" : "#1a1a1a",
+                      color: dryRun ? "#4ade80" : "#6b7280",
+                      border: dryRun ? "1px solid #16a34a" : "1px solid #3a3a3a"
+                    }}
+                    onClick={() => setDryRun(true)}
+                    title="--dry-run: preview changes without renaming anything"
+                  >
+                    👁 --dry-run (Preview Only)
+                  </button>
+                  <button
+                    style={{
+                      ...styles.toggleModeBtn,
+                      backgroundColor: !dryRun ? "#2e1a1a" : "#1a1a1a",
+                      color: !dryRun ? "#f87171" : "#6b7280",
+                      border: !dryRun ? "1px solid #dc2626" : "1px solid #3a3a3a"
+                    }}
+                    onClick={() => setDryRun(false)}
+                    title="--execute: actually rename the files"
+                  >
+                    ⚡ --execute (Live Rename)
+                  </button>
+                </div>
+              </div>
 
               {/* 🚀 SHORT CLEAN POWERSHELL COMMAND BOX 🚀 */}
               <div style={styles.shortCommandBox}>
@@ -1400,6 +1477,19 @@ const styles = {
     padding: "6px 10px",
     color: "#ffffff",
     fontSize: "0.88rem"
+  },
+  toggleRow: {
+    display: "flex",
+    gap: "8px",
+    flexWrap: "wrap"
+  },
+  toggleModeBtn: {
+    padding: "8px 16px",
+    borderRadius: "8px",
+    fontSize: "0.85rem",
+    fontWeight: 700,
+    cursor: "pointer",
+    transition: "all 0.2s"
   },
 
   // Short Clean PowerShell Command Box
