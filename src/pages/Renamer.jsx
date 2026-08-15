@@ -51,6 +51,11 @@ export const Renamer = () => {
   const [copied, setCopied] = useState(false);
   const scriptsFolderInputRef = useRef(null);
   const [scriptsFolderCopied, setScriptsFolderCopied] = useState(false);
+  // Holds the FileSystemDirectoryHandle with readwrite permission for the session
+  const dirHandleRef = useRef(null);
+  const [folderPermissionGranted, setFolderPermissionGranted] = useState(false);
+  const [folderFilesCount, setFolderFilesCount] = useState(null);
+  const [folderMediaFiles, setFolderMediaFiles] = useState([]);
 
   // Custom Test Filename Sandbox
   const [testFilename, setTestFilename] = useState("Inception.2010.1080p.BluRay.x264.mkv");
@@ -124,29 +129,54 @@ export const Renamer = () => {
     addToast(`Downloaded ${filename}`, "info");
   };
 
-  // Folder Selector Handler (Directory Picker)
-  // NOTE: Browsers can only read the folder NAME, not the full system path (security restriction).
-  // We place the name in the input and warn the user to complete the full path manually.
+  // Folder Selector Handler — requests readwrite access so the browser trusts the site
+  // to edit the folder contents without prompting again during the session.
   const handlePickTargetFolder = async () => {
     if (window.showDirectoryPicker) {
       try {
-        const handle = await window.showDirectoryPicker();
+        // 'readwrite' mode: grants permission to list AND modify folder contents
+        const handle = await window.showDirectoryPicker({ mode: "readwrite" });
+
         if (handle && handle.name) {
-          // Only set if the field is empty — otherwise preserve whatever the user already typed
-          // and just append the folder name so they can fix the prefix
-          setTargetPath((prev) => {
-            if (!prev.trim()) return handle.name;
-            // If current path already ends with this folder name, keep it unchanged
-            if (prev.trim().endsWith(handle.name)) return prev;
-            // Otherwise replace just the last segment with the selected folder name
-            const parts = prev.replace(/\\/g, "/").split("/");
-            parts[parts.length - 1] = handle.name;
-            return parts.join("\\");
-          });
-          addToast(
-            `Folder name detected: "${handle.name}". Browser can\'t read the full path — please verify the path is correct.`,
-            "warning"
-          );
+          // Explicitly request (and persist) readwrite permission for this session
+          const permission = await handle.requestPermission({ mode: "readwrite" });
+
+          if (permission === "granted") {
+            dirHandleRef.current = handle;
+            setFolderPermissionGranted(true);
+
+            // Scan files in folder to verify and display detected media files
+            const mediaExtensions = [".mkv", ".mp4", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v", ".ts", ".srt", ".ass", ".vtt"];
+            const foundFiles = [];
+            try {
+              for await (const entry of handle.values()) {
+                if (entry.kind === "file") {
+                  foundFiles.push(entry.name);
+                }
+              }
+              const mediaOnly = foundFiles.filter(f => mediaExtensions.some(ext => f.toLowerCase().endsWith(ext)));
+              setFolderFilesCount(foundFiles.length);
+              setFolderMediaFiles(mediaOnly);
+            } catch (scanErr) {
+              console.warn("Could not list folder entries:", scanErr);
+            }
+
+            // Update the path input: replace only the last segment so the prefix is preserved
+            setTargetPath((prev) => {
+              if (!prev.trim()) return handle.name;
+              if (prev.trim().endsWith(handle.name)) return prev;
+              const parts = prev.replace(/\\/g, "/").split("/");
+              parts[parts.length - 1] = handle.name;
+              return parts.join("\\");
+            });
+            addToast(
+              `Edit access granted & site trusted for "${handle.name}".`,
+              "success"
+            );
+          } else {
+            setFolderPermissionGranted(false);
+            addToast("Permission denied — read-only access only.", "warning");
+          }
         }
       } catch (err) {
         if (err.name !== "AbortError" && folderInputRef.current) {
@@ -715,9 +745,16 @@ export const Renamer = () => {
 
               {/* Target Media Folder */}
               <div style={styles.inputGroup}>
-                <label style={styles.inputLabel}>
-                  🎬 Target Media Folder (folder containing your video files to rename):
-                </label>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <label style={styles.inputLabel}>
+                    🎬 Target Media Folder (folder containing your video files to rename):
+                  </label>
+                  {folderPermissionGranted && (
+                    <span style={styles.trustedBadge}>
+                      <CheckCircle2 size={13} color="#10b981" /> Edit Access Trusted
+                    </span>
+                  )}
+                </div>
                 <div style={styles.pathInputWrapper}>
                   <input
                     type="text"
@@ -728,13 +765,20 @@ export const Renamer = () => {
                   />
                   <button
                     type="button"
-                    style={styles.browseFolderBtn}
+                    style={folderPermissionGranted ? styles.browseFolderBtnActive : styles.browseFolderBtn}
                     onClick={handlePickTargetFolder}
-                    title="Select the folder containing video files you want to rename"
+                    title="Select the folder and grant edit permissions for direct access"
                   >
-                    <FolderSearch size={16} /> Browse...
+                    <FolderSearch size={16} /> {folderPermissionGranted ? "Change Folder..." : "Browse & Grant Access..."}
                   </button>
                 </div>
+
+                {folderPermissionGranted && folderFilesCount !== null && (
+                  <div style={styles.folderFilesInfoPill}>
+                    <span>📁 Selected Folder scanned: <strong>{folderMediaFiles.length}</strong> media file(s) found out of {folderFilesCount} total files.</span>
+                  </div>
+                )}
+
                 <div style={styles.quickPathButtons}>
                   <span style={styles.quickLabel}>Quick Paths:</span>
                   {[
@@ -1504,7 +1548,44 @@ const styles = {
     display: "flex",
     alignItems: "center",
     gap: "6px",
-    whiteSpace: "nowrap"
+    whiteSpace: "nowrap",
+    transition: "all 0.2s"
+  },
+  browseFolderBtnActive: {
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    color: "#34d399",
+    border: "1px solid #10b981",
+    padding: "10px 16px",
+    borderRadius: "8px",
+    fontSize: "0.85rem",
+    fontWeight: 700,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    whiteSpace: "nowrap",
+    transition: "all 0.2s"
+  },
+  trustedBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "4px",
+    fontSize: "0.75rem",
+    fontWeight: 700,
+    color: "#34d399",
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    padding: "2px 8px",
+    borderRadius: "10px",
+    border: "1px solid rgba(16, 185, 129, 0.3)"
+  },
+  folderFilesInfoPill: {
+    fontSize: "0.8rem",
+    color: "#a3a3a3",
+    backgroundColor: "#111116",
+    padding: "6px 10px",
+    borderRadius: "6px",
+    border: "1px solid #22222a",
+    marginTop: "2px"
   },
   quickPathButtons: {
     display: "flex",
