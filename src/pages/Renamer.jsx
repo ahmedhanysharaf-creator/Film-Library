@@ -39,7 +39,6 @@ export const Renamer = () => {
   // File explorer hidden inputs refs
   const headerFileInputRef = useRef(null);
   const modalFileInputRef = useRef(null);
-  const folderInputRef = useRef(null);
   const pythonFolderInputRef = useRef(null);
 
   // PowerShell Generator parameters (starts completely empty by default)
@@ -49,13 +48,6 @@ export const Renamer = () => {
   const [dryRun, setDryRun] = useState(true);
   const [showName, setShowName] = useState("");
   const [copied, setCopied] = useState(false);
-  const scriptsFolderInputRef = useRef(null);
-  const [scriptsFolderCopied, setScriptsFolderCopied] = useState(false);
-  // Holds the FileSystemDirectoryHandle with readwrite permission for the session
-  const dirHandleRef = useRef(null);
-  const [folderPermissionGranted, setFolderPermissionGranted] = useState(false);
-  const [folderFilesCount, setFolderFilesCount] = useState(null);
-  const [folderMediaFiles, setFolderMediaFiles] = useState([]);
 
   // Clean out any previously cached hardcoded paths from localStorage on load
   useEffect(() => {
@@ -134,88 +126,6 @@ export const Renamer = () => {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     addToast(`Downloaded ${filename}`, "info");
-  };
-
-  // Folder Selector Handler — requests readwrite access so the browser trusts the site
-  // to edit the folder contents without prompting again during the session.
-  const handlePickTargetFolder = async () => {
-    if (window.showDirectoryPicker) {
-      try {
-        // 'readwrite' mode: grants permission to list AND modify folder contents
-        const handle = await window.showDirectoryPicker({ mode: "readwrite" });
-
-        if (handle && handle.name) {
-          // Explicitly request (and persist) readwrite permission for this session
-          const permission = await handle.requestPermission({ mode: "readwrite" });
-
-          if (permission === "granted") {
-            dirHandleRef.current = handle;
-            setFolderPermissionGranted(true);
-
-            // Scan files in folder to verify and display detected media files
-            const mediaExtensions = [".mkv", ".mp4", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v", ".ts", ".srt", ".ass", ".vtt"];
-            const foundFiles = [];
-            try {
-              for await (const entry of handle.values()) {
-                if (entry.kind === "file") {
-                  foundFiles.push(entry.name);
-                }
-              }
-              const mediaOnly = foundFiles.filter(f => mediaExtensions.some(ext => f.toLowerCase().endsWith(ext)));
-              setFolderFilesCount(foundFiles.length);
-              setFolderMediaFiles(mediaOnly);
-            } catch (scanErr) {
-              console.warn("Could not list folder entries:", scanErr);
-            }
-
-            // Update path without injecting any hardcoded paths
-            setTargetPath((prev) => {
-              const cleanPrev = (prev || "").trim().replace(/\//g, "\\");
-              if (/^[a-zA-Z]:\\/.test(cleanPrev)) {
-                const lastSlashIdx = cleanPrev.lastIndexOf("\\");
-                const parentDir = lastSlashIdx > 2 ? cleanPrev.substring(0, lastSlashIdx) : cleanPrev;
-                return `${parentDir}\\${handle.name}`;
-              }
-              return handle.name;
-            });
-            addToast(
-              `Selected "${handle.name}" (Access granted).`,
-              "success"
-            );
-          } else {
-            setFolderPermissionGranted(false);
-            addToast("Permission denied — read-only access only.", "warning");
-          }
-        }
-      } catch (err) {
-        if (err.name !== "AbortError" && folderInputRef.current) {
-          folderInputRef.current.click();
-        }
-      }
-    } else if (folderInputRef.current) {
-      folderInputRef.current.click();
-    }
-  };
-
-  const handleFolderInputChange = (event) => {
-    const files = event.target.files;
-    if (files && files.length > 0) {
-      const firstFile = files[0];
-      const relativePath = firstFile.webkitRelativePath || firstFile.name;
-      const folderName = relativePath.split("/")[0] || relativePath.split("\\")[0];
-      
-      setTargetPath((prev) => {
-        const cleanPrev = (prev || "").trim().replace(/\//g, "\\");
-        if (/^[a-zA-Z]:\\/.test(cleanPrev)) {
-          const lastSlashIdx = cleanPrev.lastIndexOf("\\");
-          const parentDir = lastSlashIdx > 2 ? cleanPrev.substring(0, lastSlashIdx) : cleanPrev;
-          return `${parentDir}\\${folderName}`;
-        }
-        return folderName;
-      });
-      addToast(`Selected folder: "${folderName}"`, "success");
-    }
-    event.target.value = "";
   };
 
   // Import an entire folder of Python scripts as a multi-part preset
@@ -449,14 +359,6 @@ export const Renamer = () => {
         onChange={handleFileImport}
         accept=".py,.txt"
         multiple
-        style={{ display: "none" }}
-      />
-      <input
-        type="file"
-        ref={folderInputRef}
-        onChange={handleFolderInputChange}
-        webkitdirectory="true"
-        directory="true"
         style={{ display: "none" }}
       />
       {/* Hidden input for importing a Python scripts folder as a multi-part preset */}
@@ -712,88 +614,29 @@ export const Renamer = () => {
               {/* Scripts Folder — where main.py lives */}
               <div style={styles.inputGroup}>
                 <label style={styles.inputLabel}>
-                  📂 Scripts Folder (where your Python scripts / <code style={{color:"#f59e0b"}}>main.py</code> are saved):
+                  📂 Scripts Folder (where your Python scripts / <code style={{ color: "#f59e0b" }}>main.py</code> are saved):
                 </label>
-                <div style={styles.pathInputWrapper}>
-                  <input
-                    type="text"
-                    value={scriptsFolder}
-                    onChange={(e) => setScriptsFolder(e.target.value)}
-                    placeholder="e.g. C:\Users\Ahmed\Downloads\Marvel Renamer Scripts"
-                    style={styles.pathInput}
-                  />
-                  <button
-                    type="button"
-                    style={styles.browseFolderBtn}
-                    onClick={() => scriptsFolderInputRef.current && scriptsFolderInputRef.current.click()}
-                    title="Select the folder where your Python scripts (main.py) are located"
-                  >
-                    <FolderSearch size={16} /> Browse...
-                  </button>
-                </div>
                 <input
-                  type="file"
-                  ref={scriptsFolderInputRef}
-                  webkitdirectory="true"
-                  directory="true"
-                  style={{ display: "none" }}
-                  onChange={(e) => {
-                    const f = e.target.files && e.target.files[0];
-                    if (f) {
-                      const rel = f.webkitRelativePath || f.name;
-                      const folder = rel.split("/")[0] || rel.split("\\")[0];
-                      setScriptsFolder((prev) => {
-                        const cleanPrev = (prev || "").trim().replace(/\//g, "\\");
-                        if (/^[a-zA-Z]:\\/.test(cleanPrev)) {
-                          const lastSlashIdx = cleanPrev.lastIndexOf("\\");
-                          const parentDir = lastSlashIdx > 2 ? cleanPrev.substring(0, lastSlashIdx) : cleanPrev;
-                          return `${parentDir}\\${folder}`;
-                        }
-                        return folder;
-                      });
-                      addToast(`Scripts folder set to: ${folder}`, "success");
-                    }
-                    e.target.value = "";
-                  }}
+                  type="text"
+                  value={scriptsFolder}
+                  onChange={(e) => setScriptsFolder(e.target.value)}
+                  placeholder="e.g. C:\Users\Ahmed\Downloads\MediaOrganizerTool"
+                  style={styles.pathInput}
                 />
               </div>
 
               {/* Target Media Folder */}
               <div style={styles.inputGroup}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <label style={styles.inputLabel}>
-                    🎬 Target Media Folder (folder containing your video files to rename):
-                  </label>
-                  {folderPermissionGranted && (
-                    <span style={styles.trustedBadge}>
-                      <CheckCircle2 size={13} color="#10b981" /> Edit Access Trusted
-                    </span>
-                  )}
-                </div>
-                <div style={styles.pathInputWrapper}>
-                  <input
-                    type="text"
-                    value={targetPath}
-                    onChange={(e) => setTargetPath(e.target.value)}
-                    placeholder="e.g. D:\Movies\Action or C:\Users\Ahmed\Downloads\Marvel Films"
-                    style={styles.pathInput}
-                  />
-                  <button
-                    type="button"
-                    style={folderPermissionGranted ? styles.browseFolderBtnActive : styles.browseFolderBtn}
-                    onClick={handlePickTargetFolder}
-                    title="Select the folder and grant edit permissions for direct access"
-                  >
-                    <FolderSearch size={16} /> {folderPermissionGranted ? "Change Folder..." : "Browse & Grant Access..."}
-                  </button>
-                </div>
-
-                {folderPermissionGranted && folderFilesCount !== null && (
-                  <div style={styles.folderFilesInfoPill}>
-                    <span>📁 Selected Folder scanned: <strong>{folderMediaFiles.length}</strong> media file(s) found out of {folderFilesCount} total files.</span>
-                  </div>
-                )}
-
+                <label style={styles.inputLabel}>
+                  🎬 Target Media Folder (folder containing your video files to rename):
+                </label>
+                <input
+                  type="text"
+                  value={targetPath}
+                  onChange={(e) => setTargetPath(e.target.value)}
+                  placeholder="e.g. C:\Users\Ahmed\Downloads\English\Marvel Films"
+                  style={styles.pathInput}
+                />
                 <div style={styles.quickPathButtons}>
                   <span style={styles.quickLabel}>Examples / Quick:</span>
                   {[
