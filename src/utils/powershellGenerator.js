@@ -1,14 +1,21 @@
 // Clean PowerShell Command Generator for Renamer Tool
+//
+// Correct argument format (from media_organizer CLI):
+//   python main.py --folder PATH --mode {movies,series} [--execute] [--yes] [--log-dir PATH]
+//
+// Notes:
+//   - Dry run is the DEFAULT. Just omit --execute to preview without renaming.
+//   - Pass --execute only when you want to actually rename files.
+//   - There is NO --dry-run flag.
 
 // Map preset category to --mode argument value
 function categoryToMode(category) {
   if (category === "series") return "series";
-  if (category === "subtitle") return "subtitles";
-  return "movies"; // default for movie / multi_part / unknown
+  return "movies"; // default for movie / subtitle / multi_part / unknown
 }
 
 export function generatePowerShellCommands(renamer, targetPath = "", options = {}) {
-  const { dryRun = false, showName = "", scriptsFolder = "" } = options;
+  const { dryRun = true, showName = "", scriptsFolder = "" } = options;
   const cleanPath = targetPath.trim() || "C:\\Media\\MyFolder";
   const parts = renamer?.parts || [];
   const mode = categoryToMode(renamer?.category);
@@ -42,37 +49,36 @@ export function generatePowerShellCommands(renamer, targetPath = "", options = {
     };
   });
 
-  // 2. Build the short command in the correct format:
-  //    python main.py --folder "C:\path\to\media" --mode movies --execute
-  //    (or --dry-run instead of --execute when dry run is enabled)
-  const scriptDir = scriptsFolder.trim() || "C:\\Users\\Ahmed\\Downloads\\MyRenamerScripts";
+  // 2. Build the correct command:
+  //    DRY RUN  (preview):  python "...\main.py" --folder "..." --mode movies
+  //    LIVE RUN (execute):  python "...\main.py" --folder "..." --mode movies --execute
+  //
+  //    --execute is only added when dryRun is false.
+  //    --dry-run does NOT exist as a flag.
 
-  // For single-part presets, run the script directly.
-  // For multi-part presets, use main.py as the orchestrator (first file named main.py or fallback to all).
+  const scriptDir = scriptsFolder.trim() || "C:\\Users\\Ahmed\\Downloads\\MediaOrganizerTool";
+
+  const folderArg = `--folder "${cleanPath}"`;
+  const modeArg = `--mode ${mode}`;
+  const executeFlag = dryRun ? "" : " --execute";  // omit for dry run, add for live
+  const showArg = showName ? ` --show-name "${showName}"` : "";
+
   let powershellShortCommand;
 
   if (parts.length === 1) {
-    // Single script — call it directly with the new argument style
+    // Single script — call it directly
     const scriptName = pythonStandaloneFiles[0].name;
-    const runFlag = dryRun ? "--dry-run" : "--execute";
-    const modeArg = `--mode ${mode}`;
-    const folderArg = `--folder "${cleanPath}"`;
-    const showArg = showName ? ` --show-name "${showName}"` : "";
-    powershellShortCommand = `python "${scriptDir}\\${scriptName}" ${folderArg} ${modeArg} ${runFlag}${showArg}`;
+    powershellShortCommand = `python "${scriptDir}\\${scriptName}" ${folderArg} ${modeArg}${executeFlag}${showArg}`;
   } else {
-    // Multi-part pipeline — call main.py (the orchestrator entry point)
-    const runFlag = dryRun ? "--dry-run" : "--execute";
-    const modeArg = `--mode ${mode}`;
-    const folderArg = `--folder "${cleanPath}"`;
-    const showArg = showName ? ` --show-name "${showName}"` : "";
-    powershellShortCommand = `python "${scriptDir}\\main.py" ${folderArg} ${modeArg} ${runFlag}${showArg}`;
+    // Multi-part pipeline — call main.py as orchestrator
+    powershellShortCommand = `python "${scriptDir}\\main.py" ${folderArg} ${modeArg}${executeFlag}${showArg}`;
   }
 
   // 3. Complete clean .ps1 script block
   let ps1File = `# Film Library Renamer - ${renamer.name}\n`;
   ps1File += `# Target Folder: "${cleanPath}"\n`;
   ps1File += `# Mode: ${mode}\n`;
-  ps1File += `# Dry Run: ${dryRun ? "Enabled (preview only)" : "Disabled (LIVE rename)"}\n\n`;
+  ps1File += `# ${dryRun ? "DRY RUN (preview only — files will NOT be renamed)" : "LIVE RENAME (--execute flag is ON)"}\n\n`;
   ps1File += `${powershellShortCommand}\n`;
 
   return {

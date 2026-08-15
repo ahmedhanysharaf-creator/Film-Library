@@ -748,7 +748,7 @@ export const Renamer = () => {
                       border: dryRun ? "1px solid #16a34a" : "1px solid #3a3a3a"
                     }}
                     onClick={() => setDryRun(true)}
-                    title="--dry-run: preview changes without renaming anything"
+                    title="Preview mode: --execute flag is omitted. Files will NOT be renamed."
                   >
                     👁 --dry-run (Preview Only)
                   </button>
@@ -760,7 +760,7 @@ export const Renamer = () => {
                       border: !dryRun ? "1px solid #dc2626" : "1px solid #3a3a3a"
                     }}
                     onClick={() => setDryRun(false)}
-                    title="--execute: actually rename the files"
+                    title="Live rename: adds --execute flag. Files WILL be renamed!"
                   >
                     ⚡ --execute (Live Rename)
                   </button>
