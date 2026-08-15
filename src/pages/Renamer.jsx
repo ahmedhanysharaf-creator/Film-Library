@@ -42,13 +42,9 @@ export const Renamer = () => {
   const folderInputRef = useRef(null);
   const pythonFolderInputRef = useRef(null);
 
-  // PowerShell Generator parameters (empty by default, no hardcoded paths)
-  const [targetPath, setTargetPath] = useState(() => {
-    return localStorage.getItem("renamer_target_path") || "";
-  });
-  const [scriptsFolder, setScriptsFolder] = useState(() => {
-    return localStorage.getItem("renamer_scripts_folder") || "";
-  });
+  // PowerShell Generator parameters (starts completely empty by default)
+  const [targetPath, setTargetPath] = useState("");
+  const [scriptsFolder, setScriptsFolder] = useState("");
   const [customMode, setCustomMode] = useState("");
   const [dryRun, setDryRun] = useState(true);
   const [showName, setShowName] = useState("");
@@ -61,18 +57,12 @@ export const Renamer = () => {
   const [folderFilesCount, setFolderFilesCount] = useState(null);
   const [folderMediaFiles, setFolderMediaFiles] = useState([]);
 
-  // Persist user-entered path choices to localStorage
+  // Clean out any previously cached hardcoded paths from localStorage on load
   useEffect(() => {
-    if (targetPath) {
-      localStorage.setItem("renamer_target_path", targetPath);
-    }
-  }, [targetPath]);
-
-  useEffect(() => {
-    if (scriptsFolder) {
-      localStorage.setItem("renamer_scripts_folder", scriptsFolder);
-    }
-  }, [scriptsFolder]);
+    localStorage.removeItem("renamer_target_path");
+    localStorage.removeItem("renamer_scripts_folder");
+    localStorage.removeItem("renamer_base_folder");
+  }, []);
 
   // Custom Test Filename Sandbox
   const [testFilename, setTestFilename] = useState("Inception.2010.1080p.BluRay.x264.mkv");
