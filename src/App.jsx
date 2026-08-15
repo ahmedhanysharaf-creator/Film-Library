@@ -19,7 +19,7 @@ const AppContent = () => {
   const { currentUser, isWhitelisted, loading } = useAuth();
   const { addToast } = useToast();
 
-  const [activePage, setActivePage] = useState("home"); // "home" | "library" | "renamer" | "add" | "tools" | "login"
+  const [activePage, setActivePage] = useState("library"); // "library" | "renamer" | "add" | "tools" | "login"
   const [selectedToolId, setSelectedToolId] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
   const [editItem, setEditItem] = useState(null);
@@ -81,9 +81,9 @@ const AppContent = () => {
       {/* Main Screen Router */}
       <main className="main-content">
         {activePage === "home" && (
-          <Home
-            setActivePage={setActivePage}
+          <Library
             onSelectItem={(item) => setSelectedItem(item)}
+            onEditItem={handleEdit}
           />
         )}
 

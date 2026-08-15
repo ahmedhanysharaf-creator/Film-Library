@@ -36,7 +36,7 @@ export const Navbar = ({ activePage, setActivePage, onSelectTool, onOpenWhitelis
     <nav style={styles.nav} className="glass-panel">
       <div style={styles.container}>
         {/* Brand Logo */}
-        <div style={styles.brand} onClick={() => setActivePage("home")}>
+        <div style={styles.brand} onClick={() => setActivePage("library")}>
           <div style={styles.logoIcon}>
             <Film size={22} color="#ffffff" />
           </div>
@@ -47,15 +47,6 @@ export const Navbar = ({ activePage, setActivePage, onSelectTool, onOpenWhitelis
 
         {/* Navigation Links */}
         <div style={styles.links}>
-          <button
-            style={getTabStyle("home")}
-            onClick={() => {
-              setToolsDropdownOpen(false);
-              setActivePage("home");
-            }}
-          >
-            Home
-          </button>
 
           <button
             style={getTabStyle("library")}
