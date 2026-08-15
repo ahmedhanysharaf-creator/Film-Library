@@ -15,10 +15,11 @@ function categoryToMode(category) {
 }
 
 export function generatePowerShellCommands(renamer, targetPath = "", options = {}) {
-  const { dryRun = true, showName = "", scriptsFolder = "" } = options;
+  const { dryRun = true, showName = "", scriptsFolder = "", customMode = "" } = options;
   const cleanPath = targetPath.trim() || "C:\\Media\\MyFolder";
   const parts = renamer?.parts || [];
-  const mode = categoryToMode(renamer?.category);
+  // Use the user-supplied mode if set, otherwise auto-detect from preset category
+  const mode = customMode.trim() || categoryToMode(renamer?.category);
 
   if (parts.length === 0) {
     return {

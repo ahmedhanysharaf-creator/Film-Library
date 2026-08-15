@@ -45,6 +45,7 @@ export const Renamer = () => {
   // PowerShell Generator parameters
   const [targetPath, setTargetPath] = useState("D:\\Movies\\Action");
   const [scriptsFolder, setScriptsFolder] = useState("");
+  const [customMode, setCustomMode] = useState("");
   const [dryRun, setDryRun] = useState(true);
   const [showName, setShowName] = useState("");
   const [copied, setCopied] = useState(false);
@@ -91,7 +92,7 @@ export const Renamer = () => {
   // Active Code Detection & PowerShell Outputs
   const detectedFormat = selectedCode ? detectCodeFormat(selectedCode.parts) : null;
   const generatedCommands = selectedCode
-    ? generatePowerShellCommands(selectedCode, targetPath, { dryRun, showName, scriptsFolder })
+    ? generatePowerShellCommands(selectedCode, targetPath, { dryRun, showName, scriptsFolder, customMode })
     : { powershellShortCommand: "", powershellScript: "", pythonStandaloneFiles: [] };
 
   // Form detection real-time preview
@@ -735,6 +736,40 @@ export const Renamer = () => {
                   />
                 </div>
               )}
+
+              {/* --mode value input */}
+              <div style={styles.optionItem}>
+                <label style={styles.inputLabel}>
+                  --mode value{" "}
+                  <span style={{ color: "#737373", fontWeight: 400 }}>
+                    (the mode your script expects — leave blank to use preset default)
+                  </span>
+                </label>
+                <input
+                  type="text"
+                  value={customMode}
+                  onChange={(e) => setCustomMode(e.target.value)}
+                  placeholder={`Auto: ${selectedCode.category === "series" ? "series" : "movies"}`}
+                  style={styles.textInputSmall}
+                />
+                <div style={styles.quickPathButtons}>
+                  <span style={styles.quickLabel}>Quick:</span>
+                  {["movies", "series", "subtitles", "anime", "documentary"].map((m) => (
+                    <button
+                      key={m}
+                      style={{
+                        ...styles.quickPathBtn,
+                        backgroundColor: customMode === m ? "rgba(229,9,20,0.15)" : "#222222",
+                        color: customMode === m ? "#e50914" : "#a3a3a3",
+                        border: customMode === m ? "1px solid rgba(229,9,20,0.4)" : "1px solid #333333"
+                      }}
+                      onClick={() => setCustomMode(customMode === m ? "" : m)}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               {/* Dry Run / Execute Toggle */}
               <div style={styles.optionItem}>
