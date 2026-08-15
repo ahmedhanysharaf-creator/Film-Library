@@ -42,15 +42,12 @@ export const Renamer = () => {
   const folderInputRef = useRef(null);
   const pythonFolderInputRef = useRef(null);
 
-  // PowerShell Generator parameters with localStorage persistence
+  // PowerShell Generator parameters (empty by default, no hardcoded paths)
   const [targetPath, setTargetPath] = useState(() => {
-    return localStorage.getItem("renamer_target_path") || "C:\\Users\\Ahmed\\Downloads\\English\\Marvel Films";
-  });
-  const [baseFolder, setBaseFolder] = useState(() => {
-    return localStorage.getItem("renamer_base_folder") || "C:\\Users\\Ahmed\\Downloads\\English";
+    return localStorage.getItem("renamer_target_path") || "";
   });
   const [scriptsFolder, setScriptsFolder] = useState(() => {
-    return localStorage.getItem("renamer_scripts_folder") || "C:\\Users\\Ahmed\\Downloads\\MediaOrganizerTool";
+    return localStorage.getItem("renamer_scripts_folder") || "";
   });
   const [customMode, setCustomMode] = useState("");
   const [dryRun, setDryRun] = useState(true);
@@ -64,18 +61,18 @@ export const Renamer = () => {
   const [folderFilesCount, setFolderFilesCount] = useState(null);
   const [folderMediaFiles, setFolderMediaFiles] = useState([]);
 
-  // Persist path choices to localStorage whenever they change
+  // Persist user-entered path choices to localStorage
   useEffect(() => {
-    if (targetPath) localStorage.setItem("renamer_target_path", targetPath);
+    if (targetPath) {
+      localStorage.setItem("renamer_target_path", targetPath);
+    }
   }, [targetPath]);
 
   useEffect(() => {
-    if (scriptsFolder) localStorage.setItem("renamer_scripts_folder", scriptsFolder);
+    if (scriptsFolder) {
+      localStorage.setItem("renamer_scripts_folder", scriptsFolder);
+    }
   }, [scriptsFolder]);
-
-  useEffect(() => {
-    if (baseFolder) localStorage.setItem("renamer_base_folder", baseFolder);
-  }, [baseFolder]);
 
   // Custom Test Filename Sandbox
   const [testFilename, setTestFilename] = useState("Inception.2010.1080p.BluRay.x264.mkv");
@@ -181,29 +178,18 @@ export const Renamer = () => {
               console.warn("Could not list folder entries:", scanErr);
             }
 
-            // Intelligently compute the full path by joining the active parent base directory with handle.name
+            // Update path without injecting any hardcoded paths
             setTargetPath((prev) => {
               const cleanPrev = (prev || "").trim().replace(/\//g, "\\");
-              
-              // If the current path is a full Windows path (e.g. C:\Users\Ahmed\Downloads\English\...)
               if (/^[a-zA-Z]:\\/.test(cleanPrev)) {
-                // If it already ends with this folder name, keep it as is
-                if (cleanPrev.toLowerCase().endsWith(`\\${handle.name.toLowerCase()}`)) {
-                  return cleanPrev;
-                }
-                // Get the parent folder of the previous path
                 const lastSlashIdx = cleanPrev.lastIndexOf("\\");
                 const parentDir = lastSlashIdx > 2 ? cleanPrev.substring(0, lastSlashIdx) : cleanPrev;
-                const newFull = `${parentDir}\\${handle.name}`;
-                return newFull;
+                return `${parentDir}\\${handle.name}`;
               }
-
-              // Otherwise combine with configured baseFolder
-              const cleanBase = (baseFolder || "C:\\Users\\Ahmed\\Downloads\\English").replace(/\/|\\+$/, "");
-              return `${cleanBase}\\${handle.name}`;
+              return handle.name;
             });
             addToast(
-              `Selected "${handle.name}" (Access granted & verified).`,
+              `Selected "${handle.name}" (Access granted).`,
               "success"
             );
           } else {
@@ -235,8 +221,7 @@ export const Renamer = () => {
           const parentDir = lastSlashIdx > 2 ? cleanPrev.substring(0, lastSlashIdx) : cleanPrev;
           return `${parentDir}\\${folderName}`;
         }
-        const cleanBase = (baseFolder || "C:\\Users\\Ahmed\\Downloads\\English").replace(/\/|\\+$/, "");
-        return `${cleanBase}\\${folderName}`;
+        return folderName;
       });
       addToast(`Selected folder: "${folderName}"`, "success");
     }
@@ -767,8 +752,15 @@ export const Renamer = () => {
                     if (f) {
                       const rel = f.webkitRelativePath || f.name;
                       const folder = rel.split("/")[0] || rel.split("\\")[0];
-                      // We can only get folder name, not full path in browser
-                      setScriptsFolder(`C:\\Users\\Ahmed\\Downloads\\${folder}`);
+                      setScriptsFolder((prev) => {
+                        const cleanPrev = (prev || "").trim().replace(/\//g, "\\");
+                        if (/^[a-zA-Z]:\\/.test(cleanPrev)) {
+                          const lastSlashIdx = cleanPrev.lastIndexOf("\\");
+                          const parentDir = lastSlashIdx > 2 ? cleanPrev.substring(0, lastSlashIdx) : cleanPrev;
+                          return `${parentDir}\\${folder}`;
+                        }
+                        return folder;
+                      });
                       addToast(`Scripts folder set to: ${folder}`, "success");
                     }
                     e.target.value = "";
@@ -813,13 +805,11 @@ export const Renamer = () => {
                 )}
 
                 <div style={styles.quickPathButtons}>
-                  <span style={styles.quickLabel}>Quick Paths:</span>
+                  <span style={styles.quickLabel}>Examples / Quick:</span>
                   {[
-                    "C:\\Users\\Ahmed\\Downloads\\English\\Marvel Films",
-                    "C:\\Users\\Ahmed\\Downloads\\English",
-                    "C:\\Users\\Ahmed\\Downloads",
                     "D:\\Movies\\Action",
-                    "C:\\Media\\Series"
+                    "C:\\Media\\Series",
+                    "C:\\Media\\Movies"
                   ].map((p) => (
                     <button
                       key={p}

@@ -16,7 +16,7 @@ function categoryToMode(category) {
 
 export function generatePowerShellCommands(renamer, targetPath = "", options = {}) {
   const { dryRun = true, showName = "", scriptsFolder = "", customMode = "" } = options;
-  const cleanPath = targetPath.trim() || "C:\\Media\\MyFolder";
+  const cleanPath = targetPath.trim() || "<TARGET_FOLDER>";
   const parts = renamer?.parts || [];
   // Use the user-supplied mode if set, otherwise auto-detect from preset category
   const mode = customMode.trim() || categoryToMode(renamer?.category);
@@ -51,29 +51,25 @@ export function generatePowerShellCommands(renamer, targetPath = "", options = {
   });
 
   // 2. Build the correct command:
-  //    DRY RUN  (preview):  python "...\main.py" --folder "..." --mode movies
-  //    LIVE RUN (execute):  python "...\main.py" --folder "..." --mode movies --execute
-  //
-  //    --execute is only added when dryRun is false.
-  //    --dry-run does NOT exist as a flag.
-
-  const scriptDir = scriptsFolder.trim() || "C:\\Users\\Ahmed\\Downloads\\MediaOrganizerTool";
+  //    If scriptsFolder is provided: python "C:\path\to\scripts\main.py" --folder "..." --mode movies [--execute]
+  //    If scriptsFolder is empty:    python main.py --folder "..." --mode movies [--execute]
 
   const folderArg = `--folder "${cleanPath}"`;
   const modeArg = `--mode ${mode}`;
   const executeFlag = dryRun ? "" : " --execute";  // omit for dry run, add for live
   const showArg = showName ? ` --show-name "${showName}"` : "";
 
-  let powershellShortCommand;
+  let scriptTarget = "main.py";
+  const trimmedScriptDir = scriptsFolder.trim().replace(/[\\/]+$/, "");
 
   if (parts.length === 1) {
-    // Single script — call it directly
-    const scriptName = pythonStandaloneFiles[0].name;
-    powershellShortCommand = `python "${scriptDir}\\${scriptName}" ${folderArg} ${modeArg}${executeFlag}${showArg}`;
+    const singleName = pythonStandaloneFiles[0].name || "renamer.py";
+    scriptTarget = trimmedScriptDir ? `"${trimmedScriptDir}\\${singleName}"` : `"${singleName}"`;
   } else {
-    // Multi-part pipeline — call main.py as orchestrator
-    powershellShortCommand = `python "${scriptDir}\\main.py" ${folderArg} ${modeArg}${executeFlag}${showArg}`;
+    scriptTarget = trimmedScriptDir ? `"${trimmedScriptDir}\\main.py"` : `main.py`;
   }
+
+  const powershellShortCommand = `python ${scriptTarget} ${folderArg} ${modeArg}${executeFlag}${showArg}`;
 
   // 3. Complete clean .ps1 script block
   let ps1File = `# Film Library Renamer - ${renamer.name}\n`;
