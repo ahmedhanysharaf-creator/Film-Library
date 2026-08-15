@@ -42,9 +42,16 @@ export const Renamer = () => {
   const folderInputRef = useRef(null);
   const pythonFolderInputRef = useRef(null);
 
-  // PowerShell Generator parameters
-  const [targetPath, setTargetPath] = useState("D:\\Movies\\Action");
-  const [scriptsFolder, setScriptsFolder] = useState("");
+  // PowerShell Generator parameters with localStorage persistence
+  const [targetPath, setTargetPath] = useState(() => {
+    return localStorage.getItem("renamer_target_path") || "C:\\Users\\Ahmed\\Downloads\\English\\Marvel Films";
+  });
+  const [baseFolder, setBaseFolder] = useState(() => {
+    return localStorage.getItem("renamer_base_folder") || "C:\\Users\\Ahmed\\Downloads\\English";
+  });
+  const [scriptsFolder, setScriptsFolder] = useState(() => {
+    return localStorage.getItem("renamer_scripts_folder") || "C:\\Users\\Ahmed\\Downloads\\MediaOrganizerTool";
+  });
   const [customMode, setCustomMode] = useState("");
   const [dryRun, setDryRun] = useState(true);
   const [showName, setShowName] = useState("");
@@ -56,6 +63,19 @@ export const Renamer = () => {
   const [folderPermissionGranted, setFolderPermissionGranted] = useState(false);
   const [folderFilesCount, setFolderFilesCount] = useState(null);
   const [folderMediaFiles, setFolderMediaFiles] = useState([]);
+
+  // Persist path choices to localStorage whenever they change
+  useEffect(() => {
+    if (targetPath) localStorage.setItem("renamer_target_path", targetPath);
+  }, [targetPath]);
+
+  useEffect(() => {
+    if (scriptsFolder) localStorage.setItem("renamer_scripts_folder", scriptsFolder);
+  }, [scriptsFolder]);
+
+  useEffect(() => {
+    if (baseFolder) localStorage.setItem("renamer_base_folder", baseFolder);
+  }, [baseFolder]);
 
   // Custom Test Filename Sandbox
   const [testFilename, setTestFilename] = useState("Inception.2010.1080p.BluRay.x264.mkv");
@@ -161,16 +181,29 @@ export const Renamer = () => {
               console.warn("Could not list folder entries:", scanErr);
             }
 
-            // Update the path input: replace only the last segment so the prefix is preserved
+            // Intelligently compute the full path by joining the active parent base directory with handle.name
             setTargetPath((prev) => {
-              if (!prev.trim()) return handle.name;
-              if (prev.trim().endsWith(handle.name)) return prev;
-              const parts = prev.replace(/\\/g, "/").split("/");
-              parts[parts.length - 1] = handle.name;
-              return parts.join("\\");
+              const cleanPrev = (prev || "").trim().replace(/\//g, "\\");
+              
+              // If the current path is a full Windows path (e.g. C:\Users\Ahmed\Downloads\English\...)
+              if (/^[a-zA-Z]:\\/.test(cleanPrev)) {
+                // If it already ends with this folder name, keep it as is
+                if (cleanPrev.toLowerCase().endsWith(`\\${handle.name.toLowerCase()}`)) {
+                  return cleanPrev;
+                }
+                // Get the parent folder of the previous path
+                const lastSlashIdx = cleanPrev.lastIndexOf("\\");
+                const parentDir = lastSlashIdx > 2 ? cleanPrev.substring(0, lastSlashIdx) : cleanPrev;
+                const newFull = `${parentDir}\\${handle.name}`;
+                return newFull;
+              }
+
+              // Otherwise combine with configured baseFolder
+              const cleanBase = (baseFolder || "C:\\Users\\Ahmed\\Downloads\\English").replace(/\/|\\+$/, "");
+              return `${cleanBase}\\${handle.name}`;
             });
             addToast(
-              `Edit access granted & site trusted for "${handle.name}".`,
+              `Selected "${handle.name}" (Access granted & verified).`,
               "success"
             );
           } else {
@@ -194,18 +227,18 @@ export const Renamer = () => {
       const firstFile = files[0];
       const relativePath = firstFile.webkitRelativePath || firstFile.name;
       const folderName = relativePath.split("/")[0] || relativePath.split("\\")[0];
-      // Same logic: preserve existing path prefix, only update the last folder segment
+      
       setTargetPath((prev) => {
-        if (!prev.trim()) return folderName;
-        if (prev.trim().endsWith(folderName)) return prev;
-        const parts = prev.replace(/\\/g, "/").split("/");
-        parts[parts.length - 1] = folderName;
-        return parts.join("\\");
+        const cleanPrev = (prev || "").trim().replace(/\//g, "\\");
+        if (/^[a-zA-Z]:\\/.test(cleanPrev)) {
+          const lastSlashIdx = cleanPrev.lastIndexOf("\\");
+          const parentDir = lastSlashIdx > 2 ? cleanPrev.substring(0, lastSlashIdx) : cleanPrev;
+          return `${parentDir}\\${folderName}`;
+        }
+        const cleanBase = (baseFolder || "C:\\Users\\Ahmed\\Downloads\\English").replace(/\/|\\+$/, "");
+        return `${cleanBase}\\${folderName}`;
       });
-      addToast(
-        `Folder name detected: "${folderName}". Browser can\'t read the full path — please verify the path is correct.`,
-        "warning"
-      );
+      addToast(`Selected folder: "${folderName}"`, "success");
     }
     event.target.value = "";
   };
@@ -782,11 +815,22 @@ export const Renamer = () => {
                 <div style={styles.quickPathButtons}>
                   <span style={styles.quickLabel}>Quick Paths:</span>
                   {[
-                    "C:\\Users\\Ahmed\\Downloads\\Marvel Films",
+                    "C:\\Users\\Ahmed\\Downloads\\English\\Marvel Films",
+                    "C:\\Users\\Ahmed\\Downloads\\English",
+                    "C:\\Users\\Ahmed\\Downloads",
                     "D:\\Movies\\Action",
                     "C:\\Media\\Series"
                   ].map((p) => (
-                    <button key={p} style={styles.quickPathBtn} onClick={() => setTargetPath(p)}>
+                    <button
+                      key={p}
+                      style={{
+                        ...styles.quickPathBtn,
+                        backgroundColor: targetPath === p ? "rgba(229, 9, 20, 0.2)" : "#222222",
+                        color: targetPath === p ? "#ffffff" : "#a3a3a3",
+                        borderColor: targetPath === p ? "var(--accent-red)" : "#333333"
+                      }}
+                      onClick={() => setTargetPath(p)}
+                    >
                       {p}
                     </button>
                   ))}
