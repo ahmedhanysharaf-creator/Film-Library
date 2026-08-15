@@ -287,7 +287,7 @@ export const Library = ({ onSelectItem, onEditItem, onPlayMedia, activeUniverse 
               <button
                 style={{
                   ...styles.universeSegmentBtn,
-                  ...(universe === "all" ? styles.universeSegmentActiveAll : {})
+                  ...(universe === "all" ? styles.universeSegmentActiveBlue : {})
                 }}
                 onClick={() => onSelectUniverse && onSelectUniverse("all")}
               >
@@ -297,24 +297,40 @@ export const Library = ({ onSelectItem, onEditItem, onPlayMedia, activeUniverse 
               <button
                 style={{
                   ...styles.universeSegmentBtn,
-                  ...(universe === "marvel" ? styles.universeSegmentActiveMarvel : {})
+                  ...(universe === "marvel" ? styles.universeSegmentActiveBlue : {})
                 }}
                 onClick={() => onSelectUniverse && onSelectUniverse("marvel")}
                 title="View Marvel movies and series"
               >
-                <span style={styles.miniMarvelLogo}>MARVEL</span>
+                <span
+                  style={
+                    universe === "marvel"
+                      ? styles.miniMarvelLogoActive
+                      : styles.miniMarvelLogoInactive
+                  }
+                >
+                  MARVEL
+                </span>
                 Marvel ({marvelItems.length})
               </button>
 
               <button
                 style={{
                   ...styles.universeSegmentBtn,
-                  ...(universe === "dc" ? styles.universeSegmentActiveDc : {})
+                  ...(universe === "dc" ? styles.universeSegmentActiveBlue : {})
                 }}
                 onClick={() => onSelectUniverse && onSelectUniverse("dc")}
                 title="View DC movies and series"
               >
-                <span style={styles.miniDcLogo}>DC</span>
+                <span
+                  style={
+                    universe === "dc"
+                      ? styles.miniDcLogoActive
+                      : styles.miniDcLogoInactive
+                  }
+                >
+                  DC
+                </span>
                 DC ({dcItems.length})
               </button>
             </div>
@@ -1235,16 +1251,16 @@ const styles = {
   universeSegmentGroup: {
     display: "flex",
     alignItems: "center",
-    backgroundColor: "#161616",
+    backgroundColor: "#111113",
     padding: "4px",
     borderRadius: "20px",
-    border: "1px solid #2a2a2a",
+    border: "1px solid #26262a",
     gap: "4px"
   },
   universeSegmentBtn: {
     background: "none",
-    border: "none",
-    padding: "6px 12px",
+    border: "1px solid transparent",
+    padding: "6px 14px",
     borderRadius: "16px",
     fontSize: "0.82rem",
     fontWeight: 600,
@@ -1255,36 +1271,44 @@ const styles = {
     gap: "6px",
     transition: "all 0.2s"
   },
-  universeSegmentActiveAll: {
-    backgroundColor: "#2a2a2a",
+  universeSegmentActiveBlue: {
+    backgroundColor: "#0066ff",
     color: "#ffffff",
+    border: "1px solid #3388ff",
+    boxShadow: "0 2px 10px rgba(0, 102, 255, 0.45)",
     fontWeight: 700
   },
-  universeSegmentActiveMarvel: {
-    backgroundColor: "#e50914",
-    color: "#ffffff",
-    boxShadow: "0 2px 10px rgba(229, 9, 20, 0.4)",
-    fontWeight: 700
-  },
-  universeSegmentActiveDc: {
-    backgroundColor: "#0055ff",
-    color: "#ffffff",
-    boxShadow: "0 2px 10px rgba(0, 85, 255, 0.4)",
-    fontWeight: 700
-  },
-  miniMarvelLogo: {
+  miniMarvelLogoActive: {
     backgroundColor: "#ffffff",
     color: "#e50914",
-    padding: "1px 4px",
+    padding: "1px 5px",
     borderRadius: "3px",
     fontSize: "0.62rem",
     fontWeight: 900,
     letterSpacing: "0.5px"
   },
-  miniDcLogo: {
+  miniMarvelLogoInactive: {
+    backgroundColor: "#222226",
+    color: "#ff4d58",
+    padding: "1px 5px",
+    borderRadius: "3px",
+    fontSize: "0.62rem",
+    fontWeight: 900,
+    letterSpacing: "0.5px"
+  },
+  miniDcLogoActive: {
     backgroundColor: "#ffffff",
-    color: "#0055ff",
-    padding: "1px 4px",
+    color: "#0066ff",
+    padding: "1px 5px",
+    borderRadius: "3px",
+    fontSize: "0.62rem",
+    fontWeight: 900,
+    letterSpacing: "0.5px"
+  },
+  miniDcLogoInactive: {
+    backgroundColor: "#222226",
+    color: "#4d94ff",
+    padding: "1px 5px",
     borderRadius: "3px",
     fontSize: "0.62rem",
     fontWeight: 900,

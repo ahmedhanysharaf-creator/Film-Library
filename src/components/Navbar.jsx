@@ -12,33 +12,13 @@ export const Navbar = ({ activePage, setActivePage, activeUniverse = "all", onSe
   const formattedName = rawName.toLowerCase().includes("ahmed") ? "Ahmed Hany" : rawName;
 
   // Helper for 100% deterministic tab button styles
-  const getTabStyle = (pageName, universe = null) => {
-    let isActive = activePage === pageName;
-    if (pageName === "library" && universe) {
-      isActive = activePage === "library" && activeUniverse === universe;
-    } else if (pageName === "library" && !universe) {
-      isActive = activePage === "library" && (!activeUniverse || activeUniverse === "all");
-    }
-
-    let activeBg = "var(--accent-red)";
-    let activeBorder = "var(--accent-red)";
-    let activeShadow = "0 4px 14px rgba(229, 9, 20, 0.4)";
-
-    if (universe === "marvel") {
-      activeBg = "#e50914";
-      activeBorder = "#ff2a38";
-      activeShadow = "0 4px 14px rgba(229, 9, 20, 0.5)";
-    } else if (universe === "dc") {
-      activeBg = "#0055ff";
-      activeBorder = "#3388ff";
-      activeShadow = "0 4px 14px rgba(0, 85, 255, 0.5)";
-    }
-
+  const getTabStyle = (pageName) => {
+    const isActive = activePage === pageName;
     return {
-      backgroundColor: isActive ? activeBg : "#1c1c1c",
+      backgroundColor: isActive ? "var(--accent-red)" : "#1c1c1c",
       color: isActive ? "#ffffff" : "#a3a3a3",
-      border: isActive ? `1px solid ${activeBorder}` : "1px solid #2a2a2a",
-      boxShadow: isActive ? activeShadow : "none",
+      border: isActive ? "1px solid var(--accent-red)" : "1px solid #2a2a2a",
+      boxShadow: isActive ? "0 4px 14px rgba(229, 9, 20, 0.4)" : "none",
       fontSize: "0.92rem",
       fontWeight: isActive ? 700 : 600,
       padding: "8px 16px",
@@ -69,42 +49,13 @@ export const Navbar = ({ activePage, setActivePage, activeUniverse = "all", onSe
         <div style={styles.links}>
 
           <button
-            style={getTabStyle("library", null)}
+            style={getTabStyle("library")}
             onClick={() => {
               setToolsDropdownOpen(false);
-              onSelectUniverse && onSelectUniverse("all");
               setActivePage("library");
             }}
           >
             The Library
-          </button>
-
-          {/* 🔴 MARVEL Tab */}
-          <button
-            style={getTabStyle("library", "marvel")}
-            onClick={() => {
-              setToolsDropdownOpen(false);
-              onSelectUniverse && onSelectUniverse("marvel");
-              setActivePage("library");
-            }}
-            title="View all Marvel movies & series"
-          >
-            <span style={styles.marvelBadge}>MARVEL</span>
-            Marvel
-          </button>
-
-          {/* 🔵 DC Tab */}
-          <button
-            style={getTabStyle("library", "dc")}
-            onClick={() => {
-              setToolsDropdownOpen(false);
-              onSelectUniverse && onSelectUniverse("dc");
-              setActivePage("library");
-            }}
-            title="View all DC movies & series"
-          >
-            <span style={styles.dcBadge}>DC</span>
-            DC
           </button>
 
           <button
