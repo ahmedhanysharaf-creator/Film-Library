@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { 
-  Search, Grid, List, ArrowUpDown, X, Film, Tv, User, Globe, History, Edit3, Trash2, CheckSquare, Square, CheckCheck, CheckCircle2, Bookmark 
+  Search, Grid, List, ArrowUpDown, X, Film, Tv, User, Globe, History, Edit3, Trash2, CheckSquare, Square, CheckCheck, CheckCircle2, Bookmark, Sparkles, Zap, Shield
 } from "lucide-react";
 import { fetchLibraryItems, deleteMediaEntry, deleteMediaEntriesBatch, updateWatchProgress } from "../services/storage";
+import { isMarvelItem, isDcItem } from "../utils/universeDetector";
 import { PosterCard } from "../components/PosterCard";
 import { CustomSelect } from "../components/CustomSelect";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 
-export const Library = ({ onSelectItem, onEditItem, onPlayMedia }) => {
+export const Library = ({ onSelectItem, onEditItem, onPlayMedia, activeUniverse = "all", onSelectUniverse }) => {
   const { currentUser } = useAuth();
   const { addToast } = useToast();
   const [items, setItems] = useState([]);
@@ -79,6 +80,16 @@ export const Library = ({ onSelectItem, onEditItem, onPlayMedia }) => {
       .sort((a, b) => new Date(b.added_at || 0) - new Date(a.added_at || 0));
   }, [items, currentUser]);
 
+  // Marvel & DC Universe Computed Collections & Breakdown Counts
+  const marvelItems = useMemo(() => items.filter(isMarvelItem), [items]);
+  const dcItems = useMemo(() => items.filter(isDcItem), [items]);
+  const marvelMoviesCount = useMemo(() => marvelItems.filter((i) => i.type === "movie").length, [marvelItems]);
+  const marvelSeriesCount = useMemo(() => marvelItems.filter((i) => i.type === "series" || i.type === "tv").length, [marvelItems]);
+  const dcMoviesCount = useMemo(() => dcItems.filter((i) => i.type === "movie").length, [dcItems]);
+  const dcSeriesCount = useMemo(() => dcItems.filter((i) => i.type === "series" || i.type === "tv").length, [dcItems]);
+
+  const universe = activeUniverse || "all";
+
   // Filter & Sort Computation
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
@@ -122,6 +133,10 @@ export const Library = ({ onSelectItem, onEditItem, onPlayMedia }) => {
         }
       }
 
+      // 5. Universe Filter (Marvel / DC / All)
+      if (universe === "marvel" && !isMarvelItem(item)) return false;
+      if (universe === "dc" && !isDcItem(item)) return false;
+
       return true;
     }).sort((a, b) => {
       if (sortBy === "title") return a.title.localeCompare(b.title);
@@ -129,7 +144,7 @@ export const Library = ({ onSelectItem, onEditItem, onPlayMedia }) => {
       if (sortBy === "year") return (b.year || 0) - (a.year || 0);
       return new Date(b.added_at || 0) - new Date(a.added_at || 0);
     });
-  }, [items, libraryScope, searchQuery, typeFilter, watchFilter, selectedGenres, genreLogic, sortBy, currentUser]);
+  }, [items, libraryScope, universe, searchQuery, typeFilter, watchFilter, selectedGenres, genreLogic, sortBy, currentUser]);
 
   // Multi-Select Helpers
   const isAllSelected = filteredItems.length > 0 && filteredItems.every((item) => selectedItemIds.has(item.id));
@@ -265,6 +280,43 @@ export const Library = ({ onSelectItem, onEditItem, onPlayMedia }) => {
                   <X size={16} />
                 </button>
               )}
+            </div>
+
+            {/* Universe Quick Tabs: All, Marvel, DC */}
+            <div style={styles.universeSegmentGroup}>
+              <button
+                style={{
+                  ...styles.universeSegmentBtn,
+                  ...(universe === "all" ? styles.universeSegmentActiveAll : {})
+                }}
+                onClick={() => onSelectUniverse && onSelectUniverse("all")}
+              >
+                All Universes
+              </button>
+
+              <button
+                style={{
+                  ...styles.universeSegmentBtn,
+                  ...(universe === "marvel" ? styles.universeSegmentActiveMarvel : {})
+                }}
+                onClick={() => onSelectUniverse && onSelectUniverse("marvel")}
+                title="View Marvel movies and series"
+              >
+                <span style={styles.miniMarvelLogo}>MARVEL</span>
+                Marvel ({marvelItems.length})
+              </button>
+
+              <button
+                style={{
+                  ...styles.universeSegmentBtn,
+                  ...(universe === "dc" ? styles.universeSegmentActiveDc : {})
+                }}
+                onClick={() => onSelectUniverse && onSelectUniverse("dc")}
+                title="View DC movies and series"
+              >
+                <span style={styles.miniDcLogo}>DC</span>
+                DC ({dcItems.length})
+              </button>
             </div>
 
             {/* Type Filter Tabs */}
@@ -482,6 +534,48 @@ export const Library = ({ onSelectItem, onEditItem, onPlayMedia }) => {
         </div>
       ) : (
         <>
+          {/* 🔴 MARVEL UNIVERSE HERO BANNER 🔴 */}
+          {universe === "marvel" && (
+            <div style={styles.marvelHeroBanner} className="animate-fade">
+              <div style={styles.universeBannerLeft}>
+                <div style={styles.marvelLargeLogo}>MARVEL</div>
+                <div>
+                  <h2 style={styles.universeBannerTitle}>Marvel Cinematic & Comics Universe</h2>
+                  <p style={styles.universeBannerSub}>
+                    Showing <strong>{filteredItems.length}</strong> Marvel titles • <strong>{marvelMoviesCount}</strong> Movies & <strong>{marvelSeriesCount}</strong> Series
+                  </p>
+                </div>
+              </div>
+              <button
+                style={styles.clearUniverseBannerBtn}
+                onClick={() => onSelectUniverse && onSelectUniverse("all")}
+              >
+                <X size={15} /> Exit Marvel View
+              </button>
+            </div>
+          )}
+
+          {/* 🔵 DC UNIVERSE HERO BANNER 🔵 */}
+          {universe === "dc" && (
+            <div style={styles.dcHeroBanner} className="animate-fade">
+              <div style={styles.universeBannerLeft}>
+                <div style={styles.dcLargeLogo}>DC</div>
+                <div>
+                  <h2 style={styles.universeBannerTitle}>DC Extended & Animated Universe</h2>
+                  <p style={styles.universeBannerSub}>
+                    Showing <strong>{filteredItems.length}</strong> DC titles • <strong>{dcMoviesCount}</strong> Movies & <strong>{dcSeriesCount}</strong> Series
+                  </p>
+                </div>
+              </div>
+              <button
+                style={styles.clearUniverseBannerBtn}
+                onClick={() => onSelectUniverse && onSelectUniverse("all")}
+              >
+                <X size={15} /> Exit DC View
+              </button>
+            </div>
+          )}
+
           {/* Watch Status & Genre Filter Bar */}
           <div style={styles.filterBar}>
             <div style={styles.statusFilterRow}>
@@ -1135,5 +1229,145 @@ const styles = {
     display: "flex",
     alignItems: "center",
     gap: "4px"
+  },
+
+  // Universe Segment Buttons
+  universeSegmentGroup: {
+    display: "flex",
+    alignItems: "center",
+    backgroundColor: "#161616",
+    padding: "4px",
+    borderRadius: "20px",
+    border: "1px solid #2a2a2a",
+    gap: "4px"
+  },
+  universeSegmentBtn: {
+    background: "none",
+    border: "none",
+    padding: "6px 12px",
+    borderRadius: "16px",
+    fontSize: "0.82rem",
+    fontWeight: 600,
+    color: "#a3a3a3",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    transition: "all 0.2s"
+  },
+  universeSegmentActiveAll: {
+    backgroundColor: "#2a2a2a",
+    color: "#ffffff",
+    fontWeight: 700
+  },
+  universeSegmentActiveMarvel: {
+    backgroundColor: "#e50914",
+    color: "#ffffff",
+    boxShadow: "0 2px 10px rgba(229, 9, 20, 0.4)",
+    fontWeight: 700
+  },
+  universeSegmentActiveDc: {
+    backgroundColor: "#0055ff",
+    color: "#ffffff",
+    boxShadow: "0 2px 10px rgba(0, 85, 255, 0.4)",
+    fontWeight: 700
+  },
+  miniMarvelLogo: {
+    backgroundColor: "#ffffff",
+    color: "#e50914",
+    padding: "1px 4px",
+    borderRadius: "3px",
+    fontSize: "0.62rem",
+    fontWeight: 900,
+    letterSpacing: "0.5px"
+  },
+  miniDcLogo: {
+    backgroundColor: "#ffffff",
+    color: "#0055ff",
+    padding: "1px 4px",
+    borderRadius: "3px",
+    fontSize: "0.62rem",
+    fontWeight: 900,
+    letterSpacing: "0.5px"
+  },
+
+  // Hero Banners
+  marvelHeroBanner: {
+    backgroundColor: "linear-gradient(135deg, #2b080a 0%, #160809 100%)",
+    background: "linear-gradient(135deg, #300609 0%, #180809 100%)",
+    border: "1px solid rgba(229, 9, 20, 0.4)",
+    boxShadow: "0 4px 20px rgba(229, 9, 20, 0.15)",
+    padding: "18px 24px",
+    borderRadius: "14px",
+    marginBottom: "20px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "16px",
+    flexWrap: "wrap"
+  },
+  dcHeroBanner: {
+    backgroundColor: "linear-gradient(135deg, #051438 0%, #080e1c 100%)",
+    background: "linear-gradient(135deg, #061947 0%, #091024 100%)",
+    border: "1px solid rgba(0, 85, 255, 0.4)",
+    boxShadow: "0 4px 20px rgba(0, 85, 255, 0.15)",
+    padding: "18px 24px",
+    borderRadius: "14px",
+    marginBottom: "20px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "16px",
+    flexWrap: "wrap"
+  },
+  universeBannerLeft: {
+    display: "flex",
+    alignItems: "center",
+    gap: "16px"
+  },
+  marvelLargeLogo: {
+    backgroundColor: "#e50914",
+    color: "#ffffff",
+    padding: "6px 12px",
+    borderRadius: "6px",
+    fontSize: "1.2rem",
+    fontWeight: 900,
+    letterSpacing: "1.5px",
+    boxShadow: "0 4px 14px rgba(229, 9, 20, 0.6)"
+  },
+  dcLargeLogo: {
+    backgroundColor: "#0055ff",
+    color: "#ffffff",
+    padding: "6px 14px",
+    borderRadius: "6px",
+    fontSize: "1.2rem",
+    fontWeight: 900,
+    letterSpacing: "1.5px",
+    boxShadow: "0 4px 14px rgba(0, 85, 255, 0.6)"
+  },
+  universeBannerTitle: {
+    fontSize: "1.2rem",
+    fontWeight: 800,
+    color: "#ffffff",
+    margin: 0
+  },
+  universeBannerSub: {
+    fontSize: "0.88rem",
+    color: "#a3a3a3",
+    margin: "4px 0 0 0"
+  },
+  clearUniverseBannerBtn: {
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    border: "1px solid rgba(255, 255, 255, 0.2)",
+    color: "#ffffff",
+    padding: "8px 16px",
+    borderRadius: "20px",
+    fontSize: "0.84rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    transition: "all 0.2s"
   }
 };

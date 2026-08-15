@@ -20,6 +20,7 @@ const AppContent = () => {
   const { addToast } = useToast();
 
   const [activePage, setActivePage] = useState("library"); // "library" | "renamer" | "add" | "tools" | "login"
+  const [activeUniverse, setActiveUniverse] = useState("all"); // "all" | "marvel" | "dc"
   const [selectedToolId, setSelectedToolId] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
   const [editItem, setEditItem] = useState(null);
@@ -73,6 +74,11 @@ const AppContent = () => {
           if (page !== "tools") setSelectedToolId(null);
           setActivePage(page);
         }}
+        activeUniverse={activeUniverse}
+        onSelectUniverse={(universe) => {
+          setActiveUniverse(universe);
+          setActivePage("library");
+        }}
         onSelectTool={handleSelectTool}
         onOpenWhitelist={() => setShowWhitelist(true)}
         onOpenSettings={() => setShowSettings(true)}
@@ -89,6 +95,8 @@ const AppContent = () => {
 
         {activePage === "library" && (
           <Library
+            activeUniverse={activeUniverse}
+            onSelectUniverse={setActiveUniverse}
             onSelectItem={(item) => setSelectedItem(item)}
             onEditItem={handleEdit}
           />

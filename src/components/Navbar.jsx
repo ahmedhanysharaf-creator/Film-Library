@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Film, Plus, Shield, Settings, LogOut, User, ChevronDown, MonitorPlay, Download, Wrench, Search, FileText, LayoutGrid, FolderSync, Terminal } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
-export const Navbar = ({ activePage, setActivePage, onSelectTool, onOpenWhitelist, onOpenSettings }) => {
+export const Navbar = ({ activePage, setActivePage, activeUniverse = "all", onSelectUniverse, onSelectTool, onOpenWhitelist, onOpenSettings }) => {
   const { currentUser, logout, loginAsDemoUser } = useAuth();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [toolsDropdownOpen, setToolsDropdownOpen] = useState(false);
@@ -12,13 +12,33 @@ export const Navbar = ({ activePage, setActivePage, onSelectTool, onOpenWhitelis
   const formattedName = rawName.toLowerCase().includes("ahmed") ? "Ahmed Hany" : rawName;
 
   // Helper for 100% deterministic tab button styles
-  const getTabStyle = (pageName) => {
-    const isActive = activePage === pageName;
+  const getTabStyle = (pageName, universe = null) => {
+    let isActive = activePage === pageName;
+    if (pageName === "library" && universe) {
+      isActive = activePage === "library" && activeUniverse === universe;
+    } else if (pageName === "library" && !universe) {
+      isActive = activePage === "library" && (!activeUniverse || activeUniverse === "all");
+    }
+
+    let activeBg = "var(--accent-red)";
+    let activeBorder = "var(--accent-red)";
+    let activeShadow = "0 4px 14px rgba(229, 9, 20, 0.4)";
+
+    if (universe === "marvel") {
+      activeBg = "#e50914";
+      activeBorder = "#ff2a38";
+      activeShadow = "0 4px 14px rgba(229, 9, 20, 0.5)";
+    } else if (universe === "dc") {
+      activeBg = "#0055ff";
+      activeBorder = "#3388ff";
+      activeShadow = "0 4px 14px rgba(0, 85, 255, 0.5)";
+    }
+
     return {
-      backgroundColor: isActive ? "var(--accent-red)" : "#1c1c1c",
+      backgroundColor: isActive ? activeBg : "#1c1c1c",
       color: isActive ? "#ffffff" : "#a3a3a3",
-      border: isActive ? "1px solid var(--accent-red)" : "1px solid #2a2a2a",
-      boxShadow: isActive ? "0 4px 14px rgba(229, 9, 20, 0.4)" : "none",
+      border: isActive ? `1px solid ${activeBorder}` : "1px solid #2a2a2a",
+      boxShadow: isActive ? activeShadow : "none",
       fontSize: "0.92rem",
       fontWeight: isActive ? 700 : 600,
       padding: "8px 16px",
@@ -49,13 +69,42 @@ export const Navbar = ({ activePage, setActivePage, onSelectTool, onOpenWhitelis
         <div style={styles.links}>
 
           <button
-            style={getTabStyle("library")}
+            style={getTabStyle("library", null)}
             onClick={() => {
               setToolsDropdownOpen(false);
+              onSelectUniverse && onSelectUniverse("all");
               setActivePage("library");
             }}
           >
             The Library
+          </button>
+
+          {/* 🔴 MARVEL Tab */}
+          <button
+            style={getTabStyle("library", "marvel")}
+            onClick={() => {
+              setToolsDropdownOpen(false);
+              onSelectUniverse && onSelectUniverse("marvel");
+              setActivePage("library");
+            }}
+            title="View all Marvel movies & series"
+          >
+            <span style={styles.marvelBadge}>MARVEL</span>
+            Marvel
+          </button>
+
+          {/* 🔵 DC Tab */}
+          <button
+            style={getTabStyle("library", "dc")}
+            onClick={() => {
+              setToolsDropdownOpen(false);
+              onSelectUniverse && onSelectUniverse("dc");
+              setActivePage("library");
+            }}
+            title="View all DC movies & series"
+          >
+            <span style={styles.dcBadge}>DC</span>
+            DC
           </button>
 
           <button
@@ -425,5 +474,25 @@ const styles = {
     padding: "8px",
     boxShadow: "var(--shadow-md)",
     zIndex: 110
+  },
+  marvelBadge: {
+    backgroundColor: "#e50914",
+    color: "#ffffff",
+    padding: "2px 6px",
+    borderRadius: "4px",
+    fontSize: "0.68rem",
+    fontWeight: 900,
+    letterSpacing: "0.5px",
+    lineHeight: 1
+  },
+  dcBadge: {
+    backgroundColor: "#0055ff",
+    color: "#ffffff",
+    padding: "2px 6px",
+    borderRadius: "4px",
+    fontSize: "0.68rem",
+    fontWeight: 900,
+    letterSpacing: "0.5px",
+    lineHeight: 1
   }
 };
