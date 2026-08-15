@@ -125,13 +125,28 @@ export const Renamer = () => {
   };
 
   // Folder Selector Handler (Directory Picker)
+  // NOTE: Browsers can only read the folder NAME, not the full system path (security restriction).
+  // We place the name in the input and warn the user to complete the full path manually.
   const handlePickTargetFolder = async () => {
     if (window.showDirectoryPicker) {
       try {
         const handle = await window.showDirectoryPicker();
         if (handle && handle.name) {
-          setTargetPath(`C:\\Media\\${handle.name}`);
-          addToast(`Target folder updated: ${handle.name}`, "success");
+          // Only set if the field is empty — otherwise preserve whatever the user already typed
+          // and just append the folder name so they can fix the prefix
+          setTargetPath((prev) => {
+            if (!prev.trim()) return handle.name;
+            // If current path already ends with this folder name, keep it unchanged
+            if (prev.trim().endsWith(handle.name)) return prev;
+            // Otherwise replace just the last segment with the selected folder name
+            const parts = prev.replace(/\\/g, "/").split("/");
+            parts[parts.length - 1] = handle.name;
+            return parts.join("\\");
+          });
+          addToast(
+            `Folder name detected: "${handle.name}". Browser can\'t read the full path — please verify the path is correct.`,
+            "warning"
+          );
         }
       } catch (err) {
         if (err.name !== "AbortError" && folderInputRef.current) {
@@ -149,8 +164,18 @@ export const Renamer = () => {
       const firstFile = files[0];
       const relativePath = firstFile.webkitRelativePath || firstFile.name;
       const folderName = relativePath.split("/")[0] || relativePath.split("\\")[0];
-      setTargetPath(`C:\\Media\\${folderName}`);
-      addToast(`Selected folder: ${folderName}`, "success");
+      // Same logic: preserve existing path prefix, only update the last folder segment
+      setTargetPath((prev) => {
+        if (!prev.trim()) return folderName;
+        if (prev.trim().endsWith(folderName)) return prev;
+        const parts = prev.replace(/\\/g, "/").split("/");
+        parts[parts.length - 1] = folderName;
+        return parts.join("\\");
+      });
+      addToast(
+        `Folder name detected: "${folderName}". Browser can\'t read the full path — please verify the path is correct.`,
+        "warning"
+      );
     }
     event.target.value = "";
   };
