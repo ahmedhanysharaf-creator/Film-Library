@@ -40,6 +40,7 @@ export const Renamer = () => {
   const headerFileInputRef = useRef(null);
   const modalFileInputRef = useRef(null);
   const folderInputRef = useRef(null);
+  const pythonFolderInputRef = useRef(null);
 
   // PowerShell Generator parameters
   const [targetPath, setTargetPath] = useState("D:\\Movies\\Action");
@@ -147,6 +148,52 @@ export const Renamer = () => {
       setTargetPath(`C:\\Media\\${folderName}`);
       addToast(`Selected folder: ${folderName}`, "success");
     }
+    event.target.value = "";
+  };
+
+  // Import an entire folder of Python scripts as a multi-part preset
+  const handlePythonFolderImport = (event) => {
+    const allFiles = Array.from(event.target.files || []);
+    // Filter only .py files and sort by name so 1_xxx.py runs before 2_xxx.py
+    const pyFiles = allFiles
+      .filter((f) => f.name.endsWith(".py"))
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+
+    if (pyFiles.length === 0) {
+      addToast("No Python (.py) files found in the selected folder.", "warning");
+      event.target.value = "";
+      return;
+    }
+
+    // Detect folder name from the first file's relative path
+    const firstRelative = pyFiles[0].webkitRelativePath || pyFiles[0].name;
+    const folderName = firstRelative.split("/")[0] || firstRelative.split("\\")[0];
+
+    const readPromises = pyFiles.map((file) =>
+      new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve({ name: file.name, code: e.target.result || "" });
+        reader.readAsText(file);
+      })
+    );
+
+    Promise.all(readPromises).then((importedFiles) => {
+      setEditingCodeObj(null);
+      setFormName(folderName.replace(/[_-]/g, " "));
+      setFormDesc(`Pipeline loaded from folder: ${folderName} (${importedFiles.length} scripts)`);
+      setFormCategory("multi_part");
+      setFormParts(
+        importedFiles.map((item, idx) => ({
+          id: `part_${Date.now()}_${idx}`,
+          name: item.name,
+          code: item.code
+        }))
+      );
+      setActivePartIndex(0);
+      setIsModalOpen(true);
+      addToast(`Loaded ${importedFiles.length} Python file(s) from "${folderName}"!`, "success");
+    });
+
     event.target.value = "";
   };
 
@@ -345,6 +392,15 @@ export const Renamer = () => {
         directory="true"
         style={{ display: "none" }}
       />
+      {/* Hidden input for importing a Python scripts folder as a multi-part preset */}
+      <input
+        type="file"
+        ref={pythonFolderInputRef}
+        onChange={handlePythonFolderImport}
+        webkitdirectory="true"
+        directory="true"
+        style={{ display: "none" }}
+      />
 
       {/* Top Banner Header */}
       <div style={styles.header}>
@@ -360,6 +416,14 @@ export const Renamer = () => {
         </div>
 
         <div style={styles.headerActionsGroup}>
+          <button
+            style={styles.importFolderBtn}
+            onClick={() => pythonFolderInputRef.current && pythonFolderInputRef.current.click()}
+            title="Select a folder that contains multiple Python scripts — they will be loaded as a multi-part pipeline preset"
+          >
+            <FolderSearch size={16} /> Choose Scripts Folder
+          </button>
+
           <button
             style={styles.importPcBtn}
             onClick={() => headerFileInputRef.current && headerFileInputRef.current.click()}
@@ -894,7 +958,22 @@ const styles = {
   },
   headerActionsGroup: {
     display: "flex",
-    gap: "12px"
+    gap: "12px",
+    flexWrap: "wrap",
+    alignItems: "center"
+  },
+  importFolderBtn: {
+    backgroundColor: "#0f2820",
+    color: "#34d399",
+    border: "1px solid #059669",
+    padding: "10px 18px",
+    borderRadius: "20px",
+    fontWeight: 700,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    transition: "all 0.2s"
   },
   importPcBtn: {
     backgroundColor: "#1f2937",
