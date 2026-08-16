@@ -81,7 +81,7 @@ export const Navbar = ({ activePage, setActivePage, activeUniverse = "all", onSe
             </button>
 
             {toolsDropdownOpen && (
-              <div style={styles.toolsDropdownMenu} className="animate-pop">
+              <div style={styles.toolsDropdownMenu} className="animate-pop navbar-tools-dropdown">
                 <button
                   style={styles.menuItem}
                   onClick={() => {
@@ -178,7 +178,7 @@ export const Navbar = ({ activePage, setActivePage, activeUniverse = "all", onSe
               </button>
 
               {dropdownOpen && (
-                <div style={styles.dropdownMenu} className="animate-pop">
+                <div style={styles.dropdownMenu} className="animate-pop navbar-profile-dropdown">
                   <div style={styles.userHeader}>
                     <div style={styles.userHeaderName}>{formattedName}</div>
                     <div style={styles.userHeaderEmail}>{currentUser.email}</div>
