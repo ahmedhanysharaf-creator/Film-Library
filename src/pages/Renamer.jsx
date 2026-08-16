@@ -115,6 +115,18 @@ export const Renamer = () => {
     setTimeout(() => setCopied(false), 2500);
   };
 
+  const handleDownloadAllParts = (codeObj) => {
+    if (!codeObj || !codeObj.parts || codeObj.parts.length === 0) return;
+    codeObj.parts.forEach((part, idx) => {
+      setTimeout(() => {
+        handleDownloadFile(part.code, part.name, "text/x-python");
+      }, idx * 400);
+    });
+    if (codeObj.parts.length > 1) {
+      addToast(`Downloading ${codeObj.parts.length} script files…`, "info");
+    }
+  };
+
   const handleDownloadFile = (content, filename, type = "text/plain") => {
     const blob = new Blob([content], { type });
     const url = URL.createObjectURL(blob);
@@ -546,6 +558,14 @@ export const Renamer = () => {
                     onClick={() => handleOpenEditModal(selectedCode)}
                   >
                     <Edit3 size={14} /> Edit Script
+                  </button>
+
+                  <button
+                    style={styles.downloadHeaderBtn}
+                    onClick={() => handleDownloadAllParts(selectedCode)}
+                    title={selectedCode.parts?.length > 1 ? `Download all ${selectedCode.parts.length} Python scripts` : "Download Python script"}
+                  >
+                    <Download size={14} /> Download Script{selectedCode.parts?.length > 1 ? `s (${selectedCode.parts.length})` : ""}
                   </button>
 
                   <button
@@ -1227,6 +1247,20 @@ const styles = {
     display: "flex",
     alignItems: "center",
     gap: "6px"
+  },
+  downloadHeaderBtn: {
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    color: "#10b981",
+    border: "1px solid rgba(16, 185, 129, 0.35)",
+    padding: "6px 12px",
+    borderRadius: "8px",
+    fontSize: "0.8rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    transition: "background-color 0.2s, border-color 0.2s"
   },
   deleteHeaderBtn: {
     backgroundColor: "#ef444420",
