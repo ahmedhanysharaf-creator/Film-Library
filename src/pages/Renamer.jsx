@@ -49,6 +49,10 @@ export const Renamer = () => {
   const [showName, setShowName] = useState("");
   const [copied, setCopied] = useState(false);
 
+  // Destination folder for script downloads (File System Access API)
+  const [destDirHandle, setDestDirHandle] = useState(null);
+  const [destDirName, setDestDirName] = useState("");
+
   // Clean out any previously cached hardcoded paths from localStorage on load
   useEffect(() => {
     localStorage.removeItem("renamer_target_path");
@@ -115,15 +119,61 @@ export const Renamer = () => {
     setTimeout(() => setCopied(false), 2500);
   };
 
-  const handleDownloadAllParts = (codeObj) => {
+  const handleChooseDestFolder = async () => {
+    if (!window.showDirectoryPicker) {
+      addToast("Folder picker not supported in this browser. Files will download normally.", "warning");
+      return;
+    }
+    try {
+      const dirHandle = await window.showDirectoryPicker({ mode: "readwrite" });
+      setDestDirHandle(dirHandle);
+      setDestDirName(dirHandle.name);
+      addToast(`Destination folder set: "${dirHandle.name}"`, "success");
+    } catch (err) {
+      if (err.name !== "AbortError") {
+        addToast("Could not open folder picker.", "error");
+      }
+    }
+  };
+
+  const handleClearDestFolder = () => {
+    setDestDirHandle(null);
+    setDestDirName("");
+    addToast("Destination folder cleared — using browser default.", "info");
+  };
+
+  const handleDownloadAllParts = async (codeObj) => {
     if (!codeObj || !codeObj.parts || codeObj.parts.length === 0) return;
-    codeObj.parts.forEach((part, idx) => {
-      setTimeout(() => {
-        handleDownloadFile(part.code, part.name, "text/x-python");
-      }, idx * 400);
-    });
-    if (codeObj.parts.length > 1) {
-      addToast(`Downloading ${codeObj.parts.length} script files…`, "info");
+
+    if (destDirHandle) {
+      // Write directly into the chosen destination folder
+      try {
+        for (const part of codeObj.parts) {
+          const fileHandle = await destDirHandle.getFileHandle(part.name, { create: true });
+          const writable = await fileHandle.createWritable();
+          await writable.write(part.code);
+          await writable.close();
+        }
+        addToast(`✅ Saved ${codeObj.parts.length} script(s) into "${destDirHandle.name}"`, "success");
+      } catch (err) {
+        if (err.name === "NotAllowedError") {
+          addToast("Permission denied — please re-select the destination folder.", "error");
+          setDestDirHandle(null);
+          setDestDirName("");
+        } else {
+          addToast(`Failed to save to folder: ${err.message}`, "error");
+        }
+      }
+    } else {
+      // Fallback: regular browser downloads
+      codeObj.parts.forEach((part, idx) => {
+        setTimeout(() => {
+          handleDownloadFile(part.code, part.name, "text/x-python");
+        }, idx * 400);
+      });
+      if (codeObj.parts.length > 1) {
+        addToast(`Downloading ${codeObj.parts.length} script files…`, "info");
+      }
     }
   };
 
@@ -577,6 +627,39 @@ export const Renamer = () => {
                 </div>
               </div>
               <p style={styles.inspectorDesc}>{selectedCode.description}</p>
+            </div>
+
+            {/* 📁 DESTINATION FOLDER BAR */}
+            <div style={styles.destFolderBar}>
+              <div style={styles.destFolderLeft}>
+                <Folder size={15} color={destDirHandle ? "#10b981" : "#737373"} />
+                <span style={styles.destFolderLabel}>Save scripts to:</span>
+                {destDirHandle ? (
+                  <span style={styles.destFolderName}>
+                    <CheckCircle2 size={13} color="#10b981" /> {destDirName}
+                  </span>
+                ) : (
+                  <span style={styles.destFolderNone}>Browser default download folder</span>
+                )}
+              </div>
+              <div style={styles.destFolderActions}>
+                <button
+                  style={styles.chooseFolderBtn}
+                  onClick={handleChooseDestFolder}
+                  title="Pick a folder — scripts will be saved directly into it"
+                >
+                  <FolderSearch size={13} /> {destDirHandle ? "Change Folder" : "Choose Folder"}
+                </button>
+                {destDirHandle && (
+                  <button
+                    style={styles.clearFolderBtn}
+                    onClick={handleClearDestFolder}
+                    title="Clear destination — use browser default"
+                  >
+                    ✕ Clear
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* 🎯 SECTION 1: VISUAL FILENAME FORMAT PREVIEW (BEFORE ➔ AFTER) 🎯 */}
@@ -1261,6 +1344,75 @@ const styles = {
     alignItems: "center",
     gap: "6px",
     transition: "background-color 0.2s, border-color 0.2s"
+  },
+  // Destination folder bar
+  destFolderBar: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#111114",
+    border: "1px solid #252528",
+    borderRadius: "10px",
+    padding: "10px 14px",
+    gap: "12px",
+    flexWrap: "wrap"
+  },
+  destFolderLeft: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    flex: 1,
+    minWidth: 0
+  },
+  destFolderLabel: {
+    fontSize: "0.82rem",
+    fontWeight: 600,
+    color: "#737373",
+    whiteSpace: "nowrap"
+  },
+  destFolderName: {
+    display: "flex",
+    alignItems: "center",
+    gap: "5px",
+    fontSize: "0.85rem",
+    fontWeight: 700,
+    color: "#10b981",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap"
+  },
+  destFolderNone: {
+    fontSize: "0.82rem",
+    color: "#4a4a4a",
+    fontStyle: "italic"
+  },
+  destFolderActions: {
+    display: "flex",
+    gap: "6px",
+    flexShrink: 0
+  },
+  chooseFolderBtn: {
+    backgroundColor: "rgba(59,130,246,0.1)",
+    color: "#60a5fa",
+    border: "1px solid rgba(59,130,246,0.3)",
+    padding: "5px 11px",
+    borderRadius: "7px",
+    fontSize: "0.78rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "5px"
+  },
+  clearFolderBtn: {
+    backgroundColor: "transparent",
+    color: "#4a4a4a",
+    border: "1px solid #2a2a2a",
+    padding: "5px 10px",
+    borderRadius: "7px",
+    fontSize: "0.78rem",
+    fontWeight: 600,
+    cursor: "pointer"
   },
   deleteHeaderBtn: {
     backgroundColor: "#ef444420",
