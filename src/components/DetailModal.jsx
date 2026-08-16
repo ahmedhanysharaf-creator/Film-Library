@@ -178,19 +178,22 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate }) =
   };
 
   return (
-    <div style={styles.backdrop} onClick={onClose} className="animate-pop">
-      <div style={styles.modal} onClick={(e) => e.stopPropagation()} className="glass-modal">
+    <div style={styles.backdrop} onClick={onClose} className="animate-pop detail-modal-backdrop">
+      <div style={styles.modal} onClick={(e) => e.stopPropagation()} className="glass-modal detail-modal-container">
         {/* Header Backdrop Banner */}
-        <div style={{
-          ...styles.banner,
-          backgroundImage: `linear-gradient(to bottom, rgba(13,13,13,0.3), rgba(13,13,13,1)), url(${item.backdrop_url || item.poster_url})`
-        }}>
-          <button style={styles.closeBtn} onClick={onClose} title="Close popup">
+        <div 
+          style={{
+            ...styles.banner,
+            backgroundImage: `linear-gradient(to bottom, rgba(13,13,13,0.3), rgba(13,13,13,1)), url(${item.backdrop_url || item.poster_url})`
+          }}
+          className="detail-modal-banner"
+        >
+          <button style={styles.closeBtn} className="detail-modal-close-btn" onClick={onClose} title="Close popup">
             <X size={20} />
           </button>
 
           {item.trailer_url && (
-            <div style={styles.trailerGroup}>
+            <div style={styles.trailerGroup} className="detail-modal-trailer-group">
               <button style={styles.trailerBtn} onClick={() => setShowTrailer(true)}>
                 <Video size={18} color="#e50914" /> Watch Trailer
               </button>
@@ -208,65 +211,68 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate }) =
         </div>
 
         {/* Content Container */}
-        <div style={styles.content}>
-          <div style={styles.mainGrid}>
+        <div style={styles.content} className="detail-modal-content">
+          <div style={styles.mainGrid} className="detail-modal-grid">
             {/* Poster Sidebar */}
-            <div style={styles.posterCol}>
+            <div style={styles.posterCol} className="detail-modal-poster-col">
               <img
                 src={item.poster_url || "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500&auto=format&fit=crop&q=60"}
                 alt={item.title}
                 style={styles.poster}
+                className="detail-modal-poster-img"
                 loading="lazy"
                 decoding="async"
               />
 
-              {/* Watch Status Selector Buttons */}
-              <div style={styles.statusGroup}>
-                <button
-                  style={{
-                    ...styles.statusBtn,
-                    ...(localProgress.status === "watched" ? styles.statusBtnActiveGreen : {})
-                  }}
-                  onClick={() => handleStatusChange("watched")}
-                >
-                  <CheckCircle2 size={16} color={localProgress.status === "watched" ? "var(--accent-green)" : "currentColor"} /> Watched
-                </button>
-
-                <button
-                  style={{
-                    ...styles.statusBtn,
-                    ...(localProgress.status === "watchlist" ? styles.statusBtnActiveGold : {})
-                  }}
-                  onClick={() => handleStatusChange("watchlist")}
-                >
-                  <Bookmark size={16} fill={localProgress.status === "watchlist" ? "#f5c518" : "none"} color={localProgress.status === "watchlist" ? "#f5c518" : "currentColor"} /> Watchlist
-                </button>
-              </div>
-
-              {/* Action Buttons: Edit & Delete */}
-              <div style={styles.adminActions}>
-                <button style={styles.iconBtn} onClick={() => onEdit(item)}>
-                  <Edit3 size={16} /> Edit Entry
-                </button>
-
-                {!confirmDelete ? (
-                  <button style={{ ...styles.iconBtn, color: "var(--accent-red)" }} onClick={() => setConfirmDelete(true)}>
-                    <Trash2 size={16} /> Delete
+              <div className="detail-modal-poster-actions">
+                {/* Watch Status Selector Buttons */}
+                <div style={styles.statusGroup} className="detail-modal-status-group">
+                  <button
+                    style={{
+                      ...styles.statusBtn,
+                      ...(localProgress.status === "watched" ? styles.statusBtnActiveGreen : {})
+                    }}
+                    onClick={() => handleStatusChange("watched")}
+                  >
+                    <CheckCircle2 size={16} color={localProgress.status === "watched" ? "var(--accent-green)" : "currentColor"} /> Watched
                   </button>
-                ) : (
-                  <button style={styles.confirmDeleteBtn} onClick={() => onDelete(item.id)}>
-                    Confirm Delete?
+
+                  <button
+                    style={{
+                      ...styles.statusBtn,
+                      ...(localProgress.status === "watchlist" ? styles.statusBtnActiveGold : {})
+                    }}
+                    onClick={() => handleStatusChange("watchlist")}
+                  >
+                    <Bookmark size={16} fill={localProgress.status === "watchlist" ? "#f5c518" : "none"} color={localProgress.status === "watchlist" ? "#f5c518" : "currentColor"} /> Watchlist
                   </button>
-                )}
+                </div>
+
+                {/* Action Buttons: Edit & Delete */}
+                <div style={styles.adminActions} className="detail-modal-admin-actions">
+                  <button style={styles.iconBtn} onClick={() => onEdit(item)}>
+                    <Edit3 size={16} /> Edit Entry
+                  </button>
+
+                  {!confirmDelete ? (
+                    <button style={{ ...styles.iconBtn, color: "var(--accent-red)" }} onClick={() => setConfirmDelete(true)}>
+                      <Trash2 size={16} /> Delete
+                    </button>
+                  ) : (
+                    <button style={styles.confirmDeleteBtn} onClick={() => onDelete(item.id)}>
+                      Confirm Delete?
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
             {/* Info Body */}
-            <div style={styles.infoCol}>
+            <div style={styles.infoCol} className="detail-modal-info-col">
               <div style={styles.headerInfo}>
-                <div style={styles.titleRow}>
-                  <h1 style={styles.title}>{item.title}</h1>
-                  <span style={styles.year}>({item.year})</span>
+                <div style={styles.titleRow} className="detail-modal-title-row">
+                  <h1 style={styles.title} className="detail-modal-title">{item.title}</h1>
+                  <span style={styles.year} className="detail-modal-year">({item.year})</span>
                 </div>
 
                 <div style={styles.metaRow}>
