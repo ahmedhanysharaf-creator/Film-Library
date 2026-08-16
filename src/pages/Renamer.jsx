@@ -49,9 +49,8 @@ export const Renamer = () => {
   const [showName, setShowName] = useState("");
   const [copied, setCopied] = useState(false);
 
-  // Destination folder for script downloads (File System Access API)
-  const [destDirHandle, setDestDirHandle] = useState(null);
-  const [destDirName, setDestDirName] = useState("");
+  // Destination folder per preset: { [presetId]: { handle, name } }
+  const [destFolders, setDestFolders] = useState({});
 
   // Clean out any previously cached hardcoded paths from localStorage on load
   useEffect(() => {
@@ -120,15 +119,18 @@ export const Renamer = () => {
   };
 
   const handleChooseDestFolder = async () => {
+    if (!selectedCode) return;
     if (!window.showDirectoryPicker) {
       addToast("Folder picker not supported in this browser. Files will download normally.", "warning");
       return;
     }
     try {
       const dirHandle = await window.showDirectoryPicker({ mode: "readwrite" });
-      setDestDirHandle(dirHandle);
-      setDestDirName(dirHandle.name);
-      addToast(`Destination folder set: "${dirHandle.name}"`, "success");
+      setDestFolders((prev) => ({
+        ...prev,
+        [selectedCode.id]: { handle: dirHandle, name: dirHandle.name }
+      }));
+      addToast(`Folder set for "${selectedCode.name}": ${dirHandle.name}`, "success");
     } catch (err) {
       if (err.name !== "AbortError") {
         addToast("Could not open folder picker.", "error");
@@ -137,29 +139,38 @@ export const Renamer = () => {
   };
 
   const handleClearDestFolder = () => {
-    setDestDirHandle(null);
-    setDestDirName("");
-    addToast("Destination folder cleared — using browser default.", "info");
+    if (!selectedCode) return;
+    setDestFolders((prev) => {
+      const updated = { ...prev };
+      delete updated[selectedCode.id];
+      return updated;
+    });
+    addToast("Destination folder cleared for this preset.", "info");
   };
 
   const handleDownloadAllParts = async (codeObj) => {
     if (!codeObj || !codeObj.parts || codeObj.parts.length === 0) return;
+    const preset = destFolders[codeObj.id];
+    const dirHandle = preset?.handle;
 
-    if (destDirHandle) {
-      // Write directly into the chosen destination folder
+    if (dirHandle) {
+      // Write directly into the chosen destination folder for this preset
       try {
         for (const part of codeObj.parts) {
-          const fileHandle = await destDirHandle.getFileHandle(part.name, { create: true });
+          const fileHandle = await dirHandle.getFileHandle(part.name, { create: true });
           const writable = await fileHandle.createWritable();
           await writable.write(part.code);
           await writable.close();
         }
-        addToast(`✅ Saved ${codeObj.parts.length} script(s) into "${destDirHandle.name}"`, "success");
+        addToast(`✅ Saved ${codeObj.parts.length} script(s) into "${dirHandle.name}"`, "success");
       } catch (err) {
         if (err.name === "NotAllowedError") {
           addToast("Permission denied — please re-select the destination folder.", "error");
-          setDestDirHandle(null);
-          setDestDirName("");
+          setDestFolders((prev) => {
+            const updated = { ...prev };
+            delete updated[codeObj.id];
+            return updated;
+          });
         } else {
           addToast(`Failed to save to folder: ${err.message}`, "error");
         }
@@ -629,38 +640,43 @@ export const Renamer = () => {
               <p style={styles.inspectorDesc}>{selectedCode.description}</p>
             </div>
 
-            {/* 📁 DESTINATION FOLDER BAR */}
-            <div style={styles.destFolderBar}>
-              <div style={styles.destFolderLeft}>
-                <Folder size={15} color={destDirHandle ? "#10b981" : "#737373"} />
-                <span style={styles.destFolderLabel}>Save scripts to:</span>
-                {destDirHandle ? (
-                  <span style={styles.destFolderName}>
-                    <CheckCircle2 size={13} color="#10b981" /> {destDirName}
-                  </span>
-                ) : (
-                  <span style={styles.destFolderNone}>Browser default download folder</span>
-                )}
-              </div>
-              <div style={styles.destFolderActions}>
-                <button
-                  style={styles.chooseFolderBtn}
-                  onClick={handleChooseDestFolder}
-                  title="Pick a folder — scripts will be saved directly into it"
-                >
-                  <FolderSearch size={13} /> {destDirHandle ? "Change Folder" : "Choose Folder"}
-                </button>
-                {destDirHandle && (
-                  <button
-                    style={styles.clearFolderBtn}
-                    onClick={handleClearDestFolder}
-                    title="Clear destination — use browser default"
-                  >
-                    ✕ Clear
-                  </button>
-                )}
-              </div>
-            </div>
+            {/* 📁 DESTINATION FOLDER BAR (per-preset) */}
+            {(() => {
+              const currentFolder = destFolders[selectedCode.id];
+              return (
+                <div style={styles.destFolderBar}>
+                  <div style={styles.destFolderLeft}>
+                    <Folder size={15} color={currentFolder ? "#10b981" : "#737373"} />
+                    <span style={styles.destFolderLabel}>Save scripts to:</span>
+                    {currentFolder ? (
+                      <span style={styles.destFolderName}>
+                        <CheckCircle2 size={13} color="#10b981" /> {currentFolder.name}
+                      </span>
+                    ) : (
+                      <span style={styles.destFolderNone}>Browser default download folder</span>
+                    )}
+                  </div>
+                  <div style={styles.destFolderActions}>
+                    <button
+                      style={styles.chooseFolderBtn}
+                      onClick={handleChooseDestFolder}
+                      title="Pick a folder — scripts will be saved directly into it"
+                    >
+                      <FolderSearch size={13} /> {currentFolder ? "Change Folder" : "Choose Folder"}
+                    </button>
+                    {currentFolder && (
+                      <button
+                        style={styles.clearFolderBtn}
+                        onClick={handleClearDestFolder}
+                        title="Clear destination — use browser default"
+                      >
+                        ✕ Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* 🎯 SECTION 1: VISUAL FILENAME FORMAT PREVIEW (BEFORE ➔ AFTER) 🎯 */}
             <div style={styles.formatPreviewCard}>
