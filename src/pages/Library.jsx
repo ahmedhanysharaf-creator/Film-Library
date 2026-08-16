@@ -220,13 +220,13 @@ export const Library = ({ onSelectItem, onEditItem, onPlayMedia, activeUniverse 
   return (
     <div className="library-container animate-fade">
       {/* Top Header & Toolbar */}
-      <div style={styles.topBar}>
-        <div style={styles.titleSection}>
-          <div style={styles.titleWithScope}>
-            <h1 style={styles.pageTitle}>The Library</h1>
+      <div style={styles.topBar} className="library-top-bar">
+        <div style={styles.titleSection} className="library-title-section">
+          <div style={styles.titleWithScope} className="library-title-with-scope">
+            <h1 style={styles.pageTitle} className="library-page-title">The Library</h1>
 
             {/* Scope Filter Tabs: All Shared Library vs My Library */}
-            <div style={styles.scopeTabs}>
+            <div style={styles.scopeTabs} className="library-scope-tabs">
               <button
                 style={{ ...styles.scopeBtn, ...(libraryScope === "all" ? styles.scopeActiveAll : {}) }}
                 onClick={() => {
@@ -265,9 +265,9 @@ export const Library = ({ onSelectItem, onEditItem, onPlayMedia, activeUniverse 
         </div>
 
         {!showHistoryView && (
-          <div style={styles.controlsRow}>
+          <div style={styles.controlsRow} className="library-controls-row">
             {/* Real-time Search Input */}
-            <div style={styles.searchBox}>
+            <div style={styles.searchBox} className="library-search-box">
               <Search size={18} color="var(--text-muted)" style={styles.searchIcon} />
               <input
                 type="text"
@@ -284,7 +284,7 @@ export const Library = ({ onSelectItem, onEditItem, onPlayMedia, activeUniverse 
             </div>
 
             {/* Universe Quick Tabs: All, Marvel, DC */}
-            <div style={styles.universeSegmentGroup}>
+            <div style={styles.universeSegmentGroup} className="library-universe-tabs">
               <button
                 style={{
                   ...styles.universeSegmentBtn,
@@ -603,8 +603,8 @@ export const Library = ({ onSelectItem, onEditItem, onPlayMedia, activeUniverse 
           )}
 
           {/* Watch Status & Genre Filter Bar */}
-          <div style={styles.filterBar}>
-            <div style={styles.statusFilterRow}>
+          <div style={styles.filterBar} className="library-filter-bar">
+            <div style={styles.statusFilterRow} className="library-status-row">
               <span style={styles.filterLabel}>Status:</span>
               {["all", "watched", "watchlist", "unwatched"].map((st) => (
                 <button
@@ -624,11 +624,11 @@ export const Library = ({ onSelectItem, onEditItem, onPlayMedia, activeUniverse 
 
             <div style={styles.dividerVertical} />
 
-            <div style={styles.genreSection}>
-              <div style={styles.genreHeader}>
+            <div style={styles.genreSection} className="library-genre-section">
+              <div style={styles.genreHeader} className="library-genre-header">
                 <span style={styles.filterLabel}>Genres:</span>
 
-                <div style={styles.logicToggle}>
+                <div style={styles.logicToggle} className="library-logic-toggle">
                   <span style={styles.logicLabel}>Logic:</span>
                   <button
                     style={{ ...styles.logicBtn, ...(genreLogic === "OR" ? styles.logicActive : {}) }}
@@ -651,7 +651,7 @@ export const Library = ({ onSelectItem, onEditItem, onPlayMedia, activeUniverse 
                 )}
               </div>
 
-              <div style={styles.genrePillScroll}>
+              <div style={styles.genrePillScroll} className="library-genre-scroll">
                 {allAvailableGenres.map((g) => {
                   const isSelected = selectedGenres.includes(g);
                   return (

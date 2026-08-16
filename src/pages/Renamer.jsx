@@ -416,7 +416,7 @@ export const Renamer = () => {
   });
 
   return (
-    <div style={styles.container}>
+    <div style={styles.container} className="renamer-container">
       {/* Hidden File Inputs for PC Explorer File Picking */}
       <input
         type="file"
@@ -445,7 +445,7 @@ export const Renamer = () => {
       />
 
       {/* Top Banner Header */}
-      <div style={styles.header}>
+      <div style={styles.header} className="renamer-header">
         <div style={styles.headerTitleGroup}>
           <div style={styles.headerBadge}>
             <Terminal size={14} color="#e50914" />
@@ -457,7 +457,7 @@ export const Renamer = () => {
           </p>
         </div>
 
-        <div style={styles.headerActionsGroup}>
+        <div style={styles.headerActionsGroup} className="renamer-header-actions">
           <button
             style={styles.importFolderBtn}
             onClick={() => pythonFolderInputRef.current && pythonFolderInputRef.current.click()}
@@ -481,7 +481,7 @@ export const Renamer = () => {
       </div>
 
       {/* Main Grid & Generator Section */}
-      <div style={styles.mainLayout}>
+      <div style={styles.mainLayout} className="renamer-main-layout">
         {/* Left Column: Preset & Code Selector */}
         <div style={styles.sidebarColumn}>
           {/* Category Filters & Reset Option */}

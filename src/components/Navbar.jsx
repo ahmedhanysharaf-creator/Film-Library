@@ -33,20 +33,20 @@ export const Navbar = ({ activePage, setActivePage, activeUniverse = "all", onSe
   };
 
   return (
-    <nav style={styles.nav} className="glass-panel">
-      <div style={styles.container}>
+    <nav style={styles.nav} className="glass-panel navbar-root">
+      <div style={styles.container} className="navbar-container">
         {/* Brand Logo */}
-        <div style={styles.brand} onClick={() => setActivePage("library")}>
+        <div style={styles.brand} className="navbar-brand" onClick={() => setActivePage("library")}>
           <div style={styles.logoIcon}>
             <Film size={22} color="#ffffff" />
           </div>
-          <span style={styles.title}>
+          <span style={styles.title} className="navbar-brand-text">
             FILM<span style={{ color: "var(--accent-red)" }}>LIBRARY</span>
           </span>
         </div>
 
         {/* Navigation Links */}
-        <div style={styles.links}>
+        <div style={styles.links} className="navbar-links">
 
           <button
             style={getTabStyle("library")}
@@ -155,11 +155,12 @@ export const Navbar = ({ activePage, setActivePage, activeUniverse = "all", onSe
         </div>
 
         {/* User Profile & Actions */}
-        <div style={styles.profileSection}>
+        <div style={styles.profileSection} className="navbar-profile">
           {currentUser ? (
             <div style={styles.dropdownWrapper}>
               <button
                 style={styles.profileBtn}
+                className="navbar-profile-btn"
                 onClick={() => setDropdownOpen(!dropdownOpen)}
               >
                 <img
@@ -172,7 +173,7 @@ export const Navbar = ({ activePage, setActivePage, activeUniverse = "all", onSe
                     e.target.src = `https://api.dicebear.com/7.x/bottts/svg?seed=${currentUser.email || 'AhmedHany'}`;
                   }}
                 />
-                <span style={styles.userName}>{formattedName}</span>
+                <span style={styles.userName} className="navbar-user-name">{formattedName}</span>
                 <ChevronDown size={14} color="#a3a3a3" />
               </button>
 

@@ -495,3 +495,283 @@ select option:checked {
     gap: 10px;
   }
 }
+
+/* =============================================
+   GLOBAL — MOBILE OVERFLOW & SIDE-SWIPE PREVENTION
+   ============================================= */
+
+html, body {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+  position: relative;
+  margin: 0;
+  padding: 0;
+}
+
+#root, .app-container, .main-content {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+/* =============================================
+   LIBRARY — RESPONSIVE GRID & LAYOUT
+   ============================================= */
+
+.library-container {
+  max-width: 1400px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  box-sizing: border-box;
+}
+
+.library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 24px;
+}
+
+/* Tablet & Mobile Breakpoints */
+@media (max-width: 768px) {
+  /* Global Container */
+  .library-container {
+    padding: 12px !important;
+    gap: 14px !important;
+    max-width: 100vw !important;
+    overflow-x: hidden !important;
+  }
+
+  /* 2-column Poster Grid */
+  .library-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+    width: 100% !important;
+  }
+
+  /* Top Bar & Titles */
+  .library-top-bar {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .library-title-section {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  .library-title-with-scope {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+    width: 100% !important;
+  }
+
+  .library-page-title {
+    font-size: 1.6rem !important;
+    margin: 0 !important;
+  }
+
+  .library-scope-tabs {
+    width: 100% !important;
+    display: flex !important;
+    box-sizing: border-box !important;
+  }
+
+  .library-scope-tabs button {
+    flex: 1 1 50% !important;
+    justify-content: center !important;
+    font-size: 0.78rem !important;
+    padding: 7px 8px !important;
+    white-space: nowrap !important;
+  }
+
+  /* Controls Row: Search & Filters */
+  .library-controls-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+    width: 100% !important;
+  }
+
+  .library-search-box {
+    width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  .library-universe-tabs {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    white-space: nowrap !important;
+    scrollbar-width: none !important;
+    -webkit-overflow-scrolling: touch !important;
+    display: flex !important;
+    padding: 3px !important;
+    box-sizing: border-box !important;
+  }
+
+  .library-universe-tabs::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .library-universe-tabs button {
+    flex-shrink: 0 !important;
+    font-size: 0.78rem !important;
+    padding: 6px 10px !important;
+  }
+
+  /* Filter Bar */
+  .library-filter-bar {
+    padding: 12px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    gap: 10px !important;
+  }
+
+  .library-status-row {
+    overflow-x: auto !important;
+    white-space: nowrap !important;
+    scrollbar-width: none !important;
+    -webkit-overflow-scrolling: touch !important;
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    flex-wrap: nowrap !important;
+  }
+
+  .library-status-row::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .library-status-row button {
+    flex-shrink: 0 !important;
+  }
+
+  .library-genre-header {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  .library-genre-scroll {
+    overflow-x: auto !important;
+    scrollbar-width: none !important;
+    -webkit-overflow-scrolling: touch !important;
+    width: 100% !important;
+  }
+
+  .library-genre-scroll::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  /* =============================================
+     NAVBAR — MOBILE RESPONSIVE
+     ============================================= */
+
+  .navbar-root {
+    width: 100% !important;
+    max-width: 100vw !important;
+    overflow: hidden !important;
+    height: 60px !important;
+  }
+
+  .navbar-container {
+    padding: 0 10px !important;
+    gap: 8px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+  }
+
+  .navbar-brand {
+    gap: 6px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .navbar-brand-text {
+    font-size: 1.05rem !important;
+  }
+
+  .navbar-links {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    white-space: nowrap !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+    flex: 1 1 auto !important;
+    margin: 0 6px !important;
+    padding: 4px 0 !important;
+  }
+
+  .navbar-links::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .navbar-links button {
+    padding: 6px 12px !important;
+    font-size: 0.8rem !important;
+    flex-shrink: 0 !important;
+  }
+
+  .navbar-profile {
+    flex-shrink: 0 !important;
+  }
+
+  .navbar-profile-btn {
+    padding: 4px 8px 4px 4px !important;
+  }
+
+  .navbar-user-name {
+    display: none !important;
+  }
+
+  /* =============================================
+     RENAMER — MOBILE RESPONSIVE
+     ============================================= */
+
+  .renamer-container {
+    padding: 12px !important;
+    max-width: 100vw !important;
+    box-sizing: border-box !important;
+    overflow-x: hidden !important;
+  }
+
+  .renamer-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 14px !important;
+  }
+
+  .renamer-header-actions {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+
+  .renamer-header-actions button {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  .renamer-main-layout {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+}
+
