@@ -9,6 +9,7 @@ import { CustomSelect } from "../components/CustomSelect";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 
+
 export const Library = ({ onSelectItem, onEditItem, onPlayMedia, activeUniverse = "all", onSelectUniverse }) => {
   const { currentUser } = useAuth();
   const { addToast } = useToast();
@@ -217,7 +218,7 @@ export const Library = ({ onSelectItem, onEditItem, onPlayMedia, activeUniverse 
   };
 
   return (
-    <div style={styles.container} className="animate-fade">
+    <div className="library-container animate-fade">
       {/* Top Header & Toolbar */}
       <div style={styles.topBar}>
         <div style={styles.titleSection}>
@@ -684,7 +685,7 @@ export const Library = ({ onSelectItem, onEditItem, onPlayMedia, activeUniverse 
               </p>
             </div>
           ) : (
-            <div style={viewMode === "grid" ? styles.grid : styles.listStack}>
+            <div className={viewMode === "grid" ? "library-grid" : undefined} style={viewMode === "list" ? styles.listStack : undefined}>
               {filteredItems.map((item) => {
                 const isItemChecked = selectedItemIds.has(item.id);
                 const isDimmed = selectedItemIds.size > 0 && !isItemChecked;
