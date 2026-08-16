@@ -181,6 +181,35 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate, onP
   return (
     <div style={styles.backdrop} onClick={onClose} className="animate-pop detail-modal-backdrop">
       <div style={styles.modal} onClick={(e) => e.stopPropagation()} className="glass-modal detail-modal-container">
+        {/* Top Sticky Navigation Bar (Back + Hop Prev/Next + Close) */}
+        <div style={styles.topStickyNav} className="detail-modal-sticky-nav">
+          <button style={styles.backBtn} className="detail-modal-back-btn" onClick={onClose} title="Back to Library">
+            <ArrowLeft size={16} />
+            <span>Back to Library</span>
+          </button>
+
+          {(onPrev || onNext) && (
+            <div style={styles.hopNavGroup} className="detail-modal-hop-group">
+              {onPrev && (
+                <button style={styles.hopBtn} className="detail-modal-hop-btn" onClick={onPrev} title="Previous Movie">
+                  <ChevronLeft size={18} />
+                  <span className="detail-hop-text">Prev</span>
+                </button>
+              )}
+              {onNext && (
+                <button style={styles.hopBtn} className="detail-modal-hop-btn" onClick={onNext} title="Next Movie">
+                  <span className="detail-hop-text">Next</span>
+                  <ChevronRight size={18} />
+                </button>
+              )}
+            </div>
+          )}
+
+          <button style={styles.closeBtn} className="detail-modal-close-btn" onClick={onClose} title="Close popup">
+            <X size={18} />
+          </button>
+        </div>
+
         {/* Header Backdrop Banner */}
         <div 
           style={{
@@ -189,35 +218,6 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate, onP
           }}
           className="detail-modal-banner"
         >
-          {/* Top Floating Navigation Header (Back + Hop Prev/Next + Close) */}
-          <div style={styles.topNavHeader} className="detail-modal-top-nav">
-            <button style={styles.backBtn} className="detail-modal-back-btn" onClick={onClose} title="Back to Library">
-              <ArrowLeft size={16} />
-              <span>Back</span>
-            </button>
-
-            {(onPrev || onNext) && (
-              <div style={styles.hopNavGroup} className="detail-modal-hop-group">
-                {onPrev && (
-                  <button style={styles.hopBtn} className="detail-modal-hop-btn" onClick={onPrev} title="Previous Movie">
-                    <ChevronLeft size={18} />
-                    <span className="detail-hop-text">Prev</span>
-                  </button>
-                )}
-                {onNext && (
-                  <button style={styles.hopBtn} className="detail-modal-hop-btn" onClick={onNext} title="Next Movie">
-                    <span className="detail-hop-text">Next</span>
-                    <ChevronRight size={18} />
-                  </button>
-                )}
-              </div>
-            )}
-
-            <button style={styles.closeBtn} className="detail-modal-close-btn" onClick={onClose} title="Close popup">
-              <X size={18} />
-            </button>
-          </div>
-
           {item.trailer_url && (
             <div style={styles.trailerGroup} className="detail-modal-trailer-group">
               <button style={styles.trailerBtn} onClick={() => setShowTrailer(true)}>
@@ -526,27 +526,6 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate, onP
               </div>
             </div>
           </div>
-
-          {/* Bottom Quick Return / Hop Navigation Bar */}
-          <div style={styles.bottomNavRow} className="detail-modal-bottom-nav">
-            <button style={styles.bottomBackBtn} className="detail-modal-bottom-back-btn" onClick={onClose}>
-              <ArrowLeft size={16} /> Back to Library
-            </button>
-            {(onPrev || onNext) && (
-              <div style={{ display: "flex", gap: "8px" }}>
-                {onPrev && (
-                  <button style={styles.bottomHopBtn} onClick={onPrev} title="Previous Movie">
-                    <ChevronLeft size={16} /> Prev
-                  </button>
-                )}
-                {onNext && (
-                  <button style={styles.bottomHopBtn} onClick={onNext} title="Next Movie">
-                    Next <ChevronRight size={16} />
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
         </div>
 
         {/* YouTube Trailer Modal */}
@@ -585,43 +564,44 @@ const styles = {
     justifyContent: "center",
     padding: "20px"
   },
-  topNavHeader: {
-    position: "absolute",
-    top: "16px",
-    left: "16px",
-    right: "16px",
+  topStickyNav: {
+    position: "sticky",
+    top: 0,
+    left: 0,
+    right: 0,
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    zIndex: 20
+    padding: "12px 16px",
+    backgroundColor: "rgba(18, 18, 18, 0.85)",
+    backdropFilter: "blur(16px)",
+    WebkitBackdropFilter: "blur(16px)",
+    borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+    zIndex: 40
   },
   backBtn: {
     display: "inline-flex",
     alignItems: "center",
     gap: "6px",
     padding: "8px 14px",
-    backgroundColor: "rgba(0, 0, 0, 0.75)",
+    backgroundColor: "var(--bg-elevated)",
     border: "1px solid var(--border-subtle)",
     borderRadius: "20px",
     color: "#ffffff",
     fontSize: "0.85rem",
     fontWeight: 600,
     cursor: "pointer",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
-    backdropFilter: "blur(8px)",
-    WebkitBackdropFilter: "blur(8px)"
+    boxShadow: "0 2px 8px rgba(0,0,0,0.4)"
   },
   hopNavGroup: {
     display: "flex",
     alignItems: "center",
-    gap: "6px",
-    backgroundColor: "rgba(0, 0, 0, 0.75)",
+    gap: "4px",
+    backgroundColor: "var(--bg-elevated)",
     padding: "3px 6px",
     borderRadius: "20px",
     border: "1px solid var(--border-subtle)",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
-    backdropFilter: "blur(8px)",
-    WebkitBackdropFilter: "blur(8px)"
+    boxShadow: "0 2px 8px rgba(0,0,0,0.4)"
   },
   hopBtn: {
     display: "inline-flex",
@@ -633,42 +613,6 @@ const styles = {
     borderRadius: "14px",
     color: "#ffffff",
     fontSize: "0.8rem",
-    fontWeight: 600,
-    cursor: "pointer"
-  },
-  bottomNavRow: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingTop: "24px",
-    marginTop: "24px",
-    borderTop: "1px solid var(--border-subtle)",
-    flexWrap: "wrap",
-    gap: "12px"
-  },
-  bottomBackBtn: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: "8px",
-    padding: "10px 18px",
-    backgroundColor: "var(--bg-elevated)",
-    border: "1px solid var(--border-subtle)",
-    borderRadius: "8px",
-    color: "#ffffff",
-    fontSize: "0.88rem",
-    fontWeight: 600,
-    cursor: "pointer"
-  },
-  bottomHopBtn: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: "6px",
-    padding: "10px 16px",
-    backgroundColor: "var(--bg-elevated)",
-    border: "1px solid var(--border-subtle)",
-    borderRadius: "8px",
-    color: "#ffffff",
-    fontSize: "0.85rem",
     fontWeight: 600,
     cursor: "pointer"
   },

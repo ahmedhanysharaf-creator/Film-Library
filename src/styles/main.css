@@ -810,15 +810,9 @@ html, body {
     -webkit-overflow-scrolling: touch !important;
   }
 
-  .detail-modal-banner {
-    height: 180px !important;
-    padding: 12px !important;
-  }
-
-  .detail-modal-top-nav {
-    top: 10px !important;
-    left: 10px !important;
-    right: 10px !important;
+  .detail-modal-sticky-nav {
+    padding: 10px 12px !important;
+    gap: 8px !important;
   }
 
   .detail-modal-back-btn {
@@ -840,6 +834,11 @@ html, body {
     height: 32px !important;
   }
 
+  .detail-modal-banner {
+    height: 180px !important;
+    padding: 12px !important;
+  }
+
   .detail-modal-trailer-group {
     bottom: 12px !important;
     right: 12px !important;
@@ -851,17 +850,6 @@ html, body {
   .detail-modal-trailer-group a {
     padding: 6px 12px !important;
     font-size: 0.78rem !important;
-  }
-
-  .detail-modal-bottom-nav {
-    flex-direction: column !important;
-    align-items: stretch !important;
-    gap: 10px !important;
-  }
-
-  .detail-modal-bottom-back-btn {
-    width: 100% !important;
-    justify-content: center !important;
   }
 
   .detail-modal-content {
