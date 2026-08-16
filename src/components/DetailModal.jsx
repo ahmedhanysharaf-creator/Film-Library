@@ -1,14 +1,15 @@
 import React, { useState } from "react";
 import { 
   X, Star, Clock, Film, Tv, CheckCircle2, Bookmark, 
-  Trash2, Edit3, Copy, HardDrive, Video, ExternalLink, Check, Save
+  Trash2, Edit3, Copy, HardDrive, Video, ExternalLink, Check, Save,
+  ArrowLeft, ChevronLeft, ChevronRight
 } from "lucide-react";
 import { copyPathToClipboard, resolveMediaPaths } from "../services/vlcLauncher";
 import { updateWatchProgress, saveMediaEntry } from "../services/storage";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 
-export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate }) => {
+export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate, onPrev = null, onNext = null }) => {
   const { currentUser } = useAuth();
   const { addToast } = useToast();
 
@@ -188,9 +189,34 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate }) =
           }}
           className="detail-modal-banner"
         >
-          <button style={styles.closeBtn} className="detail-modal-close-btn" onClick={onClose} title="Close popup">
-            <X size={20} />
-          </button>
+          {/* Top Floating Navigation Header (Back + Hop Prev/Next + Close) */}
+          <div style={styles.topNavHeader} className="detail-modal-top-nav">
+            <button style={styles.backBtn} className="detail-modal-back-btn" onClick={onClose} title="Back to Library">
+              <ArrowLeft size={16} />
+              <span>Back</span>
+            </button>
+
+            {(onPrev || onNext) && (
+              <div style={styles.hopNavGroup} className="detail-modal-hop-group">
+                {onPrev && (
+                  <button style={styles.hopBtn} className="detail-modal-hop-btn" onClick={onPrev} title="Previous Movie">
+                    <ChevronLeft size={18} />
+                    <span className="detail-hop-text">Prev</span>
+                  </button>
+                )}
+                {onNext && (
+                  <button style={styles.hopBtn} className="detail-modal-hop-btn" onClick={onNext} title="Next Movie">
+                    <span className="detail-hop-text">Next</span>
+                    <ChevronRight size={18} />
+                  </button>
+                )}
+              </div>
+            )}
+
+            <button style={styles.closeBtn} className="detail-modal-close-btn" onClick={onClose} title="Close popup">
+              <X size={18} />
+            </button>
+          </div>
 
           {item.trailer_url && (
             <div style={styles.trailerGroup} className="detail-modal-trailer-group">
@@ -500,6 +526,27 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate }) =
               </div>
             </div>
           </div>
+
+          {/* Bottom Quick Return / Hop Navigation Bar */}
+          <div style={styles.bottomNavRow} className="detail-modal-bottom-nav">
+            <button style={styles.bottomBackBtn} className="detail-modal-bottom-back-btn" onClick={onClose}>
+              <ArrowLeft size={16} /> Back to Library
+            </button>
+            {(onPrev || onNext) && (
+              <div style={{ display: "flex", gap: "8px" }}>
+                {onPrev && (
+                  <button style={styles.bottomHopBtn} onClick={onPrev} title="Previous Movie">
+                    <ChevronLeft size={16} /> Prev
+                  </button>
+                )}
+                {onNext && (
+                  <button style={styles.bottomHopBtn} onClick={onNext} title="Next Movie">
+                    Next <ChevronRight size={16} />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* YouTube Trailer Modal */}
@@ -538,6 +585,93 @@ const styles = {
     justifyContent: "center",
     padding: "20px"
   },
+  topNavHeader: {
+    position: "absolute",
+    top: "16px",
+    left: "16px",
+    right: "16px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    zIndex: 20
+  },
+  backBtn: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "6px",
+    padding: "8px 14px",
+    backgroundColor: "rgba(0, 0, 0, 0.75)",
+    border: "1px solid var(--border-subtle)",
+    borderRadius: "20px",
+    color: "#ffffff",
+    fontSize: "0.85rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+    backdropFilter: "blur(8px)",
+    WebkitBackdropFilter: "blur(8px)"
+  },
+  hopNavGroup: {
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    backgroundColor: "rgba(0, 0, 0, 0.75)",
+    padding: "3px 6px",
+    borderRadius: "20px",
+    border: "1px solid var(--border-subtle)",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+    backdropFilter: "blur(8px)",
+    WebkitBackdropFilter: "blur(8px)"
+  },
+  hopBtn: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "4px",
+    padding: "5px 10px",
+    backgroundColor: "transparent",
+    border: "none",
+    borderRadius: "14px",
+    color: "#ffffff",
+    fontSize: "0.8rem",
+    fontWeight: 600,
+    cursor: "pointer"
+  },
+  bottomNavRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: "24px",
+    marginTop: "24px",
+    borderTop: "1px solid var(--border-subtle)",
+    flexWrap: "wrap",
+    gap: "12px"
+  },
+  bottomBackBtn: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "8px",
+    padding: "10px 18px",
+    backgroundColor: "var(--bg-elevated)",
+    border: "1px solid var(--border-subtle)",
+    borderRadius: "8px",
+    color: "#ffffff",
+    fontSize: "0.88rem",
+    fontWeight: 600,
+    cursor: "pointer"
+  },
+  bottomHopBtn: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "6px",
+    padding: "10px 16px",
+    backgroundColor: "var(--bg-elevated)",
+    border: "1px solid var(--border-subtle)",
+    borderRadius: "8px",
+    color: "#ffffff",
+    fontSize: "0.85rem",
+    fontWeight: 600,
+    cursor: "pointer"
+  },
   modal: {
     width: "100%",
     maxWidth: "960px",
@@ -560,9 +694,6 @@ const styles = {
     padding: "20px"
   },
   closeBtn: {
-    position: "absolute",
-    top: "20px",
-    right: "20px",
     width: "36px",
     height: "36px",
     borderRadius: "50%",
@@ -573,6 +704,9 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+    backdropFilter: "blur(8px)",
+    WebkitBackdropFilter: "blur(8px)",
     zIndex: 10
   },
   trailerGroup: {

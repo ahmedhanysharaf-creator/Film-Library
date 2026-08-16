@@ -698,7 +698,7 @@ export const Library = ({ onSelectItem, onEditItem, onPlayMedia, activeUniverse 
                       if (isMultiSelectActive || selectedItemIds.size > 0) {
                         handleToggleSelectItem(item.id);
                       } else {
-                        onSelectItem(item);
+                        onSelectItem(item, filteredItems);
                       }
                     }}
                     onEdit={onEditItem}

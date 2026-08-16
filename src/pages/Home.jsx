@@ -53,7 +53,7 @@ export const Home = ({ setActivePage, onSelectItem, onPlayMedia }) => {
             <p style={styles.heroOverview}>{featuredItem.overview}</p>
 
             <div style={styles.heroActions}>
-              <button style={styles.heroPlayBtn} onClick={() => onSelectItem(featuredItem)}>
+              <button style={styles.heroPlayBtn} onClick={() => onSelectItem(featuredItem, items)}>
                 <Film size={18} />
                 View Catalog Details
               </button>
@@ -109,7 +109,7 @@ export const Home = ({ setActivePage, onSelectItem, onPlayMedia }) => {
               <PosterCard
                 key={item.id}
                 item={item}
-                onClick={() => onSelectItem(item)}
+                onClick={() => onSelectItem(item, items)}
               />
             ))}
           </div>

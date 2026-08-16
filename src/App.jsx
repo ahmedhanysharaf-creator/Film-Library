@@ -23,6 +23,7 @@ const AppContent = () => {
   const [activeUniverse, setActiveUniverse] = useState("all"); // "all" | "marvel" | "dc"
   const [selectedToolId, setSelectedToolId] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
+  const [browseList, setBrowseList] = useState([]);
   const [editItem, setEditItem] = useState(null);
 
   const [showWhitelist, setShowWhitelist] = useState(false);
@@ -40,6 +41,33 @@ const AppContent = () => {
   if (!currentUser || !isWhitelisted) {
     return <Login onLoginSuccess={() => setActivePage("library")} />;
   }
+
+  const handleSelectItem = (item, list = null) => {
+    setSelectedItem(item);
+    if (list && Array.isArray(list) && list.length > 0) {
+      setBrowseList(list);
+    }
+  };
+
+  const handlePrevItem = () => {
+    if (!browseList || browseList.length <= 1 || !selectedItem) return;
+    const currentIndex = browseList.findIndex((i) => i.id === selectedItem.id);
+    if (currentIndex > 0) {
+      setSelectedItem(browseList[currentIndex - 1]);
+    } else {
+      setSelectedItem(browseList[browseList.length - 1]);
+    }
+  };
+
+  const handleNextItem = () => {
+    if (!browseList || browseList.length <= 1 || !selectedItem) return;
+    const currentIndex = browseList.findIndex((i) => i.id === selectedItem.id);
+    if (currentIndex >= 0 && currentIndex < browseList.length - 1) {
+      setSelectedItem(browseList[currentIndex + 1]);
+    } else {
+      setSelectedItem(browseList[0]);
+    }
+  };
 
   const handleEdit = (item) => {
     setSelectedItem(null);
@@ -87,9 +115,9 @@ const AppContent = () => {
       {/* Main Screen Router */}
       <main className="main-content">
         {activePage === "home" && (
-          <Library
-            onSelectItem={(item) => setSelectedItem(item)}
-            onEditItem={handleEdit}
+          <Home
+            setActivePage={setActivePage}
+            onSelectItem={handleSelectItem}
           />
         )}
 
@@ -97,7 +125,7 @@ const AppContent = () => {
           <Library
             activeUniverse={activeUniverse}
             onSelectUniverse={setActiveUniverse}
-            onSelectItem={(item) => setSelectedItem(item)}
+            onSelectItem={handleSelectItem}
             onEditItem={handleEdit}
           />
         )}
@@ -131,6 +159,8 @@ const AppContent = () => {
           onEdit={handleEdit}
           onDelete={handleDelete}
           onItemUpdate={(updatedItem) => setSelectedItem(updatedItem)}
+          onPrev={browseList.length > 1 ? handlePrevItem : null}
+          onNext={browseList.length > 1 ? handleNextItem : null}
         />
       )}
 

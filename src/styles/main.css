@@ -815,9 +815,29 @@ html, body {
     padding: 12px !important;
   }
 
+  .detail-modal-top-nav {
+    top: 10px !important;
+    left: 10px !important;
+    right: 10px !important;
+  }
+
+  .detail-modal-back-btn {
+    padding: 6px 12px !important;
+    font-size: 0.8rem !important;
+  }
+
+  .detail-modal-hop-group {
+    padding: 2px 4px !important;
+  }
+
+  .detail-modal-hop-btn {
+    padding: 4px 8px !important;
+    font-size: 0.75rem !important;
+  }
+
   .detail-modal-close-btn {
-    top: 12px !important;
-    right: 12px !important;
+    width: 32px !important;
+    height: 32px !important;
   }
 
   .detail-modal-trailer-group {
@@ -831,6 +851,17 @@ html, body {
   .detail-modal-trailer-group a {
     padding: 6px 12px !important;
     font-size: 0.78rem !important;
+  }
+
+  .detail-modal-bottom-nav {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+
+  .detail-modal-bottom-back-btn {
+    width: 100% !important;
+    justify-content: center !important;
   }
 
   .detail-modal-content {
