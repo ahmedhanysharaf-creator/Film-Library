@@ -4,6 +4,9 @@ import {
 } from "lucide-react";
 import { fetchLibraryItems, deleteMediaEntry, deleteMediaEntriesBatch, updateWatchProgress } from "../services/storage";
 import { isMarvelItem, isDcItem } from "../utils/universeDetector";
+import { calculateMarvelTracker } from "../services/marvelChecklist";
+import { MarvelTrackerBanner } from "../components/MarvelTrackerBanner";
+import { MarvelListModal } from "../components/MarvelListModal";
 import { PosterCard } from "../components/PosterCard";
 import { CustomSelect } from "../components/CustomSelect";
 import { useAuth } from "../context/AuthContext";
@@ -19,6 +22,10 @@ export const Library = ({ onSelectItem, onEditItem, onPlayMedia, activeUniverse 
   // Scope & Sub-view state
   const [libraryScope, setLibraryScope] = useState("all"); // "all" | "my"
   const [showHistoryView, setShowHistoryView] = useState(false); // Sub-view under "my" scope
+
+  // Marvel Checklist & Tracker state
+  const [showMarvelListModal, setShowMarvelListModal] = useState(false);
+  const [marvelListVersion, setMarvelListVersion] = useState(0);
 
   // Multi-select & Batch Actions state
   const [selectedItemIds, setSelectedItemIds] = useState(new Set());
@@ -88,6 +95,11 @@ export const Library = ({ onSelectItem, onEditItem, onPlayMedia, activeUniverse 
   const marvelSeriesCount = useMemo(() => marvelItems.filter((i) => i.type === "series" || i.type === "tv").length, [marvelItems]);
   const dcMoviesCount = useMemo(() => dcItems.filter((i) => i.type === "movie").length, [dcItems]);
   const dcSeriesCount = useMemo(() => dcItems.filter((i) => i.type === "series" || i.type === "tv").length, [dcItems]);
+
+  // Live Marvel Checklist Tracker Data
+  const marvelTrackerData = useMemo(() => {
+    return calculateMarvelTracker(items);
+  }, [items, marvelListVersion]);
 
   const universe = activeUniverse || "all";
 
@@ -560,25 +572,13 @@ export const Library = ({ onSelectItem, onEditItem, onPlayMedia, activeUniverse 
         </div>
       ) : (
         <>
-          {/* 🔴 MARVEL UNIVERSE HERO BANNER 🔴 */}
+          {/* 🔴 MARVEL UNIVERSE HERO TRACKER BANNER 🔴 */}
           {universe === "marvel" && (
-            <div style={styles.marvelHeroBanner} className="animate-fade">
-              <div style={styles.universeBannerLeft}>
-                <div style={styles.marvelLargeLogo}>MARVEL</div>
-                <div>
-                  <h2 style={styles.universeBannerTitle}>Marvel Cinematic & Comics Universe</h2>
-                  <p style={styles.universeBannerSub}>
-                    Showing <strong>{filteredItems.length}</strong> Marvel titles • <strong>{marvelMoviesCount}</strong> Movies & <strong>{marvelSeriesCount}</strong> Series
-                  </p>
-                </div>
-              </div>
-              <button
-                style={styles.clearUniverseBannerBtn}
-                onClick={() => onSelectUniverse && onSelectUniverse("all")}
-              >
-                <X size={15} /> Exit Marvel View
-              </button>
-            </div>
+            <MarvelTrackerBanner
+              trackerData={marvelTrackerData}
+              onOpenEditList={() => setShowMarvelListModal(true)}
+              onSelectItem={onSelectItem}
+            />
           )}
 
           {/* 🔵 DC UNIVERSE HERO BANNER 🔵 */}
@@ -713,6 +713,14 @@ export const Library = ({ onSelectItem, onEditItem, onPlayMedia, activeUniverse 
             </div>
           )}
         </>
+      )}
+
+      {/* Marvel List Paste & Editor Modal */}
+      {showMarvelListModal && (
+        <MarvelListModal
+          onClose={() => setShowMarvelListModal(false)}
+          onSaved={() => setMarvelListVersion((v) => v + 1)}
+        />
       )}
     </div>
   );
