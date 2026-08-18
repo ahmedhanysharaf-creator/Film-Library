@@ -18,25 +18,24 @@ export const AuthProvider = ({ children }) => {
   const [isWhitelisted, setIsWhitelisted] = useState(false);
   const { addToast } = useToast();
 
-  const checkWhitelist = async (user) => {
-    if (!user || !user.email) return false;
-    const email = user.email.toLowerCase().trim();
+  const checkWhitelist = async (email) => {
+    if (!email) return false;
+    const cleanEmail = email.toLowerCase().trim();
 
     try {
       const allowed = await fetchAllowedUsers();
       
-      // Bootstrap Rule: If no allowed users exist yet, first logger becomes admin!
+      // Bootstrap Rule: If no allowed users exist yet, first user becomes admin
       if (allowed.length === 0) {
-        await addAllowedUser(email, user.displayName || "Bootstrap Admin");
+        await addAllowedUser(cleanEmail, "Bootstrap Admin");
         addToast(`Welcome! You are the first user and have been granted administrator access.`, "success");
         return true;
       }
 
-      const match = allowed.some((u) => u.email.toLowerCase() === email);
-      return match;
+      return allowed.some((u) => u.email.toLowerCase() === cleanEmail);
     } catch (err) {
       console.error("Whitelist check failed:", err);
-      return true; // Fallback for local demo mode
+      return false;
     }
   };
 
@@ -46,48 +45,74 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem("filmlibrary_demo_user", JSON.stringify(userObj));
   };
 
-  useEffect(() => {
-    // 1. Only restore session if user previously signed in
-    const savedSessionStr = localStorage.getItem("filmlibrary_demo_user");
-    if (savedSessionStr) {
-      try {
-        const savedUser = JSON.parse(savedSessionStr);
-        setCurrentUser(savedUser);
-        setIsWhitelisted(true);
-      } catch (e) {
-        // Corrupted session — clear it and stay logged out
-        localStorage.removeItem("filmlibrary_demo_user");
-      }
-    }
+  const clearSession = () => {
+    localStorage.removeItem("filmlibrary_demo_user");
+    setCurrentUser(null);
+    setIsWhitelisted(false);
+  };
 
-    // 2. Sync with Firebase Auth state if configured
-    if (isFirebaseConfigured() && auth) {
-      const unsubscribe = onAuthStateChanged(auth, async (user) => {
-        if (user) {
-          const allowed = await checkWhitelist(user);
+  useEffect(() => {
+    const initAuth = async () => {
+      // 1. Check if there's a saved session and verify it's still whitelisted
+      const savedSessionStr = localStorage.getItem("filmlibrary_demo_user");
+      if (savedSessionStr) {
+        try {
+          const savedUser = JSON.parse(savedSessionStr);
+          const allowed = await checkWhitelist(savedUser.email);
           if (allowed) {
-            const userObj = {
-              uid: user.uid,
-              email: user.email,
-              displayName: user.displayName || user.email.split("@")[0],
-              photoURL: user.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${user.email}`
-            };
-            setUserSession(userObj);
+            setCurrentUser(savedUser);
+            setIsWhitelisted(true);
+          } else {
+            // User was removed from whitelist — clear their session
+            clearSession();
           }
+        } catch (e) {
+          clearSession();
         }
+      }
+
+      // 2. Sync with Firebase Auth state if configured
+      if (isFirebaseConfigured() && auth) {
+        const unsubscribe = onAuthStateChanged(auth, async (user) => {
+          if (user) {
+            const allowed = await checkWhitelist(user.email);
+            if (allowed) {
+              const userObj = {
+                uid: user.uid,
+                email: user.email,
+                displayName: user.displayName || user.email.split("@")[0],
+                photoURL: user.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${user.email}`
+              };
+              setUserSession(userObj);
+            } else {
+              // Firebase user not whitelisted — sign them out
+              await firebaseSignOut(auth);
+              clearSession();
+            }
+          }
+          setLoading(false);
+        });
+        return unsubscribe;
+      } else {
         setLoading(false);
-      });
-      return unsubscribe;
-    } else {
-      setLoading(false);
-    }
+      }
+    };
+
+    initAuth();
   }, []);
 
   // Email & Password Sign In
   const loginWithEmailPassword = async (email, password) => {
-    const cleanEmail = (email || "").trim();
+    const cleanEmail = (email || "").trim().toLowerCase();
     if (!cleanEmail || !password) {
       addToast("Please enter both email and password.", "error");
+      return false;
+    }
+
+    // Check whitelist BEFORE allowing login
+    const allowed = await checkWhitelist(cleanEmail);
+    if (!allowed) {
+      addToast("Access denied. Your email is not on the authorized whitelist.", "error");
       return false;
     }
 
@@ -105,34 +130,27 @@ export const AuthProvider = ({ children }) => {
         addToast(`Signed in successfully as ${userObj.displayName}`, "success");
         return true;
       } catch (err) {
-        console.warn("Firebase Auth Error, activating seamless local user session:", err.message);
-        // Fail-safe fallback login
-        const fallbackUser = {
-          uid: `user_${cleanEmail.replace(/[^a-zA-Z0-9]/g, "_")}`,
-          email: cleanEmail,
-          displayName: cleanEmail.split("@")[0],
-          photoURL: `https://api.dicebear.com/7.x/avataaars/svg?seed=${cleanEmail}`
-        };
-        setUserSession(fallbackUser);
-        addToast(`Signed in as ${fallbackUser.displayName}`, "success");
-        return true;
+        console.warn("Firebase Auth Error:", err.message);
+        addToast(`Sign in failed: ${err.message}`, "error");
+        return false;
       }
     } else {
-      const demoUser = {
+      // Local-only mode (no Firebase) — whitelist already checked above
+      const localUser = {
         uid: `user_${cleanEmail.replace(/[^a-zA-Z0-9]/g, "_")}`,
         email: cleanEmail,
         displayName: cleanEmail.split("@")[0],
         photoURL: `https://api.dicebear.com/7.x/avataaars/svg?seed=${cleanEmail}`
       };
-      setUserSession(demoUser);
-      addToast(`Signed in as ${demoUser.displayName}`, "success");
+      setUserSession(localUser);
+      addToast(`Signed in as ${localUser.displayName}`, "success");
       return true;
     }
   };
 
   // Email & Password Account Registration
   const registerWithEmailPassword = async (name, email, password) => {
-    const cleanEmail = (email || "").trim();
+    const cleanEmail = (email || "").trim().toLowerCase();
     const cleanName = (name || "").trim() || cleanEmail.split("@")[0];
 
     if (!cleanEmail || !password) {
@@ -142,6 +160,13 @@ export const AuthProvider = ({ children }) => {
 
     if (password.length < 6) {
       addToast("Password must be at least 6 characters.", "error");
+      return false;
+    }
+
+    // Check whitelist BEFORE allowing registration
+    const allowed = await checkWhitelist(cleanEmail);
+    if (!allowed) {
+      addToast("Access denied. Your email is not on the authorized whitelist. Contact the administrator.", "error");
       return false;
     }
 
@@ -166,26 +191,19 @@ export const AuthProvider = ({ children }) => {
         addToast(`Account created! Welcome, ${cleanName}!`, "success");
         return true;
       } catch (err) {
-        console.warn("Firebase Auth Register Error, activating seamless local user session:", err.message);
-        // Fail-safe registration fallback
-        const fallbackUser = {
-          uid: `user_${cleanEmail.replace(/[^a-zA-Z0-9]/g, "_")}`,
-          email: cleanEmail,
-          displayName: cleanName,
-          photoURL: `https://api.dicebear.com/7.x/avataaars/svg?seed=${cleanEmail}`
-        };
-        setUserSession(fallbackUser);
-        addToast(`Account registered for ${cleanName}!`, "success");
-        return true;
+        console.warn("Firebase Auth Register Error:", err.message);
+        addToast(`Registration failed: ${err.message}`, "error");
+        return false;
       }
     } else {
-      const fallbackUser = {
+      // Local-only mode — whitelist already checked above
+      const localUser = {
         uid: `user_${cleanEmail.replace(/[^a-zA-Z0-9]/g, "_")}`,
         email: cleanEmail,
         displayName: cleanName,
         photoURL: `https://api.dicebear.com/7.x/avataaars/svg?seed=${cleanEmail}`
       };
-      setUserSession(fallbackUser);
+      setUserSession(localUser);
       addToast(`Account registered for ${cleanName}!`, "success");
       return true;
     }
@@ -197,9 +215,7 @@ export const AuthProvider = ({ children }) => {
         await firebaseSignOut(auth);
       } catch (e) {}
     }
-    localStorage.removeItem("filmlibrary_demo_user");
-    setCurrentUser(null);
-    setIsWhitelisted(false);
+    clearSession();
     addToast("Signed out successfully", "info");
   };
 

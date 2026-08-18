@@ -482,6 +482,8 @@ export const fetchAllowedUsers = async () => {
       const querySnapshot = await getDocs(collection(db, "allowed_users"));
       const users = [];
       querySnapshot.forEach((d) => users.push({ email: d.id, ...d.data() }));
+      // Sync Firestore data to localStorage as cache
+      localStorage.setItem(LOCAL_STORAGE_USERS_KEY, JSON.stringify(users));
       return users;
     } catch (err) {
       console.error("[Firestore Allowed Users Error]:", err);
@@ -491,9 +493,7 @@ export const fetchAllowedUsers = async () => {
   if (raw) {
     try { return JSON.parse(raw); } catch (e) {}
   }
-  return [
-    { email: "admin@filmlibrary.com", added_by: "Bootstrap", added_at: new Date().toISOString() }
-  ];
+  return [];
 };
 
 export const addAllowedUser = async (email, addedBy) => {
@@ -506,15 +506,18 @@ export const addAllowedUser = async (email, addedBy) => {
 
   if (isFirebaseConfigured() && db) {
     try {
-      await setDoc(doc(doc(db, "allowed_users", cleanEmail)), userData);
-    } catch (e) {}
+      await setDoc(doc(db, "allowed_users", cleanEmail), userData);
+    } catch (e) {
+      console.error("[Firestore addAllowedUser Error]:", e);
+    }
   }
 
+  // Always persist to localStorage
   const users = await fetchAllowedUsers();
   if (!users.some((u) => u.email === cleanEmail)) {
     users.push(userData);
-    localStorage.setItem(LOCAL_STORAGE_USERS_KEY, JSON.stringify(users));
   }
+  localStorage.setItem(LOCAL_STORAGE_USERS_KEY, JSON.stringify(users));
   return userData;
 };
 
