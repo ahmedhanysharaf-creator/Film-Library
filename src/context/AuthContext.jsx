@@ -47,7 +47,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   useEffect(() => {
-    // 1. Check persistent localStorage session first or create auto-login session
+    // 1. Only restore session if user previously signed in
     const savedSessionStr = localStorage.getItem("filmlibrary_demo_user");
     if (savedSessionStr) {
       try {
@@ -55,26 +55,9 @@ export const AuthProvider = ({ children }) => {
         setCurrentUser(savedUser);
         setIsWhitelisted(true);
       } catch (e) {
-        const defaultUser = {
-          uid: "demo_user_id",
-          email: "ahmed@filmlibrary.com",
-          displayName: "Ahmed Hany",
-          photoURL: "https://api.dicebear.com/7.x/bottts/svg?seed=AhmedHany"
-        };
-        setCurrentUser(defaultUser);
-        setIsWhitelisted(true);
-        localStorage.setItem("filmlibrary_demo_user", JSON.stringify(defaultUser));
+        // Corrupted session — clear it and stay logged out
+        localStorage.removeItem("filmlibrary_demo_user");
       }
-    } else {
-      const defaultUser = {
-        uid: "demo_user_id",
-        email: "ahmed@filmlibrary.com",
-        displayName: "Ahmed Hany",
-        photoURL: "https://api.dicebear.com/7.x/bottts/svg?seed=AhmedHany"
-      };
-      setCurrentUser(defaultUser);
-      setIsWhitelisted(true);
-      localStorage.setItem("filmlibrary_demo_user", JSON.stringify(defaultUser));
     }
 
     // 2. Sync with Firebase Auth state if configured
@@ -208,18 +191,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const loginAsDemoUser = (name = "Alice", email = "alice@filmlibrary.com") => {
-    const demoUser = {
-      uid: email.includes("bob") ? "bob_uid" : "demo_user_id",
-      email,
-      displayName: name,
-      photoURL: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`
-    };
-    setUserSession(demoUser);
-    addToast(`Signed in as ${name}`, "success");
-    return true;
-  };
-
   const logout = async () => {
     if (isFirebaseConfigured() && auth) {
       try {
@@ -240,7 +211,6 @@ export const AuthProvider = ({ children }) => {
         isWhitelisted,
         loginWithEmailPassword,
         registerWithEmailPassword,
-        loginAsDemoUser,
         logout
       }}
     >

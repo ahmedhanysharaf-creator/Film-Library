@@ -3,7 +3,7 @@ import { Film, Plus, Shield, Settings, LogOut, User, ChevronDown, MonitorPlay, D
 import { useAuth } from "../context/AuthContext";
 
 export const Navbar = ({ activePage, setActivePage, activeUniverse = "all", onSelectUniverse, onSelectTool, onOpenWhitelist, onOpenSettings }) => {
-  const { currentUser, logout, loginAsDemoUser } = useAuth();
+  const { currentUser, logout } = useAuth();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [toolsDropdownOpen, setToolsDropdownOpen] = useState(false);
 
