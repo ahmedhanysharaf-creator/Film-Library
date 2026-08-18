@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { auth, isFirebaseConfigured } from "../services/firebase";
+import { auth, db, isFirebaseConfigured } from "../services/firebase";
 import { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
@@ -7,6 +7,7 @@ import {
   signOut as firebaseSignOut, 
   onAuthStateChanged 
 } from "firebase/auth";
+import { doc, setDoc } from "firebase/firestore";
 import { fetchAllowedUsers, addAllowedUser } from "../services/storage";
 import { useToast } from "./ToastContext";
 
@@ -209,6 +210,49 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Update Display Name and Avatar Photo URL
+  const updateUserProfile = async (newDisplayName, newPhotoURL) => {
+    if (!currentUser) return false;
+
+    const cleanName = (newDisplayName || "").trim() || currentUser.displayName || currentUser.email?.split("@")[0] || "User";
+    const cleanPhotoURL = newPhotoURL || currentUser.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${currentUser.email || 'User'}`;
+
+    const updatedUser = {
+      ...currentUser,
+      displayName: cleanName,
+      photoURL: cleanPhotoURL
+    };
+
+    setUserSession(updatedUser);
+
+    if (isFirebaseConfigured() && auth && auth.currentUser) {
+      try {
+        await updateProfile(auth.currentUser, {
+          displayName: cleanName,
+          photoURL: cleanPhotoURL
+        });
+      } catch (pErr) {
+        console.warn("Firebase Auth updateProfile error:", pErr);
+      }
+    }
+
+    if (isFirebaseConfigured() && db && currentUser.email) {
+      try {
+        const userRef = doc(db, "allowed_users", currentUser.email.toLowerCase().trim());
+        await setDoc(userRef, {
+          displayName: cleanName,
+          photoURL: cleanPhotoURL,
+          updated_at: new Date().toISOString()
+        }, { merge: true });
+      } catch (e) {
+        console.warn("Firestore update allowed_users error:", e);
+      }
+    }
+
+    addToast(`Profile updated! Welcome, ${cleanName}!`, "success");
+    return true;
+  };
+
   const logout = async () => {
     if (isFirebaseConfigured() && auth) {
       try {
@@ -227,6 +271,7 @@ export const AuthProvider = ({ children }) => {
         isWhitelisted,
         loginWithEmailPassword,
         registerWithEmailPassword,
+        updateUserProfile,
         logout
       }}
     >

@@ -6,6 +6,7 @@ import { ToastContainer } from "./components/ToastContainer";
 import { DetailModal } from "./components/DetailModal";
 import { WhitelistModal } from "./components/WhitelistModal";
 import { SettingsModal } from "./components/SettingsModal";
+import { ProfileModal } from "./components/ProfileModal";
 
 import { Home } from "./pages/Home";
 import { Library } from "./pages/Library";
@@ -28,6 +29,7 @@ const AppContent = () => {
 
   const [showWhitelist, setShowWhitelist] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
 
   if (loading) {
     return (
@@ -110,6 +112,7 @@ const AppContent = () => {
         onSelectTool={handleSelectTool}
         onOpenWhitelist={() => setShowWhitelist(true)}
         onOpenSettings={() => setShowSettings(true)}
+        onOpenProfile={() => setShowProfile(true)}
       />
 
       {/* Main Screen Router */}
@@ -171,7 +174,18 @@ const AppContent = () => {
 
       {/* Settings Modal */}
       {showSettings && (
-        <SettingsModal onClose={() => setShowSettings(false)} />
+        <SettingsModal
+          onClose={() => setShowSettings(false)}
+          onOpenProfile={() => {
+            setShowSettings(false);
+            setShowProfile(true);
+          }}
+        />
+      )}
+
+      {/* Profile & Avatar Customizer Modal */}
+      {showProfile && (
+        <ProfileModal onClose={() => setShowProfile(false)} />
       )}
 
       {/* Bottom-Right Toast Notifications */}

@@ -1,9 +1,9 @@
 import React, { useState } from "react";
-import { X, Settings, Key, Database, Save } from "lucide-react";
+import { X, Settings, Key, Database, Save, User } from "lucide-react";
 import { getTmdbApiKey, setTmdbApiKey } from "../services/tmdb";
 import { useToast } from "../context/ToastContext";
 
-export const SettingsModal = ({ onClose }) => {
+export const SettingsModal = ({ onClose, onOpenProfile }) => {
   const { addToast } = useToast();
 
   const [tmdbKey, setTmdbKeyState] = useState(getTmdbApiKey());
@@ -48,6 +48,22 @@ export const SettingsModal = ({ onClose }) => {
             <X size={20} />
           </button>
         </div>
+
+        {onOpenProfile && (
+          <div style={styles.profileShortcutBox}>
+            <div>
+              <div style={styles.profileShortcutTitle}>Account Profile & Avatar</div>
+              <div style={styles.profileShortcutSub}>Change your display name or pick a cool cinema avatar</div>
+            </div>
+            <button
+              type="button"
+              style={styles.editProfileBtn}
+              onClick={onOpenProfile}
+            >
+              <User size={15} /> Edit Profile
+            </button>
+          </div>
+        )}
 
         <form onSubmit={handleSave} style={styles.form}>
           {/* TMDB API Key */}
@@ -135,6 +151,41 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     gap: "18px"
+  },
+  profileShortcutBox: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "14px",
+    padding: "14px 16px",
+    backgroundColor: "rgba(229, 9, 20, 0.08)",
+    border: "1px solid rgba(229, 9, 20, 0.25)",
+    borderRadius: "10px"
+  },
+  profileShortcutTitle: {
+    fontSize: "0.92rem",
+    fontWeight: 700,
+    color: "#ffffff"
+  },
+  profileShortcutSub: {
+    fontSize: "0.78rem",
+    color: "var(--text-secondary)",
+    marginTop: "2px"
+  },
+  editProfileBtn: {
+    padding: "8px 14px",
+    backgroundColor: "var(--accent-red)",
+    color: "#ffffff",
+    border: "none",
+    borderRadius: "6px",
+    fontWeight: 700,
+    fontSize: "0.82rem",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    whiteSpace: "nowrap",
+    boxShadow: "0 2px 10px rgba(229, 9, 20, 0.3)"
   },
   vlcSetupBox: {
     display: "flex",

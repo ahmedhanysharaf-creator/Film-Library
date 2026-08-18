@@ -2,14 +2,14 @@ import React, { useState } from "react";
 import { Film, Plus, Shield, Settings, LogOut, User, ChevronDown, MonitorPlay, Download, Wrench, Search, FileText, LayoutGrid, FolderSync, Terminal } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
-export const Navbar = ({ activePage, setActivePage, activeUniverse = "all", onSelectUniverse, onSelectTool, onOpenWhitelist, onOpenSettings }) => {
+export const Navbar = ({ activePage, setActivePage, activeUniverse = "all", onSelectUniverse, onSelectTool, onOpenWhitelist, onOpenSettings, onOpenProfile }) => {
   const { currentUser, logout } = useAuth();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [toolsDropdownOpen, setToolsDropdownOpen] = useState(false);
 
   // Clean formatted user display name
-  const rawName = currentUser?.displayName || currentUser?.email?.split("@")[0] || "Ahmed Hany";
-  const formattedName = rawName.toLowerCase().includes("ahmed") ? "Ahmed Hany" : rawName;
+  const rawName = currentUser?.displayName || currentUser?.email?.split("@")[0] || "User";
+  const formattedName = rawName.includes("@") ? rawName.split("@")[0] : rawName;
 
   // Helper for 100% deterministic tab button styles
   const getTabStyle = (pageName) => {
@@ -213,15 +213,11 @@ export const Navbar = ({ activePage, setActivePage, activeUniverse = "all", onSe
                     style={styles.menuItem}
                     onClick={() => {
                       setDropdownOpen(false);
-                      if (currentUser.displayName?.includes("Alice")) {
-                        loginAsDemoUser("Ahmed Hany", "ahmed@filmlibrary.com");
-                      } else {
-                        loginAsDemoUser("Alice (User 2)", "alice@filmlibrary.com");
-                      }
+                      onOpenProfile();
                     }}
                   >
-                    <User size={16} color="var(--accent-green)" />
-                    Switch Profile
+                    <User size={16} color="var(--accent-red)" />
+                    Edit Profile & Avatar
                   </button>
 
                   <div style={styles.divider} />

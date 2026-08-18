@@ -47,21 +47,17 @@ export const Login = ({ onLoginSuccess }) => {
         </div>
 
         {/* Tab Switcher: Sign In vs Create Account */}
-        <div style={styles.tabs}>
+        <div className="login-tabs-wrapper">
           <button
-            style={{
-              ...styles.tabBtn,
-              ...( !isRegisterMode ? styles.tabActive : {} )
-            }}
+            type="button"
+            className={`login-tab-btn ${!isRegisterMode ? "active" : "inactive"}`}
             onClick={() => setIsRegisterMode(false)}
           >
             <LogIn size={16} /> Sign In
           </button>
           <button
-            style={{
-              ...styles.tabBtn,
-              ...( isRegisterMode ? styles.tabActive : {} )
-            }}
+            type="button"
+            className={`login-tab-btn ${isRegisterMode ? "active" : "inactive"}`}
             onClick={() => setIsRegisterMode(true)}
           >
             <UserPlus size={16} /> Create Account
