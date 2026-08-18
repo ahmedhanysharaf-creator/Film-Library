@@ -69,7 +69,7 @@ export const Login = ({ onLoginSuccess }) => {
         </div>
 
         {/* Sign In / Register Form */}
-        <form onSubmit={handleSubmit} style={styles.form}>
+        <form onSubmit={handleSubmit} style={styles.form} autoComplete="off">
           {isRegisterMode && (
             <div style={styles.inputGroup}>
               <User size={18} color="var(--text-muted)" style={styles.inputIcon} />
@@ -79,6 +79,7 @@ export const Login = ({ onLoginSuccess }) => {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required={isRegisterMode}
+                autoComplete="off"
                 style={styles.input}
               />
             </div>
@@ -92,6 +93,7 @@ export const Login = ({ onLoginSuccess }) => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              autoComplete="off"
               style={styles.input}
             />
           </div>
@@ -104,6 +106,7 @@ export const Login = ({ onLoginSuccess }) => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              autoComplete="new-password"
               style={styles.input}
             />
             <button
