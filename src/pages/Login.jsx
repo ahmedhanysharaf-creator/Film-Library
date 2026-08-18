@@ -1,9 +1,9 @@
 import React, { useState } from "react";
-import { Film, ShieldCheck, Mail, Lock, User, LogIn, UserPlus, Users, Eye, EyeOff } from "lucide-react";
+import { Film, ShieldCheck, Mail, Lock, User, LogIn, UserPlus, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 export const Login = ({ onLoginSuccess }) => {
-  const { loginWithEmailPassword, registerWithEmailPassword, loginAsDemoUser } = useAuth();
+  const { loginWithEmailPassword, registerWithEmailPassword } = useAuth();
 
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [name, setName] = useState("");
@@ -25,13 +25,6 @@ export const Login = ({ onLoginSuccess }) => {
 
     setLoading(false);
     if (success && onLoginSuccess) {
-      onLoginSuccess();
-    }
-  };
-
-  const handleDemoSignIn = (demoName, demoEmail) => {
-    loginAsDemoUser(demoName, demoEmail);
-    if (onLoginSuccess) {
       onLoginSuccess();
     }
   };
@@ -136,22 +129,6 @@ export const Login = ({ onLoginSuccess }) => {
             )}
           </button>
         </form>
-
-        <div style={styles.divider}>
-          <span style={styles.dividerText}>or test instant demo mode</span>
-        </div>
-
-        {/* Demo Users Quick Selector */}
-        <div style={styles.demoGroup}>
-          <button style={styles.demoBtn} onClick={() => handleDemoSignIn("Alice (User 1)", "alice@filmlibrary.com")}>
-            <Users size={16} color="var(--accent-green)" />
-            Continue as Alice (User 1)
-          </button>
-          <button style={styles.demoBtn} onClick={() => handleDemoSignIn("Bob (User 2)", "bob@filmlibrary.com")}>
-            <Users size={16} color="#3b82f6" />
-            Continue as Bob (User 2)
-          </button>
-        </div>
 
         {/* Security Notice */}
         <div style={styles.securityNotice}>
@@ -305,42 +282,7 @@ const styles = {
     boxShadow: "0 6px 20px rgba(229, 9, 20, 0.4)",
     marginTop: "4px"
   },
-  divider: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    borderBottom: "1px solid var(--border-subtle)",
-    lineHeight: "0.1em",
-    margin: "4px 0"
-  },
-  dividerText: {
-    backgroundColor: "var(--bg-elevated)",
-    padding: "0 12px",
-    color: "var(--text-muted)",
-    fontSize: "0.78rem",
-    textTransform: "uppercase",
-    letterSpacing: "0.5px"
-  },
-  demoGroup: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "10px"
-  },
-  demoBtn: {
-    width: "100%",
-    padding: "10px 16px",
-    backgroundColor: "var(--bg-elevated)",
-    color: "#ffffff",
-    border: "1px solid var(--border-subtle)",
-    borderRadius: "8px",
-    fontWeight: 600,
-    fontSize: "0.88rem",
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: "8px"
-  },
+
   securityNotice: {
     display: "flex",
     alignItems: "center",
