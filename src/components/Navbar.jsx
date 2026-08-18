@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Film, Plus, Shield, Settings, LogOut, User, ChevronDown, MonitorPlay, Download, Wrench, Search, FileText, LayoutGrid, FolderSync, Terminal } from "lucide-react";
+import { Film, Plus, Shield, Settings, LogOut, User, ChevronDown, MonitorPlay, Download, Wrench, Search, FileText, LayoutGrid, FolderSync, Terminal, Globe } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 export const Navbar = ({ activePage, setActivePage, activeUniverse = "all", onSelectUniverse, onSelectTool, onOpenWhitelist, onOpenSettings, onOpenProfile }) => {
@@ -69,6 +69,17 @@ export const Navbar = ({ activePage, setActivePage, activeUniverse = "all", onSe
             Renamer
           </button>
 
+          <button
+            style={getTabStyle("downloads")}
+            onClick={() => {
+              setToolsDropdownOpen(false);
+              setActivePage("downloads");
+            }}
+          >
+            <Globe size={16} color={activePage === "downloads" ? "#ffffff" : "#a3a3a3"} />
+            Download Sites
+          </button>
+
           {/* Subtitle Tools Dropdown Menu */}
           <div style={styles.dropdownWrapper}>
             <button
@@ -91,6 +102,17 @@ export const Navbar = ({ activePage, setActivePage, activeUniverse = "all", onSe
                 >
                   <LayoutGrid size={16} color="var(--accent-red)" />
                   Tools Hub Dashboard
+                </button>
+
+                <button
+                  style={styles.menuItem}
+                  onClick={() => {
+                    setToolsDropdownOpen(false);
+                    setActivePage("downloads");
+                  }}
+                >
+                  <Globe size={16} color="#06b6d4" />
+                  Download Sites Vault
                 </button>
 
                 <button

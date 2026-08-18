@@ -1,11 +1,22 @@
 import React, { useState } from "react";
-import { Search, Download, FileText, ExternalLink, RefreshCw, Sparkles, MonitorPlay, Terminal } from "lucide-react";
+import { Search, Download, FileText, ExternalLink, RefreshCw, Sparkles, MonitorPlay, Terminal, Globe } from "lucide-react";
+import { DownloadSites } from "./DownloadSites";
 
 export const ToolsHub = ({ initialToolId = null, onOpenRenamer }) => {
   const [activeToolId, setActiveToolId] = useState(initialToolId);
   const [iframeKey, setIframeKey] = useState(0);
 
   const tools = [
+    {
+      id: "downloads",
+      name: "Download Sources Vault",
+      tagline: "Movie & Series Web Links Hub",
+      description: "Manage, organize, and search across your favorite movie and TV series download websites, trackers, and portals.",
+      icon: Globe,
+      badge: "Websites & Trackers",
+      isInternal: true,
+      color: "#06b6d4"
+    },
     {
       id: "renamer",
       name: "Python Media Renamer",
@@ -77,7 +88,9 @@ export const ToolsHub = ({ initialToolId = null, onOpenRenamer }) => {
       </div>
 
       {/* If a tool is active, display the workspace viewer */}
-      {activeTool ? (
+      {activeToolId === "downloads" ? (
+        <DownloadSites />
+      ) : activeTool ? (
         <div style={styles.toolViewerCard} className="glass-panel">
           <div style={styles.viewerHeader}>
             <div style={styles.viewerTitleInfo}>

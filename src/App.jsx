@@ -13,6 +13,7 @@ import { Library } from "./pages/Library";
 import { AddEditMedia } from "./pages/AddEditMedia";
 import { ToolsHub } from "./pages/ToolsHub";
 import { Renamer } from "./pages/Renamer";
+import { DownloadSites } from "./pages/DownloadSites";
 import { Login } from "./pages/Login";
 import { deleteMediaEntry } from "./services/storage";
 
@@ -134,6 +135,8 @@ const AppContent = () => {
         )}
 
         {activePage === "renamer" && <Renamer />}
+
+        {activePage === "downloads" && <DownloadSites />}
 
         {activePage === "tools" && (
           <ToolsHub key={selectedToolId || "all"} initialToolId={selectedToolId} />
