@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Search, Download, FileText, ExternalLink, RefreshCw, Sparkles, MonitorPlay, Terminal, Globe } from "lucide-react";
 import { DownloadSites } from "./DownloadSites";
+import { Renamer } from "./Renamer";
 
 export const ToolsHub = ({ initialToolId = null, onOpenRenamer }) => {
   const [activeToolId, setActiveToolId] = useState(initialToolId);
@@ -74,9 +75,9 @@ export const ToolsHub = ({ initialToolId = null, onOpenRenamer }) => {
             <Sparkles size={14} color="#e50914" />
             <span>Integrated Workspace</span>
           </div>
-          <h1 style={styles.title}>Subtitle & Media Tools Hub</h1>
+          <h1 style={styles.title}>Tools Hub Dashboard</h1>
           <p style={styles.subtitle}>
-            Access all subtitle utilities, embedded stream detectors, auto-downloaders, and matchers directly within Film Library.
+            Access all download sources, Python media renamers, embedded stream detectors, subtitle auto-downloaders, and matchers directly within Film Library.
           </p>
         </div>
 
@@ -90,6 +91,8 @@ export const ToolsHub = ({ initialToolId = null, onOpenRenamer }) => {
       {/* If a tool is active, display the workspace viewer */}
       {activeToolId === "downloads" ? (
         <DownloadSites />
+      ) : activeToolId === "renamer" ? (
+        <Renamer />
       ) : activeTool ? (
         <div style={styles.toolViewerCard} className="glass-panel">
           <div style={styles.viewerHeader}>
@@ -166,22 +169,26 @@ export const ToolsHub = ({ initialToolId = null, onOpenRenamer }) => {
                   <button
                     style={{
                       ...styles.primaryLaunchBtn,
-                      backgroundColor: tool.color
+                      backgroundColor: tool.color,
+                      flex: tool.url ? 1 : "unset",
+                      width: tool.url ? "auto" : "100%"
                     }}
                     onClick={() => setActiveToolId(tool.id)}
                   >
                     <MonitorPlay size={16} /> Launch Workspace
                   </button>
 
-                  <a
-                    href={tool.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={styles.secondaryTabBtn}
-                    title="Open standalone"
-                  >
-                    <ExternalLink size={16} />
-                  </a>
+                  {tool.url && (
+                    <a
+                      href={tool.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={styles.secondaryTabBtn}
+                      title="Open standalone"
+                    >
+                      <ExternalLink size={16} />
+                    </a>
+                  )}
                 </div>
               </div>
             );

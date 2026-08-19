@@ -5,7 +5,6 @@ import { useAuth } from "../context/AuthContext";
 export const Navbar = ({ activePage, setActivePage, activeUniverse = "all", onSelectUniverse, onSelectTool, onOpenWhitelist, onOpenSettings, onOpenProfile }) => {
   const { currentUser, logout } = useAuth();
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [toolsDropdownOpen, setToolsDropdownOpen] = useState(false);
 
   // Clean formatted user display name
   const rawName = currentUser?.displayName || currentUser?.email?.split("@")[0] || "User";
@@ -51,7 +50,6 @@ export const Navbar = ({ activePage, setActivePage, activeUniverse = "all", onSe
           <button
             style={getTabStyle("library")}
             onClick={() => {
-              setToolsDropdownOpen(false);
               setActivePage("library");
             }}
           >
@@ -59,115 +57,18 @@ export const Navbar = ({ activePage, setActivePage, activeUniverse = "all", onSe
           </button>
 
           <button
-            style={getTabStyle("renamer")}
+            style={getTabStyle("tools")}
             onClick={() => {
-              setToolsDropdownOpen(false);
-              setActivePage("renamer");
+              onSelectTool ? onSelectTool(null) : setActivePage("tools");
             }}
           >
-            <Terminal size={16} color={activePage === "renamer" ? "#ffffff" : "#a3a3a3"} />
-            Renamer
+            <LayoutGrid size={16} color={activePage === "tools" ? "#ffffff" : "#a3a3a3"} />
+            Tools Hub Dashboard
           </button>
-
-          <button
-            style={getTabStyle("downloads")}
-            onClick={() => {
-              setToolsDropdownOpen(false);
-              setActivePage("downloads");
-            }}
-          >
-            <Globe size={16} color={activePage === "downloads" ? "#ffffff" : "#a3a3a3"} />
-            Download Sites
-          </button>
-
-          {/* Subtitle Tools Dropdown Menu */}
-          <div style={styles.dropdownWrapper}>
-            <button
-              style={getTabStyle("tools")}
-              onClick={() => setToolsDropdownOpen(!toolsDropdownOpen)}
-            >
-              <Wrench size={16} color={activePage === "tools" ? "#ffffff" : "#a3a3a3"} />
-              Subtitle Tools
-              <ChevronDown size={14} color={activePage === "tools" ? "#ffffff" : "#a3a3a3"} />
-            </button>
-
-            {toolsDropdownOpen && (
-              <div style={styles.toolsDropdownMenu} className="animate-pop navbar-tools-dropdown">
-                <button
-                  style={styles.menuItem}
-                  onClick={() => {
-                    setToolsDropdownOpen(false);
-                    onSelectTool ? onSelectTool(null) : setActivePage("tools");
-                  }}
-                >
-                  <LayoutGrid size={16} color="var(--accent-red)" />
-                  Tools Hub Dashboard
-                </button>
-
-                <button
-                  style={styles.menuItem}
-                  onClick={() => {
-                    setToolsDropdownOpen(false);
-                    setActivePage("downloads");
-                  }}
-                >
-                  <Globe size={16} color="#06b6d4" />
-                  Download Sites Vault
-                </button>
-
-                <button
-                  style={styles.menuItem}
-                  onClick={() => {
-                    setToolsDropdownOpen(false);
-                    setActivePage("renamer");
-                  }}
-                >
-                  <Terminal size={16} color="#f59e0b" />
-                  Media Renamer Suite
-                </button>
-
-                <div style={styles.divider} />
-
-                <button
-                  style={styles.menuItem}
-                  onClick={() => {
-                    setToolsDropdownOpen(false);
-                    onSelectTool ? onSelectTool("subdetect") : setActivePage("tools");
-                  }}
-                >
-                  <Search size={16} color="#e50914" />
-                  SubDetect Pro
-                </button>
-
-                <button
-                  style={styles.menuItem}
-                  onClick={() => {
-                    setToolsDropdownOpen(false);
-                    onSelectTool ? onSelectTool("downloader") : setActivePage("tools");
-                  }}
-                >
-                  <Download size={16} color="#3b82f6" />
-                  Subtitle Downloader
-                </button>
-
-                <button
-                  style={styles.menuItem}
-                  onClick={() => {
-                    setToolsDropdownOpen(false);
-                    onSelectTool ? onSelectTool("matcher") : setActivePage("tools");
-                  }}
-                >
-                  <FileText size={16} color="#10b981" />
-                  Subtitle Matcher
-                </button>
-              </div>
-            )}
-          </div>
 
           <button
             style={getTabStyle("add")}
             onClick={() => {
-              setToolsDropdownOpen(false);
               setActivePage("add");
             }}
           >
