@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { X, Film, Tv, Save, RotateCcw, Sparkles, CheckCircle2, AlertCircle, List, Clipboard, HelpCircle } from "lucide-react";
 import {
   getMarvelChecklist,
@@ -12,6 +12,7 @@ import { useToast } from "../context/ToastContext";
 
 export const MarvelListModal = ({ onClose, onSaved }) => {
   const { addToast } = useToast();
+  const backdropMouseDownRef = useRef(false);
 
   const [activeTab, setActiveTab] = useState("films"); // "films" | "series"
   const [filmsText, setFilmsText] = useState("");
@@ -65,8 +66,29 @@ export const MarvelListModal = ({ onClose, onSaved }) => {
   };
 
   return (
-    <div style={styles.backdrop} onClick={onClose} className="animate-pop">
-      <div style={styles.modal} onClick={(e) => e.stopPropagation()} className="glass-modal">
+    <div 
+      style={styles.backdrop} 
+      onMouseDown={(e) => {
+        backdropMouseDownRef.current = (e.target === e.currentTarget);
+      }}
+      onTouchStart={(e) => {
+        backdropMouseDownRef.current = (e.target === e.currentTarget);
+      }}
+      onClick={(e) => {
+        if (backdropMouseDownRef.current && e.target === e.currentTarget) {
+          onClose();
+        }
+        backdropMouseDownRef.current = false;
+      }} 
+      className="animate-pop"
+    >
+      <div 
+        style={styles.modal} 
+        onMouseDown={(e) => e.stopPropagation()} 
+        onTouchStart={(e) => e.stopPropagation()} 
+        onClick={(e) => e.stopPropagation()} 
+        className="glass-modal"
+      >
         {/* Header */}
         <div style={styles.header}>
           <div style={styles.titleGroup}>

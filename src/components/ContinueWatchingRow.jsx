@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Edit3, Trash2, X, Check, Tv, Film, Sparkles, Clock, Bookmark } from "lucide-react";
 import { 
   getContinueWatchingList, 
@@ -11,6 +11,7 @@ import { useAuth } from "../context/AuthContext";
 export const ContinueWatchingRow = ({ libraryItems = [], onSelectMedia, setActivePage }) => {
   const { addToast } = useToast();
   const { currentUser } = useAuth();
+  const backdropMouseDownRef = useRef(false);
   const [list, setList] = useState([]);
   const [editingItem, setEditingItem] = useState(null);
   const [editSeason, setEditSeason] = useState(1);
@@ -152,8 +153,28 @@ export const ContinueWatchingRow = ({ libraryItems = [], onSelectMedia, setActiv
 
       {/* Edit Continue Watching Modal */}
       {editingItem && (
-        <div style={styles.modalOverlay} onClick={() => setEditingItem(null)}>
-          <div style={styles.modalContent} onClick={(e) => e.stopPropagation()} className="glass-modal animate-pop">
+        <div 
+          style={styles.modalOverlay} 
+          onMouseDown={(e) => {
+            backdropMouseDownRef.current = (e.target === e.currentTarget);
+          }}
+          onTouchStart={(e) => {
+            backdropMouseDownRef.current = (e.target === e.currentTarget);
+          }}
+          onClick={(e) => {
+            if (backdropMouseDownRef.current && e.target === e.currentTarget) {
+              setEditingItem(null);
+            }
+            backdropMouseDownRef.current = false;
+          }}
+        >
+          <div 
+            style={styles.modalContent} 
+            onMouseDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()} 
+            className="glass-modal animate-pop"
+          >
             <div style={styles.modalHeader}>
               <h3 style={styles.modalTitle}>Edit Watch Progress</h3>
               <button type="button" style={styles.closeBtn} onClick={() => setEditingItem(null)}>

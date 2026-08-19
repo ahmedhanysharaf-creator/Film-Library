@@ -23,6 +23,7 @@ export const VideoPlayerModal = ({
   const videoRef = useRef(null);
   const containerRef = useRef(null);
   const fileInputRef = useRef(null);
+  const backdropMouseDownRef = useRef(false);
   const subFileInputRef = useRef(null);
 
   const isSeries = item?.type?.toLowerCase() === "series" || item?.type?.toLowerCase() === "tv";
@@ -267,10 +268,27 @@ export const VideoPlayerModal = ({
     : item?.title;
 
   return (
-    <div style={styles.backdrop} onClick={onClose} className="animate-pop">
+    <div 
+      style={styles.backdrop} 
+      onMouseDown={(e) => {
+        backdropMouseDownRef.current = (e.target === e.currentTarget);
+      }}
+      onTouchStart={(e) => {
+        backdropMouseDownRef.current = (e.target === e.currentTarget);
+      }}
+      onClick={(e) => {
+        if (backdropMouseDownRef.current && e.target === e.currentTarget) {
+          onClose();
+        }
+        backdropMouseDownRef.current = false;
+      }} 
+      className="animate-pop"
+    >
       <div 
         ref={containerRef}
         style={styles.modal} 
+        onMouseDown={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()} 
         className="glass-modal"
         onMouseMove={() => setShowControls(true)}

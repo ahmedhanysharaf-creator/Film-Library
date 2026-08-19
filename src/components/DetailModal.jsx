@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { 
   X, Star, Clock, Film, Tv, CheckCircle2, Bookmark, 
   Trash2, Edit3, Copy, HardDrive, Video, ExternalLink, Check, Save,
@@ -12,6 +12,7 @@ import { useToast } from "../context/ToastContext";
 export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate, onPrev = null, onNext = null }) => {
   const { currentUser } = useAuth();
   const { addToast } = useToast();
+  const backdropMouseDownRef = useRef(false);
 
   const uid = currentUser?.uid || "demo_user_id";
 
@@ -179,8 +180,29 @@ export const DetailModal = ({ item, onClose, onEdit, onDelete, onItemUpdate, onP
   };
 
   return (
-    <div style={styles.backdrop} onClick={onClose} className="animate-pop detail-modal-backdrop">
-      <div style={styles.modal} onClick={(e) => e.stopPropagation()} className="glass-modal detail-modal-container">
+    <div 
+      style={styles.backdrop} 
+      onMouseDown={(e) => {
+        backdropMouseDownRef.current = (e.target === e.currentTarget);
+      }}
+      onTouchStart={(e) => {
+        backdropMouseDownRef.current = (e.target === e.currentTarget);
+      }}
+      onClick={(e) => {
+        if (backdropMouseDownRef.current && e.target === e.currentTarget) {
+          onClose();
+        }
+        backdropMouseDownRef.current = false;
+      }} 
+      className="animate-pop detail-modal-backdrop"
+    >
+      <div 
+        style={styles.modal} 
+        onMouseDown={(e) => e.stopPropagation()} 
+        onTouchStart={(e) => e.stopPropagation()} 
+        onClick={(e) => e.stopPropagation()} 
+        className="glass-modal detail-modal-container"
+      >
         {/* Top Sticky Navigation Bar (Back + Hop Prev/Next + Close) */}
         <div style={styles.topStickyNav} className="detail-modal-sticky-nav">
           <button style={styles.backBtn} className="detail-modal-back-btn" onClick={onClose} title="Back to Library">

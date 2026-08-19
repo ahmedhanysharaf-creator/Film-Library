@@ -1,10 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { X, Settings, Key, Database, Save, User } from "lucide-react";
 import { getTmdbApiKey, setTmdbApiKey } from "../services/tmdb";
 import { useToast } from "../context/ToastContext";
 
 export const SettingsModal = ({ onClose, onOpenProfile }) => {
   const { addToast } = useToast();
+  const backdropMouseDownRef = useRef(false);
 
   const [tmdbKey, setTmdbKeyState] = useState(getTmdbApiKey());
   const [firebaseConfigStr, setFirebaseConfigStr] = useState(
@@ -37,8 +38,29 @@ export const SettingsModal = ({ onClose, onOpenProfile }) => {
   };
 
   return (
-    <div style={styles.backdrop} onClick={onClose} className="animate-pop">
-      <div style={styles.modal} onClick={(e) => e.stopPropagation()} className="glass-modal">
+    <div 
+      style={styles.backdrop} 
+      onMouseDown={(e) => {
+        backdropMouseDownRef.current = (e.target === e.currentTarget);
+      }}
+      onTouchStart={(e) => {
+        backdropMouseDownRef.current = (e.target === e.currentTarget);
+      }}
+      onClick={(e) => {
+        if (backdropMouseDownRef.current && e.target === e.currentTarget) {
+          onClose();
+        }
+        backdropMouseDownRef.current = false;
+      }} 
+      className="animate-pop"
+    >
+      <div 
+        style={styles.modal} 
+        onMouseDown={(e) => e.stopPropagation()} 
+        onTouchStart={(e) => e.stopPropagation()} 
+        onClick={(e) => e.stopPropagation()} 
+        className="glass-modal"
+      >
         <div style={styles.header}>
           <div style={styles.titleGroup}>
             <Settings size={22} color="var(--accent-red)" />
