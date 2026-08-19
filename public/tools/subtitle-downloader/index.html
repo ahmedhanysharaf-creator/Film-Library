@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Subtitle Downloader — Arabic</title>
+  <title>Subtitle Downloader — Movies &amp; Series (Arabic)</title>
   <meta name="description" content="Automatically download Arabic subtitles for all your movies and TV series in one click using the SubDL API with recursive subfolder scanning." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -98,7 +98,7 @@
     .tagline {
       font-size: 16px;
       color: var(--text-secondary);
-      max-width: 520px;
+      max-width: 540px;
       margin: 0 auto;
       line-height: 1.6;
     }
@@ -432,6 +432,26 @@
       border-radius: 6px;
       font-size: 13px;
     }
+    .badge-tv {
+      font-weight: 600;
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.28);
+      padding: 3px 10px;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    .badge-ep {
+      font-size: 11px;
+      font-weight: 700;
+      background: rgba(72, 187, 120, 0.18);
+      color: #48bb78;
+      border: 1px solid rgba(72, 187, 120, 0.35);
+      padding: 2px 8px;
+      border-radius: 12px;
+      display: inline-flex;
+      align-items: center;
+    }
     .badge-year {
       font-size: 11px;
       font-weight: 600;
@@ -539,7 +559,7 @@
     Arabic Subtitle Downloader
   </div>
   <h1>Download Arabic Subtitles<br/>for All Your Movies &amp; Series</h1>
-  <p class="tagline">Select your movie folder (including all nested subfolders) and we'll automatically find and save Arabic subtitles for every video file directly inside its folder.</p>
+  <p class="tagline">Select your movie or TV series folder (including all nested subfolders) and we'll automatically find and save Arabic subtitles for every video file directly inside its folder.</p>
 </header>
 
 <main>
@@ -572,7 +592,7 @@
           <div class="checkbox-label-block">
             <div class="checkbox-title">📁 Search All Subfolders (Recursive Deep Search)</div>
             <div class="subfolder-hint">
-              Automatically searches inside all subdirectories (e.g. <code>Marvel Films/Iron Man (2008)/</code>) and saves each <code>.srt</code> subtitle directly next to its corresponding video.
+              Automatically searches inside all subdirectories (e.g. <code>Marvel Films/Iron Man (2008)/</code> or <code>Series/Loki/Season 1/</code>) and saves each <code>.srt</code> subtitle directly next to its corresponding video.
             </div>
           </div>
         </label>
@@ -580,7 +600,7 @@
 
       <div class="smart-feature-banner">
         <span>✨</span>
-        <div><strong>Smart Film Analysis Enabled:</strong> Automatically analyzes filenames to extract exact Title &amp; Year (e.g. <code>M02 - (1998) - Blade</code> ➔ <code>Blade (1998)</code>).</div>
+        <div><strong>Smart Film &amp; Series Analysis:</strong> Automatically extracts Movie Titles, Release Years, and TV Series Season/Episodes (e.g. <code>Loki.S01E01</code> ➔ <code>Loki Season 1 Episode 1</code>).</div>
       </div>
     </div>
   </div>
@@ -644,7 +664,7 @@
             <tr>
               <th>#</th>
               <th>File &amp; Path</th>
-              <th>Extracted Film Info</th>
+              <th>Extracted Media Info</th>
               <th>Status</th>
             </tr>
           </thead>
@@ -827,13 +847,13 @@
                             ? file.name.substring(0, file.name.lastIndexOf('.')) 
                             : file.name;
       const subtitleName = baseName + '.srt';
-      const parsedInfo   = parseMovieInfo(file.name);
+      const parsedInfo   = parseMediaInfo(file.name, file.relativePath || '');
 
       setProgress(i, total, `${file.relativePath || file.name} ➔ ${parsedInfo.extractedName}`);
       const row = addRow(i + 1, file, parsedInfo, 'processing');
 
       try {
-        // 1. Search SubDL with multi-tiered strategy using parsed info
+        // 1. Search SubDL with multi-tiered strategy for Movies or TV Series
         const searchData = await searchSubDL(apiKey, parsedInfo, baseName);
 
         if (!searchData || !searchData.status || !Array.isArray(searchData.subtitles) || searchData.subtitles.length === 0) {
@@ -843,21 +863,34 @@
           continue;
         }
 
-        // 2. Select best matching subtitle (prefer .zip)
-        const zipSub = searchData.subtitles.find(s => (s.url && s.url.includes('.zip')) || (s.name && s.name.toLowerCase().endsWith('.zip'))) || searchData.subtitles[0];
+        // 2. Select best matching subtitle (prefer .zip or exact episode match)
+        let chosenSub = null;
+        if (parsedInfo.isTv) {
+          // If TV show, prefer subtitle that explicitly matches season/episode or zip
+          const epTag = `s${parsedInfo.seasonFormatted}e${parsedInfo.episodeFormatted}`;
+          chosenSub = searchData.subtitles.find(s => {
+            const sName = (s.name || s.release_name || '').toLowerCase();
+            return sName.includes(epTag) && sName.endsWith('.zip');
+          }) || searchData.subtitles.find(s => {
+            const sName = (s.name || s.release_name || '').toLowerCase();
+            return sName.includes(epTag);
+          }) || searchData.subtitles.find(s => (s.url && s.url.includes('.zip')) || (s.name && s.name.toLowerCase().endsWith('.zip'))) || searchData.subtitles[0];
+        } else {
+          chosenSub = searchData.subtitles.find(s => (s.url && s.url.includes('.zip')) || (s.name && s.name.toLowerCase().endsWith('.zip'))) || searchData.subtitles[0];
+        }
 
-        if (!zipSub || !zipSub.url) {
+        if (!chosenSub || !chosenSub.url) {
           notFound++;
           updateRow(row, 'notfound');
           await sleep(delay);
           continue;
         }
 
-        const downloadUrl = zipSub.url.startsWith('http') 
-          ? zipSub.url 
-          : (zipSub.url.startsWith('/') ? `https://dl.subdl.com${zipSub.url}` : `https://dl.subdl.com/${zipSub.url}`);
+        const downloadUrl = chosenSub.url.startsWith('http') 
+          ? chosenSub.url 
+          : (chosenSub.url.startsWith('/') ? `https://dl.subdl.com${chosenSub.url}` : `https://dl.subdl.com/${chosenSub.url}`);
 
-        // 3. Fetch zip directly (dl.subdl.com supports CORS natively)
+        // 3. Fetch zip directly
         let zipRes;
         try {
           zipRes = await fetch(downloadUrl);
@@ -868,19 +901,33 @@
         if (!zipRes.ok) throw new Error(`Download HTTP ${zipRes.status}`);
         const arrayBuffer = await zipRes.arrayBuffer();
 
-        // 4. Extract first .srt from zip using JSZip
+        // 4. Extract .srt from zip using JSZip
         const zip = await JSZip.loadAsync(arrayBuffer);
         let srtContent = null;
-        for (const [filename, zipEntry] of Object.entries(zip.files)) {
-          if (filename.toLowerCase().endsWith('.srt')) {
-            srtContent = await zipEntry.async('string');
-            break;
+        
+        // If TV episode, look for .srt matching episode number or take the first .srt
+        if (parsedInfo.isTv) {
+          const epTag = `e${parsedInfo.episodeFormatted}`;
+          for (const [filename, zipEntry] of Object.entries(zip.files)) {
+            if (filename.toLowerCase().endsWith('.srt') && filename.toLowerCase().includes(epTag)) {
+              srtContent = await zipEntry.async('string');
+              break;
+            }
+          }
+        }
+        
+        if (!srtContent) {
+          for (const [filename, zipEntry] of Object.entries(zip.files)) {
+            if (filename.toLowerCase().endsWith('.srt')) {
+              srtContent = await zipEntry.async('string');
+              break;
+            }
           }
         }
 
-        if (!srtContent) throw new Error('No .srt file found inside zip');
+        if (!srtContent) throw new Error('No .srt file found inside downloaded zip');
 
-        // 5. Write subtitle file directly into the exact subfolder next to the movie
+        // 5. Write subtitle file directly into the exact subfolder next to the movie/episode
         const targetParent = file.parentHandle || dirHandle;
         const fileHandle = await targetParent.getFileHandle(subtitleName, { create: true });
         const writable   = await fileHandle.createWritable();
@@ -915,7 +962,7 @@
     isRunning = false;
   });
 
-  // ── Smart Film Filename Parser & Search Engine ────────────────────
+  // ── Smart Media (Movies & TV Series) Parser & Search Engine ────────
   function cleanPart(str) {
     if (!str) return '';
     return str
@@ -929,16 +976,93 @@
       .trim();
   }
 
-  function parseMovieInfo(filename) {
+  function parseMediaInfo(filename, relativePath = '') {
     let cleanName = filename.trim();
     cleanName = cleanName.replace(/\.(mp4|mkv|avi|mov|wmv|m4v|flv|webm)$/i, '').trim();
 
+    // 1. Detect TV Series Season & Episode Patterns
+    let isTv = false;
+    let season = null;
+    let episode = null;
+    let showTitle = '';
+
+    // Check S01E02 / S1E2 / S01.E02
+    const seMatch = cleanName.match(/(?:^|[\s\.\_\-\[])s(\d{1,2})[\.\_\-\s]*e(\d{1,3})(?:[\s\.\_\-\]\)]|$)/i);
+    // Check 1x02 / 01x02
+    const xMatch = !seMatch && cleanName.match(/(?:^|[\s\.\_\-\[])(\d{1,2})x(\d{1,3})(?:[\s\.\_\-\]\)]|$)/i);
+    // Check "Season 1 Episode 2" / "Season 1 Ep 2"
+    const seasonEpMatch = !seMatch && !xMatch && cleanName.match(/(?:^|[\s\.\_\-\[])season[\s\.\_\-]*(\d{1,2})[\s\.\_\-]*ep(?:isode)?[\s\.\_\-]*(\d{1,3})(?:[\s\.\_\-\]\)]|$)/i);
+    // Check "Episode 2" or "E02"
+    const epOnlyMatch = !seMatch && !xMatch && !seasonEpMatch && cleanName.match(/(?:^|[\s\.\_\-\[])(?:e|ep|episode)[\s\.\_\-]*(\d{1,3})(?:[\s\.\_\-\]\)]|$)/i);
+
+    if (seMatch) {
+      isTv = true;
+      season = parseInt(seMatch[1], 10);
+      episode = parseInt(seMatch[2], 10);
+    } else if (xMatch) {
+      isTv = true;
+      season = parseInt(xMatch[1], 10);
+      episode = parseInt(xMatch[2], 10);
+    } else if (seasonEpMatch) {
+      isTv = true;
+      season = parseInt(seasonEpMatch[1], 10);
+      episode = parseInt(seasonEpMatch[2], 10);
+    } else if (epOnlyMatch) {
+      isTv = true;
+      episode = parseInt(epOnlyMatch[1], 10);
+      // Check if parent directory has season info (e.g. "Season 2" or "S02")
+      const parentSeasonMatch = relativePath.match(/(?:^|[\/\\s\.\_\-\[])(?:season|s)[\s\.\_\-]*(\d{1,2})/i);
+      if (parentSeasonMatch) {
+        season = parseInt(parentSeasonMatch[1], 10);
+      } else {
+        season = 1;
+      }
+    }
+
+    // Extract Year
     let year = null;
     const yearMatch = cleanName.match(/(?:[\s\.\_\-\[\(\{\/]|^)(19\d{2}|20\d{2})(?:[\s\.\_\-\]\)\}\/]|$)/);
     if (yearMatch) {
       year = yearMatch[1];
     }
 
+    if (isTv) {
+      // Extract Show Title (everything before the S01E02 / season marker)
+      let titlePart = cleanName;
+      if (seMatch) titlePart = cleanName.substring(0, cleanName.indexOf(seMatch[0]));
+      else if (xMatch) titlePart = cleanName.substring(0, cleanName.indexOf(xMatch[0]));
+      else if (seasonEpMatch) titlePart = cleanName.substring(0, cleanName.indexOf(seasonEpMatch[0]));
+      else if (epOnlyMatch) titlePart = cleanName.substring(0, cleanName.indexOf(epOnlyMatch[0]));
+
+      titlePart = cleanPart(titlePart);
+      // If title in filename is empty, try to get show name from relative path / folder
+      if (!titlePart && relativePath && relativePath.includes('/')) {
+        const pathSegments = relativePath.split('/').filter(Boolean);
+        if (pathSegments.length >= 2) {
+          titlePart = cleanPart(pathSegments[0]);
+        }
+      }
+
+      showTitle = titlePart || 'TV Show';
+      const formattedSeason = String(season || 1).padStart(2, '0');
+      const formattedEpisode = String(episode || 1).padStart(2, '0');
+      const extractedName = `${showTitle} S${formattedSeason}E${formattedEpisode}`;
+
+      return {
+        filename,
+        isTv: true,
+        showTitle,
+        title: showTitle,
+        season: season || 1,
+        episode: episode || 1,
+        seasonFormatted: formattedSeason,
+        episodeFormatted: formattedEpisode,
+        year,
+        extractedName
+      };
+    }
+
+    // Movie parsing
     let cleaned = cleanName;
     cleaned = cleaned.replace(/\[[^\]]*\]/g, ' ');
     cleaned = cleaned.replace(/\([^\)]*\)/g, (match) => {
@@ -971,12 +1095,12 @@
     }
 
     cleaned = cleanPart(cleaned);
-
     const title = cleaned || cleanName;
     const extractedName = year ? `${title} (${year})` : title;
 
     return {
       filename,
+      isTv: false,
       title,
       year,
       extractedName
@@ -984,49 +1108,49 @@
   }
 
   async function searchSubDL(apiKey, parsedInfo, rawBaseName) {
-    const searchTerms = [];
+    const searchUrls = [];
 
-    if (parsedInfo.title) {
-      searchTerms.push({ name: parsedInfo.title, year: parsedInfo.year });
+    if (parsedInfo.isTv) {
+      // 1. TV Series Episode Search with explicit season & episode
+      const s = parsedInfo.season || 1;
+      const e = parsedInfo.episode || 1;
+      const sFormatted = parsedInfo.seasonFormatted || '01';
+      const eFormatted = parsedInfo.episodeFormatted || '01';
 
-      // If title contains dashes like "X2 - X-Men United", try sub-parts
-      if (parsedInfo.title.includes('-')) {
-        const parts = parsedInfo.title.split('-').map(p => p.trim()).filter(Boolean);
-        parts.forEach(p => searchTerms.push({ name: p, year: parsedInfo.year }));
-      }
+      // Strategy A: film_name + type=tv + season_number + episode_number
+      searchUrls.push(`https://api.subdl.com/api/v1/subtitles/?api_key=${encodeURIComponent(apiKey)}&film_name=${encodeURIComponent(parsedInfo.showTitle)}&season_number=${s}&episode_number=${e}&languages=AR&subs_per_page=15&type=tv`);
+      
+      // Strategy B: film_name with S01E01 included in query
+      searchUrls.push(`https://api.subdl.com/api/v1/subtitles/?api_key=${encodeURIComponent(apiKey)}&film_name=${encodeURIComponent(`${parsedInfo.showTitle} S${sFormatted}E${eFormatted}`)}&languages=AR&subs_per_page=15`);
+      
+      // Strategy C: film_name with 1x01
+      searchUrls.push(`https://api.subdl.com/api/v1/subtitles/?api_key=${encodeURIComponent(apiKey)}&film_name=${encodeURIComponent(`${parsedInfo.showTitle} ${s}x${eFormatted}`)}&languages=AR&subs_per_page=15`);
 
-      // Normalize X2 -> X-Men 2
-      if (/\bx2\b/i.test(parsedInfo.title)) {
-        searchTerms.push({ name: parsedInfo.title.replace(/\bx2\b/i, 'X-Men 2'), year: parsedInfo.year });
-        searchTerms.push({ name: 'X-Men 2', year: parsedInfo.year });
-      }
-
-      if (parsedInfo.year) {
-        searchTerms.push({ name: parsedInfo.extractedName, year: null });
-        searchTerms.push({ name: parsedInfo.title, year: null });
-      }
-    }
-
-    if (!parsedInfo.title || parsedInfo.title !== rawBaseName) {
-      searchTerms.push({ name: rawBaseName, year: null });
-    }
-
-    // Deduplicate search terms
-    const seen = new Set();
-    const uniqueTerms = searchTerms.filter(t => {
-      const key = `${t.name}::${t.year || ''}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-
-    for (const term of uniqueTerms) {
-      try {
-        let url = `https://api.subdl.com/api/v1/subtitles/?api_key=${encodeURIComponent(apiKey)}&film_name=${encodeURIComponent(term.name)}&languages=AR&subs_per_page=10&type=movie`;
-        if (term.year) {
-          url += `&year=${encodeURIComponent(term.year)}`;
+      // Strategy D: raw filename search fallback
+      searchUrls.push(`https://api.subdl.com/api/v1/subtitles/?api_key=${encodeURIComponent(apiKey)}&film_name=${encodeURIComponent(rawBaseName)}&languages=AR&subs_per_page=15`);
+    } else {
+      // Movie Search Strategies
+      if (parsedInfo.title) {
+        let movieUrl = `https://api.subdl.com/api/v1/subtitles/?api_key=${encodeURIComponent(apiKey)}&film_name=${encodeURIComponent(parsedInfo.title)}&languages=AR&subs_per_page=10&type=movie`;
+        if (parsedInfo.year) {
+          movieUrl += `&year=${encodeURIComponent(parsedInfo.year)}`;
         }
+        searchUrls.push(movieUrl);
 
+        if (parsedInfo.year) {
+          searchUrls.push(`https://api.subdl.com/api/v1/subtitles/?api_key=${encodeURIComponent(apiKey)}&film_name=${encodeURIComponent(parsedInfo.extractedName)}&languages=AR&subs_per_page=10`);
+          searchUrls.push(`https://api.subdl.com/api/v1/subtitles/?api_key=${encodeURIComponent(apiKey)}&film_name=${encodeURIComponent(parsedInfo.title)}&languages=AR&subs_per_page=10`);
+        }
+      }
+
+      searchUrls.push(`https://api.subdl.com/api/v1/subtitles/?api_key=${encodeURIComponent(apiKey)}&film_name=${encodeURIComponent(rawBaseName)}&languages=AR&subs_per_page=10`);
+    }
+
+    // Deduplicate search URLs
+    const uniqueUrls = [...new Set(searchUrls)];
+
+    for (const url of uniqueUrls) {
+      try {
         let res;
         try {
           res = await fetch(url);
@@ -1040,7 +1164,7 @@
           return data;
         }
       } catch (e) {
-        // try next fallback term
+        // try next fallback query
       }
     }
     return null;
@@ -1063,15 +1187,26 @@
     const tr = document.createElement('tr');
     tr.className = 'row-new';
 
-    const yearBadge = parsedInfo && parsedInfo.year 
-      ? `<span class="badge-year">📅 ${escHtml(parsedInfo.year)}</span>` 
-      : '';
-    const titleText = parsedInfo && parsedInfo.title ? parsedInfo.title : file.name;
-
     const hasSubfolder = file.relativePath && file.relativePath.includes('/');
     const subfolderName = hasSubfolder 
       ? file.relativePath.substring(0, file.relativePath.lastIndexOf('/')) 
       : '';
+
+    let mediaBadge = '';
+    if (parsedInfo.isTv) {
+      mediaBadge = `
+        <span class="badge-tv">📺 ${escHtml(parsedInfo.showTitle)}</span>
+        <span class="badge-ep">S${escHtml(parsedInfo.seasonFormatted)}E${escHtml(parsedInfo.episodeFormatted)}</span>
+      `;
+    } else {
+      const yearBadge = parsedInfo.year 
+        ? `<span class="badge-year">📅 ${escHtml(parsedInfo.year)}</span>` 
+        : '';
+      mediaBadge = `
+        <span class="badge-title">🎬 ${escHtml(parsedInfo.title)}</span>
+        ${yearBadge}
+      `;
+    }
 
     tr.innerHTML = `
       <td class="col-num">${num}</td>
@@ -1083,8 +1218,7 @@
       </td>
       <td class="col-parsed">
         <div class="analyzer-info">
-          <span class="badge-title">🎬 ${escHtml(titleText)}</span>
-          ${yearBadge}
+          ${mediaBadge}
         </div>
       </td>
       <td class="col-status">${statusHtml(status)}</td>
