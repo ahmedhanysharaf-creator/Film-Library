@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Subtitle Downloader — Arabic</title>
-  <meta name="description" content="Automatically download Arabic subtitles for all your movies in one click using the SubDL API." />
+  <meta name="description" content="Automatically download Arabic subtitles for all your movies and TV series in one click using the SubDL API with recursive subfolder scanning." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
@@ -98,7 +98,7 @@
     .tagline {
       font-size: 16px;
       color: var(--text-secondary);
-      max-width: 480px;
+      max-width: 520px;
       margin: 0 auto;
       line-height: 1.6;
     }
@@ -178,11 +178,83 @@
 
     #folder-info { flex: 1; min-width: 0; }
     #folder-name {
-      font-size: 14px; font-weight: 500;
+      font-size: 14px; font-weight: 600;
       color: var(--text-primary);
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     #folder-count { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+
+    /* SUBFOLDER RECURSION TOGGLE */
+    .subfolder-toggle-card {
+      margin-top: 18px;
+      padding: 14px 16px;
+      background: rgba(99,179,237,0.06);
+      border: 1px solid rgba(99,179,237,0.22);
+      border-radius: var(--radius-sm);
+      transition: all 0.2s ease;
+    }
+    .subfolder-toggle-card:hover {
+      background: rgba(99,179,237,0.09);
+      border-color: rgba(99,179,237,0.35);
+    }
+    .checkbox-container {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .checkbox-container input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--accent);
+      margin-top: 2px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .checkbox-label-block {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .checkbox-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .subfolder-hint {
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.45;
+    }
+    .subfolder-hint code {
+      background: rgba(0,0,0,0.3);
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-family: monospace;
+      color: var(--accent);
+      font-size: 11px;
+    }
+
+    .smart-feature-banner {
+      background: rgba(124,106,247,0.08);
+      border: 1px solid rgba(124,106,247,0.25);
+      border-radius: var(--radius-sm);
+      padding: 10px 16px;
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-top: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      line-height: 1.4;
+    }
+    .smart-feature-banner strong {
+      color: var(--text-primary);
+    }
 
     /* DOWNLOAD BUTTON */
     #btn-download {
@@ -202,92 +274,83 @@
       justify-content: center;
       gap: 10px;
     }
-    #btn-download:disabled {
-      background: var(--bg-elevated);
-      color: var(--text-muted);
-      cursor: not-allowed;
-      box-shadow: none;
-      transform: none;
-    }
-    #btn-download:not(:disabled):hover {
+    #btn-download:hover:not(:disabled) {
       opacity: 0.92;
       transform: translateY(-1px);
       box-shadow: 0 6px 28px rgba(72,187,120,0.4);
     }
-    #btn-download:not(:disabled):active { transform: translateY(0); }
+    #btn-download:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
 
-    /* PROGRESS */
+    /* PROGRESS SECTION */
     #progress-section { display: none; }
-
     .progress-label {
       display: flex;
       justify-content: space-between;
-      align-items: center;
+      align-items: baseline;
       margin-bottom: 10px;
-      font-size: 13px;
     }
-    .progress-label .current-film {
+    .current-film {
+      font-size: 13px;
       color: var(--text-secondary);
-      max-width: 65%;
+      white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      white-space: nowrap;
+      max-width: 80%;
     }
-    .progress-label .progress-count {
-      color: var(--accent);
+    .progress-count {
+      font-size: 12px;
       font-weight: 600;
+      color: var(--accent);
       font-variant-numeric: tabular-nums;
     }
-
     .progress-track {
-      height: 6px;
-      background: var(--bg-elevated);
-      border-radius: 99px;
+      height: 8px;
+      background: var(--bg-input);
+      border-radius: 50px;
       overflow: hidden;
     }
     .progress-fill {
       height: 100%;
       width: 0%;
       background: linear-gradient(90deg, var(--accent), var(--accent-2));
-      border-radius: 99px;
-      transition: width 0.4s ease;
-      box-shadow: 0 0 12px rgba(99,179,237,0.4);
+      border-radius: 50px;
+      transition: width 0.3s ease;
     }
 
     /* SUMMARY BANNER */
     #summary-banner {
-      padding: 16px 24px;
-      border-radius: var(--radius-sm);
-      background: var(--bg-elevated);
-      border: 1px solid var(--border);
-      font-size: 14px;
-      font-weight: 500;
       display: none;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
       align-items: center;
       gap: 20px;
       flex-wrap: wrap;
     }
     #summary-banner.visible { display: flex; }
-    .summary-stat { display: flex; align-items: center; gap: 6px; flex-direction: column; }
-    .summary-stat .val { font-weight: 700; font-size: 28px; line-height: 1; }
-    .summary-stat.saved  .val { color: var(--success); }
-    .summary-stat.missed .val { color: var(--warning); }
-    .summary-stat.erred  .val { color: var(--error);   }
-    .summary-label { font-size: 12px; color: var(--text-muted); }
-    .summary-done-text {
-      flex: 1;
-      font-size: 15px;
+    .summary-done-text { font-size: 15px; font-weight: 700; color: var(--text-primary); }
+    .summary-stat {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
       font-weight: 600;
-      color: var(--text-primary);
+      padding: 4px 12px;
+      border-radius: 50px;
     }
+    .summary-stat .val { font-size: 15px; font-weight: 700; }
+    .summary-stat.saved  { background: rgba(72,187,120,0.12); color: var(--success); }
+    .summary-stat.missed { background: rgba(246,173,85,0.12);  color: var(--warning); }
+    .summary-stat.erred  { background: rgba(252,129,129,0.12); color: var(--error);   }
 
     /* RESULTS TABLE */
     #results-section { display: none; }
-
-    .table-wrap {
-      overflow-x: auto;
-    }
-
+    .table-wrap { overflow-x: auto; }
     table {
       width: 100%;
       border-collapse: collapse;
@@ -325,9 +388,34 @@
     tbody tr:hover { background: rgba(255,255,255,0.02); }
 
     td.col-num   { color: var(--text-muted); width: 44px; font-variant-numeric: tabular-nums; }
-    td.col-name  { color: var(--text-secondary); font-weight: 400; word-break: break-all; max-width: 240px; }
+    td.col-name  { color: var(--text-secondary); font-weight: 400; word-break: break-all; max-width: 260px; }
     td.col-parsed{ color: var(--text-primary); }
     td.col-status{ white-space: nowrap; font-weight: 500; }
+
+    .file-path-info {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .badge-subfolder {
+      font-size: 11px;
+      font-family: monospace;
+      color: #a799ff;
+      background: rgba(124,106,247,0.14);
+      border: 1px solid rgba(124,106,247,0.3);
+      padding: 2px 7px;
+      border-radius: 4px;
+      display: inline-block;
+      width: fit-content;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 240px;
+    }
+    .file-basename {
+      color: var(--text-primary);
+      font-weight: 500;
+    }
 
     .analyzer-info {
       display: flex;
@@ -356,27 +444,11 @@
       align-items: center;
       gap: 3px;
     }
-    .smart-feature-banner {
-      background: rgba(124,106,247,0.08);
-      border: 1px solid rgba(124,106,247,0.25);
-      border-radius: var(--radius-sm);
-      padding: 10px 16px;
-      font-size: 13px;
-      color: var(--text-secondary);
-      margin-top: 16px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      line-height: 1.4;
-    }
-    .smart-feature-banner strong {
-      color: var(--text-primary);
-    }
 
-    .status-saved      { color: var(--success); }
-    .status-notfound   { color: var(--warning); }
-    .status-error      { color: var(--error);   }
-    .status-processing { color: var(--accent); display: flex; align-items: center; gap: 6px; }
+    .status-saved      { color: var(--success); font-weight: 600; }
+    .status-notfound   { color: var(--warning); font-weight: 600; }
+    .status-error      { color: var(--error); font-weight: 600; }
+    .status-processing { color: var(--accent); display: flex; align-items: center; gap: 6px; font-weight: 600; }
 
     .spinner {
       width: 12px; height: 12px;
@@ -388,7 +460,6 @@
       flex-shrink: 0;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
-
 
     /* SETTINGS */
     details.settings {
@@ -467,8 +538,8 @@
     <span class="dot"></span>
     Arabic Subtitle Downloader
   </div>
-  <h1>Download Arabic Subtitles<br/>for All Your Movies</h1>
-  <p class="tagline">Select your movie folder and we'll automatically find and save Arabic subtitles for every film inside.</p>
+  <h1>Download Arabic Subtitles<br/>for All Your Movies &amp; Series</h1>
+  <p class="tagline">Select your movie folder (including all nested subfolders) and we'll automatically find and save Arabic subtitles for every video file directly inside its folder.</p>
 </header>
 
 <main>
@@ -478,21 +549,35 @@
     <div class="card-header">
       <div class="card-icon blue">📁</div>
       <div>
-        <div class="card-title">Movie Folder</div>
-        <div class="card-sub">Select the folder containing your video files</div>
+        <div class="card-title">Movie / Series Folder</div>
+        <div class="card-sub">Select the root directory containing your video files &amp; subfolders</div>
       </div>
     </div>
     <div class="card-body">
       <div class="folder-area">
         <button id="btn-select-folder">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-          Select Movie Folder
+          Select Folder
         </button>
         <div id="folder-info">
           <div id="folder-name" style="color:var(--text-muted);">No folder selected</div>
           <div id="folder-count"></div>
         </div>
       </div>
+
+      <!-- Recursive Subfolder Scan Toggle -->
+      <div class="subfolder-toggle-card">
+        <label class="checkbox-container" for="chk-include-subfolders">
+          <input type="checkbox" id="chk-include-subfolders" checked />
+          <div class="checkbox-label-block">
+            <div class="checkbox-title">📁 Search All Subfolders (Recursive Deep Search)</div>
+            <div class="subfolder-hint">
+              Automatically searches inside all subdirectories (e.g. <code>Marvel Films/Iron Man (2008)/</code>) and saves each <code>.srt</code> subtitle directly next to its corresponding video.
+            </div>
+          </div>
+        </label>
+      </div>
+
       <div class="smart-feature-banner">
         <span>✨</span>
         <div><strong>Smart Film Analysis Enabled:</strong> Automatically analyzes filenames to extract exact Title &amp; Year (e.g. <code>M02 - (1998) - Blade</code> ➔ <code>Blade (1998)</code>).</div>
@@ -558,7 +643,7 @@
           <thead>
             <tr>
               <th>#</th>
-              <th>Original File</th>
+              <th>File &amp; Path</th>
               <th>Extracted Film Info</th>
               <th>Status</th>
             </tr>
@@ -607,24 +692,25 @@
 
   const $ = id => document.getElementById(id);
 
-  const btnSelectFolder  = $('btn-select-folder');
-  const btnDownload      = $('btn-download');
-  const folderName       = $('folder-name');
-  const folderCount      = $('folder-count');
-  const progressSection  = $('progress-section');
-  const progressFill     = $('progress-fill');
-  const progressCount    = $('progress-count-label');
-  const progressSubtext  = $('progress-subtext');
-  const currentFilmLabel = $('current-film-label');
-  const resultsSection   = $('results-section');
-  const resultsSub       = $('results-sub');
-  const resultsTbody     = $('results-tbody');
-  const summaryBanner    = $('summary-banner');
-  const sumSaved         = $('sum-saved');
-  const sumNotFound      = $('sum-notfound');
-  const sumErrors        = $('sum-errors');
-  const apiKeyInput      = $('api-key-input');
-  const delayInput       = $('delay-input');
+  const btnSelectFolder     = $('btn-select-folder');
+  const chkIncludeSubfolders = $('chk-include-subfolders');
+  const btnDownload         = $('btn-download');
+  const folderName          = $('folder-name');
+  const folderCount         = $('folder-count');
+  const progressSection     = $('progress-section');
+  const progressFill        = $('progress-fill');
+  const progressCount       = $('progress-count-label');
+  const progressSubtext     = $('progress-subtext');
+  const currentFilmLabel    = $('current-film-label');
+  const resultsSection      = $('results-section');
+  const resultsSub          = $('results-sub');
+  const resultsTbody        = $('results-tbody');
+  const summaryBanner       = $('summary-banner');
+  const sumSaved            = $('sum-saved');
+  const sumNotFound         = $('sum-notfound');
+  const sumErrors           = $('sum-errors');
+  const apiKeyInput         = $('api-key-input');
+  const delayInput          = $('delay-input');
 
   // Check browser capability
   if (!('showDirectoryPicker' in window)) {
@@ -632,40 +718,87 @@
     folderName.style.color = 'var(--warning)';
   }
 
+  // ── Recursive Directory Scanner ──────────────────────────────────
+  async function scanDirectory(rootHandle, includeSubfolders = true) {
+    const files = [];
+    let subfoldersFound = 0;
+
+    async function traverse(currentHandle, currentPath = '') {
+      for await (const [name, handle] of currentHandle.entries()) {
+        if (handle.kind === 'file') {
+          const ext = name.substring(name.lastIndexOf('.')).toLowerCase();
+          if (VIDEO_EXTENSIONS.includes(ext)) {
+            const relativePath = currentPath ? `${currentPath}/${name}` : name;
+            files.push({
+              name,
+              handle,
+              parentHandle: currentHandle,
+              relativePath
+            });
+          }
+        } else if (handle.kind === 'directory' && includeSubfolders) {
+          subfoldersFound++;
+          const subPath = currentPath ? `${currentPath}/${name}` : name;
+          await traverse(handle, subPath);
+        }
+      }
+    }
+
+    await traverse(rootHandle, '');
+    files.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
+    return { files, subfoldersFound };
+  }
+
+  // Update folder count and status in UI
+  async function refreshFolderScan() {
+    if (!dirHandle) return;
+    try {
+      folderCount.textContent = 'Scanning files and subfolders…';
+      const includeSub = chkIncludeSubfolders ? chkIncludeSubfolders.checked : true;
+      const scanResult = await scanDirectory(dirHandle, includeSub);
+      videoFiles = scanResult.files;
+
+      folderName.textContent = dirHandle.name;
+      folderName.style.color = 'var(--text-primary)';
+
+      if (videoFiles.length === 0) {
+        folderCount.textContent = 'No video files found in this folder or subfolders.';
+        btnDownload.disabled = true;
+      } else {
+        if (scanResult.subfoldersFound > 0 && includeSub) {
+          folderCount.textContent = `${videoFiles.length} video file${videoFiles.length !== 1 ? 's' : ''} found across ${scanResult.subfoldersFound} subfolder${scanResult.subfoldersFound !== 1 ? 's' : ''} — ready to download`;
+        } else {
+          folderCount.textContent = `${videoFiles.length} video file${videoFiles.length !== 1 ? 's' : ''} found — ready to download`;
+        }
+        btnDownload.disabled = false;
+      }
+    } catch (err) {
+      console.warn('Error refreshing scan:', err);
+    }
+  }
+
   // ── Select Folder ─────────────────────────────────────────────────
   btnSelectFolder.addEventListener('click', async () => {
     if (isRunning) return;
     try {
-      dirHandle  = await window.showDirectoryPicker({ mode: 'readwrite' });
-      videoFiles = [];
-
-      for await (const [name, handle] of dirHandle.entries()) {
-        if (handle.kind !== 'file') continue;
-        const ext = name.substring(name.lastIndexOf('.')).toLowerCase();
-        if (VIDEO_EXTENSIONS.includes(ext)) {
-          videoFiles.push({ name, handle });
-        }
-      }
-
-      videoFiles.sort((a, b) => a.name.localeCompare(b.name));
-
-      folderName.textContent  = dirHandle.name;
-      folderName.style.color  = 'var(--text-primary)';
-
-      if (videoFiles.length === 0) {
-        folderCount.textContent  = 'No video files found in this folder.';
-        btnDownload.disabled = true;
-      } else {
-        folderCount.textContent = `${videoFiles.length} video file${videoFiles.length !== 1 ? 's' : ''} found — ready to download`;
-        btnDownload.disabled = false;
-      }
+      dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+      await refreshFolderScan();
     } catch (err) {
       if (err.name !== 'AbortError') {
-        folderName.textContent  = 'Error accessing folder. Please try again.';
-        folderName.style.color  = 'var(--error)';
+        folderName.textContent = 'Error accessing folder. Please try again.';
+        folderName.style.color = 'var(--error)';
       }
     }
   });
+
+  // Re-scan when subfolder checkbox is toggled
+  if (chkIncludeSubfolders) {
+    chkIncludeSubfolders.addEventListener('change', () => {
+      if (dirHandle && !isRunning) {
+        refreshFolderScan();
+      }
+    });
+  }
 
   // ── Download All ──────────────────────────────────────────────────
   btnDownload.addEventListener('click', async () => {
@@ -673,6 +806,7 @@
     isRunning = true;
     btnDownload.disabled     = true;
     btnSelectFolder.disabled = true;
+    if (chkIncludeSubfolders) chkIncludeSubfolders.disabled = true;
 
     const apiKey = apiKeyInput.value.trim();
     const delay  = Math.max(100, parseInt(delayInput.value, 10) || 500);
@@ -695,8 +829,8 @@
       const subtitleName = baseName + '.srt';
       const parsedInfo   = parseMovieInfo(file.name);
 
-      setProgress(i, total, `${file.name} ➔ ${parsedInfo.extractedName}`);
-      const row = addRow(i + 1, file.name, parsedInfo, 'processing');
+      setProgress(i, total, `${file.relativePath || file.name} ➔ ${parsedInfo.extractedName}`);
+      const row = addRow(i + 1, file, parsedInfo, 'processing');
 
       try {
         // 1. Search SubDL with multi-tiered strategy using parsed info
@@ -746,8 +880,9 @@
 
         if (!srtContent) throw new Error('No .srt file found inside zip');
 
-        // 5. Write subtitle file directly into the movie folder
-        const fileHandle = await dirHandle.getFileHandle(subtitleName, { create: true });
+        // 5. Write subtitle file directly into the exact subfolder next to the movie
+        const targetParent = file.parentHandle || dirHandle;
+        const fileHandle = await targetParent.getFileHandle(subtitleName, { create: true });
         const writable   = await fileHandle.createWritable();
         await writable.write(srtContent);
         await writable.close();
@@ -755,7 +890,7 @@
         saved++;
         updateRow(row, 'saved');
       } catch (err) {
-        console.error(`[${file.name}]`, err.message);
+        console.error(`[${file.relativePath || file.name}]`, err.message);
         errors++;
         updateRow(row, 'error');
       }
@@ -776,6 +911,7 @@
 
     btnDownload.disabled     = false;
     btnSelectFolder.disabled = false;
+    if (chkIncludeSubfolders) chkIncludeSubfolders.disabled = false;
     isRunning = false;
   });
 
@@ -923,18 +1059,28 @@
     }
   }
 
-  function addRow(num, fileName, parsedInfo, status) {
+  function addRow(num, file, parsedInfo, status) {
     const tr = document.createElement('tr');
     tr.className = 'row-new';
 
     const yearBadge = parsedInfo && parsedInfo.year 
       ? `<span class="badge-year">📅 ${escHtml(parsedInfo.year)}</span>` 
       : '';
-    const titleText = parsedInfo && parsedInfo.title ? parsedInfo.title : fileName;
+    const titleText = parsedInfo && parsedInfo.title ? parsedInfo.title : file.name;
+
+    const hasSubfolder = file.relativePath && file.relativePath.includes('/');
+    const subfolderName = hasSubfolder 
+      ? file.relativePath.substring(0, file.relativePath.lastIndexOf('/')) 
+      : '';
 
     tr.innerHTML = `
       <td class="col-num">${num}</td>
-      <td class="col-name">${escHtml(fileName)}</td>
+      <td class="col-name">
+        <div class="file-path-info">
+          ${hasSubfolder ? `<span class="badge-subfolder" title="${escHtml(subfolderName)}">📁 ${escHtml(subfolderName)}</span>` : ''}
+          <span class="file-basename">${escHtml(file.name)}</span>
+        </div>
+      </td>
       <td class="col-parsed">
         <div class="analyzer-info">
           <span class="badge-title">🎬 ${escHtml(titleText)}</span>
