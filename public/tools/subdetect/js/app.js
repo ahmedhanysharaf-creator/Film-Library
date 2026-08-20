@@ -38,11 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const countHardSubs = document.getElementById('countHardSubs');
   const countNoSubs = document.getElementById('countNoSubs');
 
-  // Export & View Toggle
-  const exportDropdownBtn = document.getElementById('exportDropdownBtn');
-  const exportMenu = document.getElementById('exportMenu');
-  const exportCsvBtn = document.getElementById('exportCsvBtn');
-  const exportJsonBtn = document.getElementById('exportJsonBtn');
+  // View Toggle
   const copyMissingSubsBtn = document.getElementById('copyMissingSubsBtn');
   const viewGridBtn = document.getElementById('viewGridBtn');
   const viewTableBtn = document.getElementById('viewTableBtn');
@@ -559,46 +555,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.target === modalBackdrop) closeModal();
   });
 
-  // --- EXPORT DROPDOWN & REPORTS ---
-  exportDropdownBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    exportMenu.classList.toggle('show');
-  });
-
-  document.addEventListener('click', () => {
-    exportMenu.classList.remove('show');
-  });
-
-  exportCsvBtn.addEventListener('click', (e) => {
-    e.preventDefault();
-    if (scannedRecords.length === 0) return;
-
-    let csvContent = 'File Name,Relative Path,Subtitle Status,Subtitle Count,Languages,Formats,Size\n';
-    scannedRecords.forEach(r => {
-      const subs = r.analysis ? r.analysis.subtitles : [];
-      const langs = r.subStatus === 'has-subs' ? (subs.length > 0 ? [...new Set(subs.map(s => s.language))].join('; ') : (r.sidecarSubs.length > 0 ? r.sidecarSubs.join('; ') : 'Built-in Subtitles')) : 'None';
-
-      csvContent += `"${r.fileName}","${r.filePath}","${r.subStatus.toUpperCase()}",${subs.length},"${langs}","${r.fileSizeFormatted}"\n`;
-    });
-
-    downloadBlob(csvContent, 'SubDetect_Report.csv', 'text/csv;charset=utf-8;');
-  });
-
-  exportJsonBtn.addEventListener('click', (e) => {
-    e.preventDefault();
-    if (scannedRecords.length === 0) return;
-
-    const data = scannedRecords.map(r => ({
-      fileName: r.fileName,
-      filePath: r.filePath,
-      fileSize: r.fileSizeFormatted,
-      subStatus: r.subStatus,
-      sidecarSubs: r.sidecarSubs || [],
-      softSubtitles: r.analysis ? r.analysis.subtitles : []
-    }));
-
-    downloadBlob(JSON.stringify(data, null, 2), 'SubDetect_Report.json', 'application/json');
-  });
 
   // --- CUSTOM TARGET FOLDER ORGANIZER MODAL ---
   const openOrganizeModalBtn = document.getElementById('openOrganizeModalBtn');
