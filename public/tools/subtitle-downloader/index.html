@@ -704,7 +704,62 @@
   'use strict';
 
   const VIDEO_EXTENSIONS = ['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.m4v', '.flv', '.webm'];
-  const CORS_PROXY = 'https://corsproxy.io/?';
+
+  // Multiple CORS proxies for reliability — if one is rate-limited or down, try the next
+  const CORS_PROXIES = [
+    url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+    url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+    url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+  ];
+
+  // Robust fetch through CORS proxies with retry
+  async function proxiedFetch(url, expectJson = false) {
+    // First try direct fetch (works if server allows CORS)
+    try {
+      const directRes = await fetch(url);
+      if (directRes.ok) {
+        // Validate response if JSON expected
+        if (expectJson) {
+          const text = await directRes.text();
+          try {
+            const json = JSON.parse(text);
+            return { ok: true, data: json, isJson: true };
+          } catch {
+            // Not valid JSON, try proxies
+          }
+        } else {
+          return { ok: true, response: directRes };
+        }
+      }
+    } catch (e) {
+      // Direct fetch failed (CORS), try proxies
+    }
+
+    // Try each CORS proxy
+    for (let i = 0; i < CORS_PROXIES.length; i++) {
+      const proxyUrl = CORS_PROXIES[i](url);
+      try {
+        const res = await fetch(proxyUrl);
+        if (!res.ok) continue;
+
+        if (expectJson) {
+          const text = await res.text();
+          try {
+            const json = JSON.parse(text);
+            return { ok: true, data: json, isJson: true };
+          } catch {
+            continue; // Proxy returned non-JSON (error page), try next
+          }
+        } else {
+          return { ok: true, response: res };
+        }
+      } catch (e) {
+        continue; // This proxy failed, try next
+      }
+    }
+
+    return { ok: false, error: 'All CORS proxies failed' };
+  }
 
   let dirHandle  = null;
   let videoFiles = [];
@@ -890,16 +945,17 @@
           ? chosenSub.url 
           : (chosenSub.url.startsWith('/') ? `https://dl.subdl.com${chosenSub.url}` : `https://dl.subdl.com/${chosenSub.url}`);
 
-        // 3. Fetch zip directly
-        let zipRes;
-        try {
-          zipRes = await fetch(downloadUrl);
-        } catch (e) {
-          zipRes = await fetch(CORS_PROXY + encodeURIComponent(downloadUrl));
-        }
+        // 3. Fetch zip via robust proxy
+        const dlResult = await proxiedFetch(downloadUrl, false);
+        if (!dlResult.ok || !dlResult.response) throw new Error('All proxies failed for subtitle download');
 
-        if (!zipRes.ok) throw new Error(`Download HTTP ${zipRes.status}`);
-        const arrayBuffer = await zipRes.arrayBuffer();
+        const arrayBuffer = await dlResult.response.arrayBuffer();
+        
+        // Validate we actually received a zip (not an HTML error page)
+        if (arrayBuffer.byteLength < 50) throw new Error('Downloaded file too small — likely an error');
+        const header = new Uint8Array(arrayBuffer.slice(0, 4));
+        const isZip = header[0] === 0x50 && header[1] === 0x4B; // PK signature
+        if (!isZip) throw new Error('Download returned non-zip content (proxy may have returned an error page)');
 
         // 4. Extract .srt from zip using JSZip
         const zip = await JSZip.loadAsync(arrayBuffer);
@@ -1151,17 +1207,9 @@
 
     for (const url of uniqueUrls) {
       try {
-        let res;
-        try {
-          res = await fetch(url);
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        } catch (e) {
-          res = await fetch(CORS_PROXY + encodeURIComponent(url));
-        }
-        if (!res.ok) continue;
-        const data = await res.json();
-        if (data && data.status && Array.isArray(data.subtitles) && data.subtitles.length > 0) {
-          return data;
+        const result = await proxiedFetch(url, true);
+        if (result.ok && result.data && result.data.status && Array.isArray(result.data.subtitles) && result.data.subtitles.length > 0) {
+          return result.data;
         }
       } catch (e) {
         // try next fallback query
