@@ -120,17 +120,17 @@ export const Renamer = () => {
   const selectedCode = codes.find((c) => c.id === selectedCodeId) || codes[0];
 
   // Active Code Detection & PowerShell Outputs
-  const detectedFormat = selectedCode ? detectCodeFormat(selectedCode.parts) : null;
+  const detectedFormat = selectedCode ? detectCodeFormat(selectedCode.parts, selectedCode.category, selectedCode.name) : null;
   const generatedCommands = selectedCode
     ? generatePowerShellCommands(selectedCode, targetPath, { dryRun, showName, scriptsFolder, customMode })
     : { powershellShortCommand: "", powershellScript: "", pythonStandaloneFiles: [] };
 
   // Form detection real-time preview (based on typed code in formParts)
-  const liveFormDetection = detectCodeFormat(formParts);
+  const liveFormDetection = detectCodeFormat(formParts, formCategory, formName);
 
   // Live sandbox calculation directly evaluated from selected Python code
   const liveTestResult = selectedCode
-    ? transformFilenamePreview(testFilename, selectedCode.parts, showName)
+    ? transformFilenamePreview(testFilename, selectedCode.parts, showName, selectedCode.category)
     : "";
 
   const handleClearAllInputs = () => {
@@ -564,7 +564,7 @@ export const Renamer = () => {
               filteredCodes.map((codeItem) => {
                 const isSelected = selectedCodeId === codeItem.id;
                 const hasMultiParts = codeItem.parts && codeItem.parts.length > 1;
-                const itemFormat = detectCodeFormat(codeItem.parts);
+                const itemFormat = detectCodeFormat(codeItem.parts, codeItem.category, codeItem.name);
 
                 return (
                   <div
@@ -1138,7 +1138,8 @@ export const Renamer = () => {
                         {transformFilenamePreview(
                           formCategory === "series" ? "loki.s01.2022.1080p.mkv" : "Inception.2010.1080p.BluRay.x264.mkv",
                           formParts,
-                          ""
+                          "",
+                          formCategory
                         )}
                       </code>
                     </div>
