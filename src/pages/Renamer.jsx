@@ -41,27 +41,50 @@ export const Renamer = () => {
   const modalFileInputRef = useRef(null);
   const pythonFolderInputRef = useRef(null);
 
-  // PowerShell Generator parameters (starts completely empty by default)
-  const [targetPath, setTargetPath] = useState("");
-  const [scriptsFolder, setScriptsFolder] = useState("");
-  const [customMode, setCustomMode] = useState("");
-  const [dryRun, setDryRun] = useState(true);
-  const [showName, setShowName] = useState("");
+  const RENAMER_INPUTS_KEY = "filmlibrary_renamer_inputs_v2";
+
+  const loadSavedInputs = () => {
+    try {
+      const raw = localStorage.getItem(RENAMER_INPUTS_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  };
+
+  const initialInputs = useRef(loadSavedInputs()).current;
+
+  // PowerShell Generator parameters (persisted automatically across all code and preset changes)
+  const [targetPath, setTargetPath] = useState(initialInputs.targetPath || "");
+  const [scriptsFolder, setScriptsFolder] = useState(initialInputs.scriptsFolder || "");
+  const [customMode, setCustomMode] = useState(initialInputs.customMode || "");
+  const [dryRun, setDryRun] = useState(initialInputs.dryRun !== undefined ? initialInputs.dryRun : true);
+  const [showName, setShowName] = useState(initialInputs.showName || "");
   const [copied, setCopied] = useState(false);
 
   // Destination folder per preset: { [presetId]: { handle, name } }
   const [destFolders, setDestFolders] = useState({});
 
-  // Clean out any previously cached hardcoded paths from localStorage on load
-  useEffect(() => {
-    localStorage.removeItem("renamer_target_path");
-    localStorage.removeItem("renamer_scripts_folder");
-    localStorage.removeItem("renamer_base_folder");
-  }, []);
-
-  // Custom Test Filename Sandbox
-  const [testFilename, setTestFilename] = useState("Inception.2010.1080p.BluRay.x264.mkv");
+  // Custom Test Filename Sandbox (persisted)
+  const [testFilename, setTestFilename] = useState(
+    initialInputs.testFilename || "Inception.2010.1080p.BluRay.x264.mkv"
+  );
   const [showRawCode, setShowRawCode] = useState(false);
+
+  // Auto-save all typed input fields to localStorage on every change
+  useEffect(() => {
+    const dataToSave = {
+      targetPath,
+      scriptsFolder,
+      customMode,
+      dryRun,
+      showName,
+      testFilename
+    };
+    try {
+      localStorage.setItem(RENAMER_INPUTS_KEY, JSON.stringify(dataToSave));
+    } catch {}
+  }, [targetPath, scriptsFolder, customMode, dryRun, showName, testFilename]);
 
   // Modal State for Adding/Editing Code
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -102,13 +125,26 @@ export const Renamer = () => {
     ? generatePowerShellCommands(selectedCode, targetPath, { dryRun, showName, scriptsFolder, customMode })
     : { powershellShortCommand: "", powershellScript: "", pythonStandaloneFiles: [] };
 
-  // Form detection real-time preview
+  // Form detection real-time preview (based on typed code in formParts)
   const liveFormDetection = detectCodeFormat(formParts);
 
-  // Live sandbox calculation
+  // Live sandbox calculation directly evaluated from selected Python code
   const liveTestResult = selectedCode
-    ? transformFilenamePreview(testFilename, selectedCode.category || detectedFormat?.category, showName)
+    ? transformFilenamePreview(testFilename, selectedCode.parts, showName)
     : "";
+
+  const handleClearAllInputs = () => {
+    setTargetPath("");
+    setScriptsFolder("");
+    setCustomMode("");
+    setShowName("");
+    setDryRun(true);
+    setTestFilename("Inception.2010.1080p.BluRay.x264.mkv");
+    try {
+      localStorage.removeItem(RENAMER_INPUTS_KEY);
+    } catch {}
+    addToast("All input fields cleared and reset.", "info");
+  };
 
   const handleCopy = (text) => {
     if (!text) return;
@@ -726,9 +762,24 @@ export const Renamer = () => {
 
             {/* 🎯 SECTION 2: TARGET FOLDER & SHORT POWERSHELL COMMAND GENERATOR 🎯 */}
             <div style={styles.configCard}>
-              <h3 style={styles.configSectionTitle}>
-                <FolderSearch size={16} color="#e50914" /> Target Folder & Command Generator
-              </h3>
+              <div style={styles.configHeaderRow}>
+                <h3 style={styles.configSectionTitle}>
+                  <FolderSearch size={16} color="#e50914" /> Target Folder & Command Generator
+                </h3>
+                <div style={styles.autoSaveGroup}>
+                  <span style={styles.autoSaveBadge} title="Input paths and parameters automatically saved to browser storage">
+                    <CheckCircle2 size={13} color="#10b981" /> Auto-saved
+                  </span>
+                  <button
+                    type="button"
+                    style={styles.clearInputsBtn}
+                    onClick={handleClearAllInputs}
+                    title="Clear and reset all typed input folder paths and values"
+                  >
+                    <RotateCcw size={12} /> Clear All Inputs
+                  </button>
+                </div>
+              </div>
 
               {/* Scripts Folder — where main.py lives */}
               <div style={styles.inputGroup}>
@@ -1061,6 +1112,38 @@ export const Renamer = () => {
                     </div>
                   </div>
                 )}
+
+                {/* 🎯 Real-Time Format Detection & Simulated Output Box inside Modal */}
+                <div style={styles.modalLivePreviewBox}>
+                  <div style={styles.modalLivePreviewHeader}>
+                    <Sparkles size={14} color="#e50914" />
+                    <span style={styles.modalLivePreviewTitle}>
+                      Live Code Simulation:
+                    </span>
+                    <span style={styles.modalFormatBadge}>
+                      {liveFormDetection?.categoryName}
+                    </span>
+                  </div>
+                  <div style={styles.modalLivePreviewRow}>
+                    <div style={styles.modalPreviewCol}>
+                      <span style={styles.previewSubLabel}>Test Input:</span>
+                      <code style={styles.modalPreviewBeforeCode}>
+                        {formCategory === "series" ? "loki.s01.2022.1080p.mkv" : "Inception.2010.1080p.BluRay.x264.mkv"}
+                      </code>
+                    </div>
+                    <ArrowRight size={16} color="#e50914" style={{ alignSelf: "center", marginTop: "14px" }} />
+                    <div style={styles.modalPreviewCol}>
+                      <span style={styles.previewSubLabelGreen}>Simulated Python Output:</span>
+                      <code style={styles.modalPreviewAfterCode}>
+                        {transformFilenamePreview(
+                          formCategory === "series" ? "loki.s01.2022.1080p.mkv" : "Inception.2010.1080p.BluRay.x264.mkv",
+                          formParts,
+                          ""
+                        )}
+                      </code>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div style={styles.modalFooter}>
@@ -1999,5 +2082,117 @@ const styles = {
     borderRadius: "8px",
     fontWeight: 700,
     cursor: "pointer"
+  },
+  configHeaderRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: "16px",
+    flexWrap: "wrap",
+    gap: "10px"
+  },
+  autoSaveGroup: {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px"
+  },
+  autoSaveBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "5px",
+    fontSize: "0.78rem",
+    fontWeight: 600,
+    color: "#4ade80",
+    backgroundColor: "rgba(34, 197, 94, 0.12)",
+    border: "1px solid rgba(34, 197, 94, 0.3)",
+    padding: "3px 8px",
+    borderRadius: "6px"
+  },
+  clearInputsBtn: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "5px",
+    fontSize: "0.78rem",
+    fontWeight: 600,
+    color: "#a3a3a3",
+    backgroundColor: "#222222",
+    border: "1px solid #333333",
+    padding: "4px 10px",
+    borderRadius: "6px",
+    cursor: "pointer",
+    transition: "all 0.2s"
+  },
+  modalLivePreviewBox: {
+    backgroundColor: "#111111",
+    border: "1px solid #2a2a2a",
+    borderRadius: "10px",
+    padding: "14px 16px",
+    marginTop: "8px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "10px"
+  },
+  modalLivePreviewHeader: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px"
+  },
+  modalLivePreviewTitle: {
+    fontSize: "0.85rem",
+    fontWeight: 700,
+    color: "#ffffff"
+  },
+  modalFormatBadge: {
+    fontSize: "0.75rem",
+    fontWeight: 600,
+    color: "var(--accent-red)",
+    backgroundColor: "rgba(229, 9, 20, 0.12)",
+    border: "1px solid rgba(229, 9, 20, 0.3)",
+    padding: "2px 8px",
+    borderRadius: "6px",
+    marginLeft: "auto"
+  },
+  modalLivePreviewRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: "14px",
+    backgroundColor: "#080808",
+    padding: "10px 14px",
+    borderRadius: "8px",
+    border: "1px solid #1f1f1f"
+  },
+  modalPreviewCol: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    gap: "4px",
+    minWidth: 0
+  },
+  previewSubLabel: {
+    fontSize: "0.72rem",
+    fontWeight: 600,
+    color: "#888888"
+  },
+  previewSubLabelGreen: {
+    fontSize: "0.72rem",
+    fontWeight: 600,
+    color: "#4ade80"
+  },
+  modalPreviewBeforeCode: {
+    fontSize: "0.82rem",
+    color: "#e5e7eb",
+    fontFamily: "Consolas, Monaco, monospace",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis"
+  },
+  modalPreviewAfterCode: {
+    fontSize: "0.82rem",
+    color: "#4ade80",
+    fontWeight: 700,
+    fontFamily: "Consolas, Monaco, monospace",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis"
   }
 };

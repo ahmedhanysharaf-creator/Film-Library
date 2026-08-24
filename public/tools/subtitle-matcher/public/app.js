@@ -73,6 +73,8 @@ const dom = {
   matchesList:           $('matches-list'),
   matchCount:            $('match-count'),
   clearBtn:              $('clear-matches-btn'),
+  slideLeftBtn:          $('slide-left-btn'),
+  slideRightBtn:         $('slide-right-btn'),
   modal:                 $('results-modal'),
   modalResults:          $('modal-results'),
   modalActions:          $('modal-actions'),
@@ -1602,5 +1604,74 @@ document.addEventListener('keydown', e => {
   }
 });
 
+// ═══════ MATCHES LIST SLIDER & MOUSE WHEEL HANDLING ═══════
+function initMatchesSlider() {
+  const container = dom.matchesList;
+  if (!container) return;
+
+  // 1. Mouse wheel horizontal scrolling (translates vertical mouse wheel rotation into horizontal scrolling)
+  const handleWheelScroll = (e) => {
+    if (container.scrollWidth > container.clientWidth) {
+      e.preventDefault();
+      const delta = Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+      container.scrollLeft += delta * 1.25;
+    }
+  };
+
+  container.addEventListener('wheel', handleWheelScroll, { passive: false });
+  
+  const matchesBar = $('matches-bar');
+  if (matchesBar) {
+    matchesBar.addEventListener('wheel', (e) => {
+      if (container.scrollWidth > container.clientWidth && !e.target.closest('.matches-list')) {
+        e.preventDefault();
+        const delta = Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+        container.scrollLeft += delta * 1.25;
+      }
+    }, { passive: false });
+  }
+
+  // 2. Drag-to-scroll gesture (pointer grab & slide)
+  let isDown = false;
+  let startX = 0;
+  let scrollLeft = 0;
+
+  container.addEventListener('mousedown', (e) => {
+    if (e.target.closest('button') || e.target.closest('.unmatch-btn')) return;
+    isDown = true;
+    container.classList.add('grabbing');
+    startX = e.pageX - container.offsetLeft;
+    scrollLeft = container.scrollLeft;
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (isDown) {
+      isDown = false;
+      container.classList.remove('grabbing');
+    }
+  });
+
+  container.addEventListener('mousemove', (e) => {
+    if (!isDown) return;
+    e.preventDefault();
+    const x = e.pageX - container.offsetLeft;
+    const walk = (x - startX) * 1.4;
+    container.scrollLeft = scrollLeft - walk;
+  });
+
+  // 3. Slide navigation buttons
+  if (dom.slideLeftBtn) {
+    dom.slideLeftBtn.addEventListener('click', () => {
+      container.scrollBy({ left: -340, behavior: 'smooth' });
+    });
+  }
+  if (dom.slideRightBtn) {
+    dom.slideRightBtn.addEventListener('click', () => {
+      container.scrollBy({ left: 340, behavior: 'smooth' });
+    });
+  }
+}
+
 // Initialize history badge count on startup
 updateHistoryBadge();
+initMatchesSlider();
