@@ -239,10 +239,6 @@ export function simulatePythonRename(rawName = "", codeInput = "", showNameOverr
     // Year tokens
     result = result.replace(/\{(?:year|release_year|movie_year|yr|clean_year)[^}]*\}/gi, year);
 
-    // Show & Title tokens
-    result = result.replace(/\{(?:show|detected_show|SHOW_NAME|show_name|series_name|clean_show_name)[^}]*\}/gi, showNameFinal);
-    result = result.replace(/\{(?:clean_title|title|movie|movie_name|clean_movie_name|clean_name|clean|clean_prefix|raw_title|main_title|new_title|name|folder_name|dir_name)[^}]*\}/gi, titleFormatted);
-
     // Season tokens
     result = result.replace(/\{(?:season|s):02d\}/gi, String(seasonNum).padStart(2, '0'));
     result = result.replace(/\{int\(season\):02d\}/gi, String(seasonNum).padStart(2, '0'));
@@ -272,13 +268,26 @@ export function simulatePythonRename(rawName = "", codeInput = "", showNameOverr
     // Extension token
     result = result.replace(/\{(?:sub_ext|vid_ext|file_ext|target_ext|new_ext|extension|ext)[^}]*\}/gi, ext);
 
-    // If template has remaining unrecognized {token}, replace with titleFormatted if name would be empty
-    const testWithoutExt = result.replace(ext, '').replace(/\{[a-zA-Z0-9_().:]+\}/g, '').trim();
-    if (!testWithoutExt) {
-      result = result.replace(/\{[a-zA-Z0-9_().:]+\}/g, titleFormatted);
-    } else {
-      result = result.replace(/\{[a-zA-Z0-9_().:]+\}/g, '');
+    // Specific Show & Title tokens
+    result = result.replace(/\{(?:show|detected_show|SHOW_NAME|show_name|series_name|clean_show_name)[^}]*\}/gi, showNameFinal);
+    result = result.replace(/\{(?:clean_title|title|movie|movie_name|clean_movie_name|clean_name|clean|clean_prefix|raw_title|main_title|new_title|name|folder_name|dir_name)[^}]*\}/gi, titleFormatted);
+
+    // UNIVERSAL TITLE CATCH-ALL:
+    // If result does not yet contain the title, replace the first remaining unrecognized {token} with titleFormatted!
+    const currentTextWithoutExt = result.replace(ext, '');
+    if (!currentTextWithoutExt.toLowerCase().includes(cleanTitle.toLowerCase()) && /\{[a-zA-Z0-9_().:]+\}/.test(result)) {
+      result = result.replace(/\{[a-zA-Z0-9_().:]+\}/, titleFormatted);
     }
+
+    // Clear any remaining unused placeholder tokens
+    result = result.replace(/\{[a-zA-Z0-9_().:]+\}/g, '');
+
+    // Cleanup Orphan Hyphens & Spacing (fixes `(2010) - - 1080p` -> `(2010) - Inception - 1080p`)
+    result = result.replace(/\s*-\s*(?:-\s*)+/g, ' - ');
+    result = result.replace(/\(\s*\)/g, '');
+    result = result.replace(/\s{2,}/g, ' ');
+    result = result.replace(/\s*-\s*(\.[a-zA-Z0-9]+)$/, '$1');
+    result = result.replace(/^[\s-]+/, '').trim();
 
     // Ensure extension exists
     if (!result.toLowerCase().endsWith(ext)) {
