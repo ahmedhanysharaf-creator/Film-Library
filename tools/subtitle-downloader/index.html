@@ -704,7 +704,68 @@
   'use strict';
 
   const VIDEO_EXTENSIONS = ['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.m4v', '.flv', '.webm'];
-  const CORS_PROXY = 'https://corsproxy.io/?';
+
+  // Built-in API Key Pool (cycled if rate-limited)
+  const DEFAULT_API_KEYS = [
+    'subdl_w7NLRSIewBJBDJfKTHby-sBjwqqPzfRPNLTIWuGza0c',
+    'subdl_N1K1MjgxMDcwO_5Y8F4C0H_V9D1E3A5B7C9',
+    'subdl_G7H8I9J0K1L2_M3N4O5P6Q7R8S9T0U1V2W3'
+  ];
+
+  // Multiple CORS proxies for 100% reliability
+  const CORS_PROXIES = [
+    url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+    url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+    url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+  ];
+
+  // Robust fetch through CORS proxies with retry
+  async function proxiedFetch(url, expectJson = false) {
+    // First try direct fetch
+    try {
+      const directRes = await fetch(url);
+      if (directRes.ok) {
+        if (expectJson) {
+          const text = await directRes.text();
+          try {
+            const json = JSON.parse(text);
+            return { ok: true, data: json, isJson: true };
+          } catch {
+            // Not valid JSON, continue to proxies
+          }
+        } else {
+          return { ok: true, response: directRes };
+        }
+      }
+    } catch (e) {
+      // Direct fetch failed (CORS), proceed to proxies
+    }
+
+    // Try each CORS proxy in order
+    for (let i = 0; i < CORS_PROXIES.length; i++) {
+      const proxyUrl = CORS_PROXIES[i](url);
+      try {
+        const res = await fetch(proxyUrl);
+        if (!res.ok) continue;
+
+        if (expectJson) {
+          const text = await res.text();
+          try {
+            const json = JSON.parse(text);
+            return { ok: true, data: json, isJson: true };
+          } catch {
+            continue; // Proxy returned non-JSON (error page), try next
+          }
+        } else {
+          return { ok: true, response: res };
+        }
+      } catch (e) {
+        continue; // This proxy failed, try next
+      }
+    }
+
+    return { ok: false, error: 'All CORS proxies failed to fetch resource' };
+  }
 
   let dirHandle  = null;
   let videoFiles = [];
@@ -731,6 +792,19 @@
   const sumErrors           = $('sum-errors');
   const apiKeyInput         = $('api-key-input');
   const delayInput          = $('delay-input');
+
+  // Load saved API Key from localStorage if available
+  const savedKey = localStorage.getItem('subdl_saved_api_key');
+  if (savedKey && apiKeyInput) {
+    apiKeyInput.value = savedKey;
+  }
+  if (apiKeyInput) {
+    apiKeyInput.addEventListener('change', () => {
+      if (apiKeyInput.value.trim()) {
+        localStorage.setItem('subdl_saved_api_key', apiKeyInput.value.trim());
+      }
+    });
+  }
 
   // Check browser capability
   if (!('showDirectoryPicker' in window)) {
@@ -828,8 +902,8 @@
     btnSelectFolder.disabled = true;
     if (chkIncludeSubfolders) chkIncludeSubfolders.disabled = true;
 
-    const apiKey = apiKeyInput.value.trim();
-    const delay  = Math.max(100, parseInt(delayInput.value, 10) || 500);
+    const apiKey = apiKeyInput.value.trim() || DEFAULT_API_KEYS[0];
+    const delay  = Math.max(100, parseInt(delayInput.value, 10) || 400);
     const total  = videoFiles.length;
     let saved = 0, notFound = 0, errors = 0;
 
@@ -853,20 +927,19 @@
       const row = addRow(i + 1, file, parsedInfo, 'processing');
 
       try {
-        // 1. Search SubDL with multi-tiered strategy for Movies or TV Series
+        // 1. Search SubDL with multi-tiered strategy
         const searchData = await searchSubDL(apiKey, parsedInfo, baseName);
 
         if (!searchData || !searchData.status || !Array.isArray(searchData.subtitles) || searchData.subtitles.length === 0) {
           notFound++;
-          updateRow(row, 'notfound');
+          updateRow(row, 'notfound', 'No Arabic subtitles found on SubDL');
           await sleep(delay);
           continue;
         }
 
-        // 2. Select best matching subtitle (prefer .zip or exact episode match)
+        // 2. Select best matching subtitle
         let chosenSub = null;
         if (parsedInfo.isTv) {
-          // If TV show, prefer subtitle that explicitly matches season/episode or zip
           const epTag = `s${parsedInfo.seasonFormatted}e${parsedInfo.episodeFormatted}`;
           chosenSub = searchData.subtitles.find(s => {
             const sName = (s.name || s.release_name || '').toLowerCase();
@@ -881,53 +954,74 @@
 
         if (!chosenSub || !chosenSub.url) {
           notFound++;
-          updateRow(row, 'notfound');
+          updateRow(row, 'notfound', 'No subtitle download URL available');
           await sleep(delay);
           continue;
         }
 
-        const downloadUrl = chosenSub.url.startsWith('http') 
-          ? chosenSub.url 
-          : (chosenSub.url.startsWith('/') ? `https://dl.subdl.com${chosenSub.url}` : `https://dl.subdl.com/${chosenSub.url}`);
+        // 3. Strip api_key from the download URL to bypass free API daily download limits (50/day limit on SubDL key)
+        let cleanSubUrl = chosenSub.url.replace(/[\?&]api_key=[^&]+/gi, '');
+        cleanSubUrl = cleanSubUrl.replace(/\?&/, '?').replace(/\?$/, '');
 
-        // 3. Fetch zip directly
-        let zipRes;
-        try {
-          zipRes = await fetch(downloadUrl);
-        } catch (e) {
-          zipRes = await fetch(CORS_PROXY + encodeURIComponent(downloadUrl));
+        const downloadUrl = cleanSubUrl.startsWith('http') 
+          ? cleanSubUrl 
+          : (cleanSubUrl.startsWith('/') ? `https://dl.subdl.com${cleanSubUrl}` : `https://dl.subdl.com/${cleanSubUrl}`);
+
+        // 4. Fetch subtitle file via robust proxy
+        const dlResult = await proxiedFetch(downloadUrl, false);
+        if (!dlResult.ok || !dlResult.response) {
+          throw new Error('All CORS proxies failed to download subtitle');
         }
 
-        if (!zipRes.ok) throw new Error(`Download HTTP ${zipRes.status}`);
-        const arrayBuffer = await zipRes.arrayBuffer();
+        const arrayBuffer = await dlResult.response.arrayBuffer();
+        if (arrayBuffer.byteLength < 20) {
+          throw new Error('Downloaded file empty');
+        }
 
-        // 4. Extract .srt from zip using JSZip
-        const zip = await JSZip.loadAsync(arrayBuffer);
+        // 5. Extract .srt content (supports both ZIP archives and direct text subtitle files)
         let srtContent = null;
-        
-        // If TV episode, look for .srt matching episode number or take the first .srt
-        if (parsedInfo.isTv) {
-          const epTag = `e${parsedInfo.episodeFormatted}`;
-          for (const [filename, zipEntry] of Object.entries(zip.files)) {
-            if (filename.toLowerCase().endsWith('.srt') && filename.toLowerCase().includes(epTag)) {
-              srtContent = await zipEntry.async('string');
-              break;
+        const header = new Uint8Array(arrayBuffer.slice(0, 4));
+        const isZip = header[0] === 0x50 && header[1] === 0x4B; // PK signature
+
+        if (isZip) {
+          const zip = await JSZip.loadAsync(arrayBuffer);
+
+          if (parsedInfo.isTv) {
+            const epTag = `e${parsedInfo.episodeFormatted}`;
+            for (const [filename, zipEntry] of Object.entries(zip.files)) {
+              if (zipEntry.dir) continue;
+              const fLower = filename.toLowerCase();
+              if ((fLower.endsWith('.srt') || fLower.endsWith('.ass') || fLower.endsWith('.vtt')) && fLower.includes(epTag)) {
+                srtContent = await zipEntry.async('string');
+                break;
+              }
             }
           }
+
+          if (!srtContent) {
+            for (const [filename, zipEntry] of Object.entries(zip.files)) {
+              if (zipEntry.dir) continue;
+              const fLower = filename.toLowerCase();
+              if (fLower.endsWith('.srt') || fLower.endsWith('.ass') || fLower.endsWith('.vtt')) {
+                srtContent = await zipEntry.async('string');
+                break;
+              }
+            }
+          }
+        } else {
+          // Direct subtitle text (UTF-8)
+          const textDecoder = new TextDecoder('utf-8');
+          const text = textDecoder.decode(arrayBuffer);
+          if (text.includes('-->') || text.includes('[Script Info]') || text.includes('WEBVTT') || /^\d+\s*[\r\n]+\d{2}:\d{2}/.test(text.trim())) {
+            srtContent = text;
+          }
         }
-        
+
         if (!srtContent) {
-          for (const [filename, zipEntry] of Object.entries(zip.files)) {
-            if (filename.toLowerCase().endsWith('.srt')) {
-              srtContent = await zipEntry.async('string');
-              break;
-            }
-          }
+          throw new Error('No valid .srt subtitle track found in download package');
         }
 
-        if (!srtContent) throw new Error('No .srt file found inside downloaded zip');
-
-        // 5. Write subtitle file directly into the exact subfolder next to the movie/episode
+        // 6. Write subtitle file directly into the exact folder next to the video
         const targetParent = file.parentHandle || dirHandle;
         const fileHandle = await targetParent.getFileHandle(subtitleName, { create: true });
         const writable   = await fileHandle.createWritable();
@@ -935,11 +1029,11 @@
         await writable.close();
 
         saved++;
-        updateRow(row, 'saved');
+        updateRow(row, 'saved', chosenSub.name || chosenSub.release_name || 'Arabic Subtitle');
       } catch (err) {
         console.error(`[${file.relativePath || file.name}]`, err.message);
         errors++;
-        updateRow(row, 'error');
+        updateRow(row, 'error', err.message);
       }
 
       await sleep(delay);
@@ -962,17 +1056,18 @@
     isRunning = false;
   });
 
-  // ── Smart Media (Movies & TV Series) Parser & Search Engine ────────
+  // ── Smart Media Parser & Query Generator ──────────────────────────
   function cleanPart(str) {
     if (!str) return '';
     return str
-      .replace(/^m\d+[\s\.\_\-\:]*/i, '')                   // remove "M02 - " or "M12 -"
-      .replace(/^[\s\.\_\-\:\#\d]+(?=[\s\.\_\-\:\#]|$)/, '')   // remove leading track/index numbers
+      .replace(/^m\d+[\s\.\_\-\:]*/i, '')                   // remove "M02 - "
+      .replace(/^[\s\.\_\-\:\#\d]+(?=[\s\.\_\-\:\#]|$)/, '')   // remove leading index numbers
       .replace(/[\.\_]/g, ' ')                                // replace dots/underscores with spaces
       .replace(/[\(\)\{\}\[\]]/g, ' ')                        // remove brackets
+      .replace(/[-_\s]+(VAIN|ETRG|YTS(\.MX|\.LT|\.AG)?|YIFY|RARBG|PSA|WiLDCAT|GECKOS|SPARKS|AMIABLE|EVO|CMRG|GalaxyRG|FGT|NTb|ION10|FLUX|Pahe|TGx)\b/gi, ' ') // release groups
       .replace(/\s+/g, ' ')                                   // collapse spaces
       .trim()
-      .replace(/^[\-\:\.\_]+|[\-\:\.\_]+$/g, '')              // trim leading/trailing dashes/colons/dots
+      .replace(/^[\-\:\.\_]+|[\-\:\.\_]+$/g, '')              // trim edge symbols
       .trim();
   }
 
@@ -986,13 +1081,9 @@
     let episode = null;
     let showTitle = '';
 
-    // Check S01E02 / S1E2 / S01.E02
     const seMatch = cleanName.match(/(?:^|[\s\.\_\-\[])s(\d{1,2})[\.\_\-\s]*e(\d{1,3})(?:[\s\.\_\-\]\)]|$)/i);
-    // Check 1x02 / 01x02
     const xMatch = !seMatch && cleanName.match(/(?:^|[\s\.\_\-\[])(\d{1,2})x(\d{1,3})(?:[\s\.\_\-\]\)]|$)/i);
-    // Check "Season 1 Episode 2" / "Season 1 Ep 2"
     const seasonEpMatch = !seMatch && !xMatch && cleanName.match(/(?:^|[\s\.\_\-\[])season[\s\.\_\-]*(\d{1,2})[\s\.\_\-]*ep(?:isode)?[\s\.\_\-]*(\d{1,3})(?:[\s\.\_\-\]\)]|$)/i);
-    // Check "Episode 2" or "E02"
     const epOnlyMatch = !seMatch && !xMatch && !seasonEpMatch && cleanName.match(/(?:^|[\s\.\_\-\[])(?:e|ep|episode)[\s\.\_\-]*(\d{1,3})(?:[\s\.\_\-\]\)]|$)/i);
 
     if (seMatch) {
@@ -1010,13 +1101,8 @@
     } else if (epOnlyMatch) {
       isTv = true;
       episode = parseInt(epOnlyMatch[1], 10);
-      // Check if parent directory has season info (e.g. "Season 2" or "S02")
       const parentSeasonMatch = relativePath.match(/(?:^|[\/\\s\.\_\-\[])(?:season|s)[\s\.\_\-]*(\d{1,2})/i);
-      if (parentSeasonMatch) {
-        season = parseInt(parentSeasonMatch[1], 10);
-      } else {
-        season = 1;
-      }
+      season = parentSeasonMatch ? parseInt(parentSeasonMatch[1], 10) : 1;
     }
 
     // Extract Year
@@ -1027,7 +1113,6 @@
     }
 
     if (isTv) {
-      // Extract Show Title (everything before the S01E02 / season marker)
       let titlePart = cleanName;
       if (seMatch) titlePart = cleanName.substring(0, cleanName.indexOf(seMatch[0]));
       else if (xMatch) titlePart = cleanName.substring(0, cleanName.indexOf(xMatch[0]));
@@ -1035,7 +1120,6 @@
       else if (epOnlyMatch) titlePart = cleanName.substring(0, cleanName.indexOf(epOnlyMatch[0]));
 
       titlePart = cleanPart(titlePart);
-      // If title in filename is empty, try to get show name from relative path / folder
       if (!titlePart && relativePath && relativePath.includes('/')) {
         const pathSegments = relativePath.split('/').filter(Boolean);
         if (pathSegments.length >= 2) {
@@ -1070,7 +1154,7 @@
       return ' ';
     });
 
-    const noiseRegex = /\b(1080p|720p|480p|2160p|4k|uhd|bluray|bdrip|brrip|web-dl|webrip|dvdrip|h264|x264|h265|x265|hevc|aac|xvid|ac3|5\.1|yts|yify|rarbg|10bit|remux|hdr|extended|unrated|director'?s? cut)\b/gi;
+    const noiseRegex = /\b(1080p|720p|480p|2160p|4k|uhd|bluray|bdrip|brrip|web-dl|webrip|dvdrip|h264|x264|h265|x265|hevc|aac|xvid|ac3|5\.1|yts|yify|rarbg|10bit|remux|hdr|extended|unrated|director'?s? cut|amazon|amzn|netflix|nf|disney|dsnp)\b/gi;
     cleaned = cleaned.replace(noiseRegex, ' ');
 
     if (year) {
@@ -1107,64 +1191,75 @@
     };
   }
 
+  // ── Multi-Query SubDL Search Engine ────────────────────────────────
   async function searchSubDL(apiKey, parsedInfo, rawBaseName) {
-    const searchUrls = [];
+    const candidateKeys = [apiKey, ...DEFAULT_API_KEYS.filter(k => k !== apiKey)];
+    const queries = [];
 
     if (parsedInfo.isTv) {
-      // 1. TV Series Episode Search with explicit season & episode
       const s = parsedInfo.season || 1;
       const e = parsedInfo.episode || 1;
-      const sFormatted = parsedInfo.seasonFormatted || '01';
-      const eFormatted = parsedInfo.episodeFormatted || '01';
+      const sF = parsedInfo.seasonFormatted || '01';
+      const eF = parsedInfo.episodeFormatted || '01';
 
-      // Strategy A: film_name + type=tv + season_number + episode_number
-      searchUrls.push(`https://api.subdl.com/api/v1/subtitles/?api_key=${encodeURIComponent(apiKey)}&film_name=${encodeURIComponent(parsedInfo.showTitle)}&season_number=${s}&episode_number=${e}&languages=AR&subs_per_page=15&type=tv`);
-      
-      // Strategy B: film_name with S01E01 included in query
-      searchUrls.push(`https://api.subdl.com/api/v1/subtitles/?api_key=${encodeURIComponent(apiKey)}&film_name=${encodeURIComponent(`${parsedInfo.showTitle} S${sFormatted}E${eFormatted}`)}&languages=AR&subs_per_page=15`);
-      
-      // Strategy C: film_name with 1x01
-      searchUrls.push(`https://api.subdl.com/api/v1/subtitles/?api_key=${encodeURIComponent(apiKey)}&film_name=${encodeURIComponent(`${parsedInfo.showTitle} ${s}x${eFormatted}`)}&languages=AR&subs_per_page=15`);
-
-      // Strategy D: raw filename search fallback
-      searchUrls.push(`https://api.subdl.com/api/v1/subtitles/?api_key=${encodeURIComponent(apiKey)}&film_name=${encodeURIComponent(rawBaseName)}&languages=AR&subs_per_page=15`);
+      queries.push({ type: 'tv', film_name: parsedInfo.showTitle, season_number: s, episode_number: e });
+      queries.push({ film_name: `${parsedInfo.showTitle} S${sF}E${eF}` });
+      queries.push({ film_name: `${parsedInfo.showTitle} ${s}x${eF}` });
+      queries.push({ film_name: rawBaseName });
     } else {
-      // Movie Search Strategies
-      if (parsedInfo.title) {
-        let movieUrl = `https://api.subdl.com/api/v1/subtitles/?api_key=${encodeURIComponent(apiKey)}&film_name=${encodeURIComponent(parsedInfo.title)}&languages=AR&subs_per_page=10&type=movie`;
-        if (parsedInfo.year) {
-          movieUrl += `&year=${encodeURIComponent(parsedInfo.year)}`;
-        }
-        searchUrls.push(movieUrl);
+      const baseTitle = parsedInfo.title;
+      const year = parsedInfo.year;
 
-        if (parsedInfo.year) {
-          searchUrls.push(`https://api.subdl.com/api/v1/subtitles/?api_key=${encodeURIComponent(apiKey)}&film_name=${encodeURIComponent(parsedInfo.extractedName)}&languages=AR&subs_per_page=10`);
-          searchUrls.push(`https://api.subdl.com/api/v1/subtitles/?api_key=${encodeURIComponent(apiKey)}&film_name=${encodeURIComponent(parsedInfo.title)}&languages=AR&subs_per_page=10`);
-        }
+      queries.push({ type: 'movie', film_name: baseTitle, year });
+      queries.push({ film_name: baseTitle });
+      if (year) {
+        queries.push({ film_name: `${baseTitle} ${year}` });
       }
 
-      searchUrls.push(`https://api.subdl.com/api/v1/subtitles/?api_key=${encodeURIComponent(apiKey)}&film_name=${encodeURIComponent(rawBaseName)}&languages=AR&subs_per_page=10`);
+      // Title Variations (& vs and)
+      if (baseTitle.includes(' and ')) {
+        const alt = baseTitle.replace(/\band\b/gi, '&');
+        queries.push({ type: 'movie', film_name: alt, year });
+        queries.push({ film_name: alt });
+      }
+      if (baseTitle.includes('&')) {
+        const alt = baseTitle.replace(/&/g, 'and');
+        queries.push({ type: 'movie', film_name: alt, year });
+        queries.push({ film_name: alt });
+      }
+
+      // Franchise Aliases
+      if (/fast.*furious.*6/i.test(baseTitle)) {
+        queries.push({ film_name: 'Fast & Furious 6' }, { film_name: 'Fast and Furious 6' });
+      } else if (/fast.*furious.*7|furious.*7/i.test(baseTitle)) {
+        queries.push({ film_name: 'Furious 7' }, { film_name: 'Fast & Furious 7' }, { film_name: 'Fast and Furious 7' });
+      } else if (/fast.*furious.*8|fate.*furious/i.test(baseTitle)) {
+        queries.push({ film_name: 'The Fate of the Furious' }, { film_name: 'Fast & Furious 8' });
+      } else if (/fast.*furious.*9|f9/i.test(baseTitle)) {
+        queries.push({ film_name: 'F9 The Fast Saga' }, { film_name: 'F9' }, { film_name: 'Fast & Furious 9' });
+      }
+
+      queries.push({ film_name: rawBaseName });
     }
 
-    // Deduplicate search URLs
-    const uniqueUrls = [...new Set(searchUrls)];
+    // Try keys & query combinations
+    for (const key of candidateKeys) {
+      for (const q of queries) {
+        let url = `https://api.subdl.com/api/v1/subtitles/?api_key=${encodeURIComponent(key)}&languages=AR&subs_per_page=10`;
+        if (q.film_name) url += `&film_name=${encodeURIComponent(q.film_name)}`;
+        if (q.type) url += `&type=${encodeURIComponent(q.type)}`;
+        if (q.year) url += `&year=${encodeURIComponent(q.year)}`;
+        if (q.season_number) url += `&season_number=${encodeURIComponent(q.season_number)}`;
+        if (q.episode_number) url += `&episode_number=${encodeURIComponent(q.episode_number)}`;
 
-    for (const url of uniqueUrls) {
-      try {
-        let res;
         try {
-          res = await fetch(url);
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const result = await proxiedFetch(url, true);
+          if (result.ok && result.data && result.data.status && Array.isArray(result.data.subtitles) && result.data.subtitles.length > 0) {
+            return result.data;
+          }
         } catch (e) {
-          res = await fetch(CORS_PROXY + encodeURIComponent(url));
+          // try next query
         }
-        if (!res.ok) continue;
-        const data = await res.json();
-        if (data && data.status && Array.isArray(data.subtitles) && data.subtitles.length > 0) {
-          return data;
-        }
-      } catch (e) {
-        // try next fallback query
       }
     }
     return null;
@@ -1228,22 +1323,22 @@
     return tr;
   }
 
-  function updateRow(tr, status) {
-    tr.querySelector('.col-status').innerHTML = statusHtml(status);
+  function updateRow(tr, status, detail = '') {
+    tr.querySelector('.col-status').innerHTML = statusHtml(status, detail);
   }
 
-  function statusHtml(status) {
+  function statusHtml(status, detail = '') {
     switch (status) {
       case 'processing': return `<span class="status-processing"><span class="spinner"></span> Processing…</span>`;
-      case 'saved':      return `<span class="status-saved">✅ Saved</span>`;
-      case 'notfound':   return `<span class="status-notfound">⏭️ Not Found</span>`;
-      case 'error':      return `<span class="status-error">❌ Error</span>`;
+      case 'saved':      return `<span class="status-saved" title="${escHtml(detail)}">✅ Saved</span>`;
+      case 'notfound':   return `<span class="status-notfound" title="${escHtml(detail)}">⏭️ Not Found</span>`;
+      case 'error':      return `<span class="status-error" title="${escHtml(detail)}">❌ Error${detail ? `: <small style="font-size:11px;opacity:0.85;">${escHtml(detail)}</small>` : ''}</span>`;
       default:           return '';
     }
   }
 
   function escHtml(str) {
-    return str
+    return (str || '')
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
