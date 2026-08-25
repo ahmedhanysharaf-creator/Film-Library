@@ -26,6 +26,24 @@ DRY_RUN = False  # Set to True to preview without renaming files
 
 VIDEO_EXTS = {'.mkv', '.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm', '.srt', '.ass', '.vtt'}
 
+# ==============================================================================
+# 🎯 OUTPUT FORMAT CONFIGURATION (Easily change your format string here)
+# Available tokens:
+#   {m_prefix}    -> Movie Index counter (e.g. M01, M02, M03...)
+#   {year}        -> 4-digit Release Year (e.g. 2010, 2024)
+#   {clean_title} -> Movie Title in Clean Title Case (e.g. Inception, Gladiator II)
+#   {part_str}    -> Optional Part tag (e.g. " - Part 1" or "")
+#   {res_str}     -> Optional Resolution tag (e.g. " - 1080p", " - 2160p" or "")
+#   {ext}         -> Original file extension (.mkv, .mp4, .srt, .ass)
+#
+# Examples:
+#   Default Standard : "{m_prefix} - ({year}) - {clean_title}{part_str}{res_str}{ext}"
+#   Plex / Jellyfin  : "{clean_title} ({year}){res_str}{ext}"
+#   Clean Simple     : "{clean_title} ({year}){ext}"
+#   Year First       : "({year}) {clean_title}{res_str}{ext}"
+# ==============================================================================
+MOVIE_FORMAT = "{m_prefix} - ({year}) - {clean_title}{part_str}{res_str}{ext}"
+
 def parse_movie_format(filename, index=1):
     name, ext = os.path.splitext(filename)
     if ext.lower() not in VIDEO_EXTS:
@@ -58,8 +76,18 @@ def parse_movie_format(filename, index=1):
     if not clean_title:
         clean_title = "Movie"
 
-    # Exact Format: Mxx - (Year) - Moviename[ - Part][ - Resolution].ext
-    return f"{m_prefix} - ({year}) - {clean_title}{part_str}{res_str}{ext.lower()}"
+    # Return formatted name using MOVIE_FORMAT template
+    try:
+        return MOVIE_FORMAT.format(
+            m_prefix=m_prefix,
+            year=year,
+            clean_title=clean_title,
+            part_str=part_str,
+            res_str=res_str,
+            ext=ext.lower()
+        )
+    except Exception:
+        return f"{m_prefix} - ({year}) - {clean_title}{part_str}{res_str}{ext.lower()}"
 
 def run_renamer():
     if not os.path.exists(TARGET_DIR):
@@ -286,7 +314,20 @@ if __name__ == "__main__":
         code: `import os
 import difflib
 
-# Part 2: Matches External Subtitle (.srt) to Video Filenames Exactly
+# ==============================================================================
+# 🎯 SUBTITLE OUTPUT FORMAT CONFIGURATION
+# Matches external subtitle files (.srt/.ass) 100% to the corresponding video file base.
+# Result: Media players (VLC, Plex, TV) auto-detect and display subtitles seamlessly.
+# Available tokens:
+#   {matched_vid_base} -> Full formatted video name without extension
+#   {sub_ext}          -> Subtitle extension (.srt, .ass, .vtt)
+# Example:
+#   Video File:    M01 - (2024) - Gladiator II - 2160p.mkv
+#   Subtitle File: M01 - (2024) - Gladiator II - 2160p.srt
+# ==============================================================================
+SUBTITLE_FORMAT = "{matched_vid_base}{sub_ext}"
+
+# Target directory containing videos and subtitles
 TARGET_DIR = r"{TARGET_DIR}"
 VIDEO_EXTS = {'.mkv', '.mp4', '.avi'}
 SUB_EXTS = {'.srt', '.ass', '.vtt'}
@@ -302,7 +343,7 @@ def match_subtitles():
             matches = difflib.get_close_matches(sub_base, [os.path.splitext(v)[0] for v in videos], n=1, cutoff=0.3)
             if matches:
                 matched_vid_base = matches[0]
-                new_sub_name = f"{matched_vid_base}{sub_ext.lower()}"
+                new_sub_name = SUBTITLE_FORMAT.format(matched_vid_base=matched_vid_base, sub_ext=sub_ext.lower())
                 if new_sub_name != sub:
                     print(f"[SUBTITLE MATCH] '{sub}' ==> '{new_sub_name}'")
                     os.rename(os.path.join(root, sub), os.path.join(root, new_sub_name))

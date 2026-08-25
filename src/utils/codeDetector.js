@@ -42,6 +42,152 @@ export function toTitleCase(str) {
     .join(' ');
 }
 
+export const COMMON_FORMAT_PRESETS = [
+  {
+    id: "standard_mxx",
+    label: "Mxx Standard (Default)",
+    template: "{m_prefix} - ({year}) - {clean_title}{part_str}{res_str}{ext}",
+    movieExample: "M01 - (2024) - Gladiator II - 2160p.mkv",
+    subExample: "M01 - (2024) - Gladiator II - 2160p.srt",
+    desc: "Complete standard format with sequential index counter, (Year) in parentheses, clean title, and quality."
+  },
+  {
+    id: "plex_standard",
+    label: "Plex / Jellyfin Standard",
+    template: "{clean_title} ({year}){res_str}{ext}",
+    movieExample: "Gladiator II (2024) - 2160p.mkv",
+    subExample: "Gladiator II (2024) - 2160p.srt",
+    desc: "Industry standard for Plex, Emby, and Jellyfin media libraries and metadata agents."
+  },
+  {
+    id: "clean_simple",
+    label: "Clean Minimal",
+    template: "{clean_title} ({year}){ext}",
+    movieExample: "Gladiator II (2024).mkv",
+    subExample: "Gladiator II (2024).srt",
+    desc: "Clean and minimalist format without resolution or prefix tags."
+  },
+  {
+    id: "year_first",
+    label: "Year First",
+    template: "({year}) {clean_title}{res_str}{ext}",
+    movieExample: "(2024) Gladiator II - 2160p.mkv",
+    subExample: "(2024) Gladiator II - 2160p.srt",
+    desc: "Sorts movies chronologically by release year in Windows Explorer."
+  },
+  {
+    id: "mxx_no_res",
+    label: "Mxx Index + Year Only",
+    template: "{m_prefix} - ({year}) - {clean_title}{ext}",
+    movieExample: "M01 - (2024) - Gladiator II.mkv",
+    subExample: "M01 - (2024) - Gladiator II.srt",
+    desc: "Sequential collection ordering without resolution tags."
+  }
+];
+
+/**
+ * Breaks down a format template into color-coded visual anatomy chips for UI display.
+ */
+export function getFormatTokensBlueprint(templateStr = "") {
+  if (!templateStr || typeof templateStr !== "string") {
+    templateStr = "{m_prefix} - ({year}) - {clean_title}{part_str}{res_str}{ext}";
+  }
+
+  const tokenDefs = [
+    { key: "m_prefix", label: "Movie Index", example: "M01", color: "#e50914", bg: "rgba(229, 9, 20, 0.15)", border: "rgba(229, 9, 20, 0.35)", desc: "Sequential counter assigned to each film (M01, M02, M03...)" },
+    { key: "year", label: "Release Year", example: "(2024)", color: "#3b82f6", bg: "rgba(59, 130, 246, 0.15)", border: "rgba(59, 130, 246, 0.35)", desc: "4-digit release year extracted from filename" },
+    { key: "clean_title", label: "Clean Movie Title", example: "Gladiator II", color: "#10b981", bg: "rgba(16, 185, 129, 0.15)", border: "rgba(16, 185, 129, 0.35)", desc: "Title-cased movie name with roman numerals & noise stripped" },
+    { key: "part_str", label: "Part / CD (Optional)", example: " - Part 1", color: "#f59e0b", bg: "rgba(245, 158, 11, 0.15)", border: "rgba(245, 158, 11, 0.35)", desc: "Only added if multi-part (CD1 / Part 2) is found" },
+    { key: "res_str", label: "Resolution (Optional)", example: " - 2160p", color: "#8b5cf6", bg: "rgba(139, 92, 246, 0.15)", border: "rgba(139, 92, 246, 0.35)", desc: "Video resolution (2160p, 1080p, 720p, 4k)" },
+    { key: "ext", label: "File Extension", example: ".mkv / .srt", color: "#ec4899", bg: "rgba(236, 72, 153, 0.15)", border: "rgba(236, 72, 153, 0.35)", desc: "Video (.mkv, .mp4) or subtitle (.srt, .ass) extension" },
+    { key: "matched_vid_base", label: "Synced Video Name", example: "M01 - (2024) - Gladiator II - 2160p", color: "#06b6d4", bg: "rgba(6, 182, 212, 0.15)", border: "rgba(6, 182, 212, 0.35)", desc: "Base filename of the matched movie video for 1:1 subtitle sync" }
+  ];
+
+  const presentTokens = [];
+  tokenDefs.forEach(def => {
+    const reg = new RegExp(`\\{${def.key}[^}]*\\}`, "i");
+    if (reg.test(templateStr)) {
+      presentTokens.push(def);
+    }
+  });
+
+  return {
+    rawTemplate: templateStr,
+    tokens: presentTokens,
+    allTokens: tokenDefs
+  };
+}
+
+/**
+ * Replaces or injects a new format template in Python source code cleanly.
+ */
+export function updatePythonCodeFormat(pythonCode = "", newTemplate = "") {
+  if (!pythonCode || !newTemplate) return pythonCode;
+
+  // 1. Check if FORMAT_TEMPLATE or MOVIE_FORMAT constant exists
+  if (/(?:MOVIE_FORMAT|FORMAT_TEMPLATE|NAMING_FORMAT|OUTPUT_FORMAT|FORMAT)\s*=\s*(?:f)?["'][^"'\r\n]+["']/i.test(pythonCode)) {
+    return pythonCode.replace(
+      /((?:MOVIE_FORMAT|FORMAT_TEMPLATE|NAMING_FORMAT|OUTPUT_FORMAT|FORMAT)\s*=\s*(?:f)?["'])([^"'\r\n]+)(["'])/i,
+      `$1${newTemplate}$3`
+    );
+  }
+
+  // 2. Replace return f"..." or new_name = f"..." inside parse_movie_format or main function
+  const returnRegex = /(return\s+f["'])([^"'\r\n]+)(["'])/i;
+  if (returnRegex.test(pythonCode)) {
+    return pythonCode.replace(returnRegex, `$1${newTemplate}$3`);
+  }
+
+  // 3. Fallback: inject FORMAT_TEMPLATE constant near top
+  return `# Output Format Configuration\nFORMAT_TEMPLATE = "${newTemplate}"\n\n` + pythonCode;
+}
+
+/**
+ * Auto-detects the category ('movie', 'series', 'subtitle') by inspecting Python code syntax and semantics.
+ */
+export function autoDetectCategoryFromCode(pythonCode = "") {
+  if (!pythonCode || typeof pythonCode !== "string") return "movie";
+
+  const code = pythonCode.toLowerCase();
+
+  // 1. Subtitle synchronizer indicator
+  const subScore =
+    (code.includes("difflib") ? 3 : 0) +
+    (code.includes("match_subtitles") ? 4 : 0) +
+    (code.includes("sub_exts") || code.includes(".srt") || code.includes(".ass") ? 2 : 0) +
+    (code.includes("matched_vid_base") ? 4 : 0);
+
+  // 2. TV Series indicator
+  const seriesScore =
+    (code.includes("parse_episode_info") ? 5 : 0) +
+    (code.includes("show_name") || code.includes("series_name") ? 3 : 0) +
+    (code.includes("season") && code.includes("episode") ? 4 : 0) +
+    (/s\d{1,2}e\d{1,2}/.test(code) || /\d{1,2}x\d{1,2}/.test(code) ? 4 : 0) +
+    (code.includes("tv_renamer") || code.includes("series_renamer") ? 5 : 0);
+
+  // 3. Movie indicator
+  const movieScore =
+    (code.includes("parse_movie_format") ? 5 : 0) +
+    (code.includes("m_prefix") || code.includes("m_match") || /\bm\d{1,3}\b/.test(code) ? 4 : 0) +
+    (code.includes("movie_renamer") || code.includes("movie_year") || code.includes("moviename") ? 4 : 0) +
+    (code.includes("year_match") || code.includes("clean_title") ? 2 : 0);
+
+  if (subScore > seriesScore && subScore > movieScore && subScore >= 3) {
+    return "subtitle";
+  }
+  if (seriesScore > movieScore && seriesScore >= 3) {
+    return "series";
+  }
+  if (movieScore >= 3) {
+    return "movie";
+  }
+
+  // Fallback keyword checks
+  if (code.includes("episode") || code.includes("season")) return "series";
+  if (code.includes("subtitle") || code.includes(".srt")) return "subtitle";
+  return "movie";
+}
+
 /**
  * Parses Python script code to extract formatting templates, variables, and casing rules.
  * Focuses strictly on filename generation, ignoring paths and log statements.
@@ -58,26 +204,33 @@ export function extractPythonNamingTemplate(pythonCode = "") {
     staticShowName = showNameMatch[1].trim();
   }
 
-  // 2. Find return f"..." or filename assignment f-strings
-  // We explicitly exclude path variables (new_path, dst_path, target_path, os.path.join)
+  // 2. Check for explicit FORMAT_TEMPLATE, MOVIE_FORMAT, SUBTITLE_FORMAT, SERIES_FORMAT constants
+  const constantMatch = pythonCode.match(/(?:MOVIE_FORMAT|FORMAT_TEMPLATE|NAMING_FORMAT|OUTPUT_FORMAT|SUBTITLE_FORMAT|SERIES_FORMAT)\s*=\s*(?:f)?["']([^"'\r\n]+)["']/i);
+  if (constantMatch && constantMatch[1] && !/[\\/]/.test(constantMatch[1])) {
+    return {
+      type: "constant",
+      template: constantMatch[1],
+      staticShowName,
+      rawCode: pythonCode
+    };
+  }
+
+  // 3. Find return f"..." or filename assignment f-strings
   const candidateRegex = /(?:return|\b(?:new_name|new_filename|new_file|renamed|renamed_name|formatted_name|target_name|new_sub_name|out_name|dest_name|final_name|formatted|output_name)\s*=)\s*f["']([^"'\r\n]+)["']/gi;
 
   const validTemplates = [];
   let match;
   while ((match = candidateRegex.exec(pythonCode)) !== null) {
     const rawTemplate = match[1];
-    // Reject paths containing directory slashes or root/folder variables
     if (/[\\/]/.test(rawTemplate) || /\{(?:root|TARGET_DIR|target_path|dir|folder_path|output_dir)\}/i.test(rawTemplate)) {
       continue;
     }
-    // Reject log messages or prints
     if (/^\[RENAME\]|^\[MATCH\]|^\[FOLDER/i.test(rawTemplate)) {
       continue;
     }
     validTemplates.push(rawTemplate);
   }
 
-  // Pick the best template (prioritize templates with rich tokens like {year}, {m_prefix}, {season}, {title})
   if (validTemplates.length > 0) {
     const scored = validTemplates.map(tmpl => {
       let score = 0;
@@ -100,7 +253,7 @@ export function extractPythonNamingTemplate(pythonCode = "") {
     };
   }
 
-  // 3. Find standard return "..." or '...' format templates (.format or %)
+  // 4. Find standard return "..." or '...' format templates (.format or %)
   const formatMatches = pythonCode.match(/(?:return|\bnew_name\s*=|\bnew_filename\s*=)\s*["']([^"'\r\n]+)["']\s*\.(?:format)/gi);
   if (formatMatches && formatMatches.length > 0) {
     const lastMatch = formatMatches[formatMatches.length - 1];
@@ -115,7 +268,7 @@ export function extractPythonNamingTemplate(pythonCode = "") {
     }
   }
 
-  // 4. Check for % formatting strings e.g. "%s - (%s) - %s"
+  // 5. Check for % formatting strings e.g. "%s - (%s) - %s"
   const percentMatches = pythonCode.match(/(?:return|\bnew_name\s*=|\bnew_filename\s*=)\s*["']([^"'\r\n]+)["']\s*%/gi);
   if (percentMatches && percentMatches.length > 0) {
     const lastMatch = percentMatches[percentMatches.length - 1];
@@ -398,30 +551,29 @@ export function detectCodeFormat(parts = [], categoryHint = "", nameHint = "") {
   // 4. Detect Dry-Run Support
   const hasDryRun = /\b(DRY_RUN|PREVIEW_MODE|TEST_RUN)\b/i.test(combinedCode);
 
-  // 5. Determine Overall Category with Precision
-  let category = categoryHint || "movie";
+  // 5. Determine Overall Category with Precision & Pure Code Auto-Detection
+  const autoCategory = autoDetectCategoryFromCode(combinedCode);
+
+  let category = categoryHint && categoryHint !== "all" && categoryHint !== "generic"
+    ? categoryHint
+    : (isMultiPart ? "multi_part" : autoCategory);
+
   let categoryName = "Movie Collection Renamer";
   let badge = "Movie Standardizer";
 
-  const isSubtitlePipeline = (/difflib|match_subtitles|get_close_matches/i.test(combinedCode) && !/parse_movie_format|clean_movie_name|movie_renamer/i.test(combinedCode)) || categoryHint === "subtitle";
-  const isSeries = (/SHOW_NAME|parse_episode_info|episode|season|S\d+E\d+/i.test(combinedCode) && !/movie_renamer|parse_movie_format/i.test(combinedCode)) || categoryHint === "series";
-
-  if (isMultiPart) {
-    category = "multi_part";
+  if (category === "multi_part") {
     categoryName = `Multi-Part Pipeline (${parts.length} Parts)`;
     badge = `${parts.length}-Step Pipeline`;
-  } else if (categoryHint === "movie" || (!isSubtitlePipeline && !isSeries)) {
+  } else if (category === "series") {
+    categoryName = "TV Series Episode Renamer";
+    badge = "TV Series Parser";
+  } else if (category === "subtitle") {
+    categoryName = "Subtitle & Video Synchronizer";
+    badge = "Subtitle Sync";
+  } else {
     category = "movie";
     categoryName = "Movie Collection Renamer [Mxx - (Year) - Moviename]";
     badge = "Movie Standardizer";
-  } else if (isSubtitlePipeline) {
-    category = "subtitle";
-    categoryName = "Subtitle & Video Synchronizer";
-    badge = "Subtitle Sync";
-  } else if (isSeries) {
-    category = "series";
-    categoryName = "TV Series Episode Renamer";
-    badge = "TV Series Parser";
   }
 
   // 6. Generate Dynamic BEFORE -> AFTER Format Examples using Simulated Execution
@@ -450,13 +602,22 @@ export function detectCodeFormat(parts = [], categoryHint = "", nameHint = "") {
     after: simulatePythonRename(input, combinedCode, parsedTemplate?.staticShowName, category, idx + 1)
   }));
 
-  const templateDisplay = parsedTemplate?.template ? ` [Format: ${parsedTemplate.template}]` : "";
+  const extractedTemplateStr = parsedTemplate?.template
+    ? parsedTemplate.template
+    : category === "series"
+      ? "{show} - S{season:02d}E{episode:02d}{ext}"
+      : category === "subtitle"
+        ? "{matched_vid_base}{sub_ext}"
+        : "{m_prefix} - ({year}) - {clean_title}{part_str}{res_str}{ext}";
+
+  const templateDisplay = extractedTemplateStr ? ` [Format: ${extractedTemplateStr}]` : "";
   const summary = `Detected format: ${categoryName}${templateDisplay}. ` +
     (isMultiPart ? `Contains ${parts.length} sequential Python scripts. ` : `Single Python script. `) +
     (hasDryRun ? `Supports safe Dry-Run previewing.` : `Direct filesystem renaming.`);
 
   return {
     category,
+    autoCategory,
     categoryName,
     badge,
     isMultiPart,
@@ -467,6 +628,7 @@ export function detectCodeFormat(parts = [], categoryHint = "", nameHint = "") {
     hasDryRun,
     examples,
     parsedTemplate,
+    extractedTemplateStr,
     summary
   };
 }

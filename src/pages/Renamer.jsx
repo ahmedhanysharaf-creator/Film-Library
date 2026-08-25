@@ -21,11 +21,21 @@ import {
   Eye,
   EyeOff,
   CheckCircle2,
-  FileCheck
+  FileCheck,
+  Sliders,
+  Settings2,
+  Tag,
+  HelpCircle
 } from "lucide-react";
 import { useToast } from "../context/ToastContext";
 import { getRenamerCodes, saveRenamerCode, deleteRenamerCode, resetRenamerPresetsToDefault } from "../services/renamerStorage";
-import { detectCodeFormat, transformFilenamePreview } from "../utils/codeDetector";
+import {
+  detectCodeFormat,
+  transformFilenamePreview,
+  getFormatTokensBlueprint,
+  updatePythonCodeFormat,
+  COMMON_FORMAT_PRESETS
+} from "../utils/codeDetector";
 import { generatePowerShellCommands } from "../utils/powershellGenerator";
 
 export const Renamer = () => {
@@ -70,6 +80,8 @@ export const Renamer = () => {
     initialInputs.testFilename || "Inception.2010.1080p.BluRay.x264.mkv"
   );
   const [showRawCode, setShowRawCode] = useState(false);
+  const [showFormatCustomizer, setShowFormatCustomizer] = useState(false);
+  const [customTemplateInput, setCustomTemplateInput] = useState("");
 
   // Auto-save all typed input fields to localStorage on every change
   useEffect(() => {
@@ -132,6 +144,31 @@ export const Renamer = () => {
   const liveTestResult = selectedCode
     ? transformFilenamePreview(testFilename, selectedCode.parts, showName, selectedCode.category)
     : "";
+
+  // Visual format tokens blueprint for anatomy legend
+  const formatBlueprint = getFormatTokensBlueprint(
+    detectedFormat?.parsedTemplate?.template || "{m_prefix} - ({year}) - {clean_title}{part_str}{res_str}{ext}"
+  );
+
+  const handleApplyFormatPreset = async (newTemplate) => {
+    if (!selectedCode || !newTemplate) return;
+    const updatedParts = (selectedCode.parts || []).map((p) => ({
+      ...p,
+      code: updatePythonCodeFormat(p.code, newTemplate)
+    }));
+    const updatedObj = {
+      ...selectedCode,
+      parts: updatedParts
+    };
+    try {
+      const updatedList = await saveRenamerCode(updatedObj);
+      setCodes(updatedList);
+      setCustomTemplateInput(newTemplate);
+      addToast(`Applied naming format: ${newTemplate}`, "success");
+    } catch (err) {
+      addToast("Failed to update format", "error");
+    }
+  };
 
   const handleClearAllInputs = () => {
     setTargetPath("");
@@ -264,20 +301,22 @@ export const Renamer = () => {
     );
 
     Promise.all(readPromises).then((importedFiles) => {
+      const parts = importedFiles.map((item, idx) => ({
+        id: `part_${Date.now()}_${idx}`,
+        name: item.name,
+        code: item.code
+      }));
+      const detection = detectCodeFormat(parts);
+      const autoCat = parts.length > 1 ? "multi_part" : (detection.autoCategory || "movie");
+
       setEditingCodeObj(null);
       setFormName(folderName.replace(/[_-]/g, " "));
       setFormDesc(`Pipeline loaded from folder: ${folderName} (${importedFiles.length} scripts)`);
-      setFormCategory("multi_part");
-      setFormParts(
-        importedFiles.map((item, idx) => ({
-          id: `part_${Date.now()}_${idx}`,
-          name: item.name,
-          code: item.code
-        }))
-      );
+      setFormCategory(autoCat);
+      setFormParts(parts);
       setActivePartIndex(0);
       setIsModalOpen(true);
-      addToast(`Loaded ${importedFiles.length} Python file(s) from "${folderName}"!`, "success");
+      addToast(`Loaded ${importedFiles.length} Python file(s) from "${folderName}" (Auto-Detected: ${autoCat.toUpperCase()})!`, "success");
     });
 
     event.target.value = "";
@@ -302,36 +341,34 @@ export const Renamer = () => {
     });
 
     Promise.all(readPromises).then((importedFiles) => {
+      const newParts = importedFiles.map((item, idx) => ({
+        id: `part_${Date.now()}_${idx}`,
+        name: item.name,
+        code: item.code
+      }));
+
+      const detection = detectCodeFormat(newParts);
+      const autoCat = newParts.length > 1 ? "multi_part" : (detection.autoCategory || "movie");
+
       if (isModalOpen) {
-        const newParts = importedFiles.map((item, idx) => ({
-          id: `part_${Date.now()}_${idx}`,
-          name: item.name,
-          code: item.code
-        }));
-        
         if (formParts.length === 1 && (!formParts[0].code || formParts[0].code.includes("Write your python"))) {
           setFormParts(newParts);
           setActivePartIndex(0);
+          setFormCategory(autoCat);
         } else {
           setFormParts((prev) => [...prev, ...newParts]);
         }
-        addToast(`Imported ${importedFiles.length} Python file(s)!`, "success");
+        addToast(`Imported ${importedFiles.length} Python file(s) (Auto-Detected: ${autoCat.toUpperCase()})!`, "success");
       } else {
         const primaryTitle = files[0].name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " ").toUpperCase();
         setEditingCodeObj(null);
         setFormName(primaryTitle);
         setFormDesc(`Imported from local files: ${files.map((f) => f.name).join(", ")}`);
-        setFormCategory("movie");
-        setFormParts(
-          importedFiles.map((item, idx) => ({
-            id: `part_${Date.now()}_${idx}`,
-            name: item.name,
-            code: item.code
-          }))
-        );
+        setFormCategory(autoCat);
+        setFormParts(newParts);
         setActivePartIndex(0);
         setIsModalOpen(true);
-        addToast(`Loaded ${files.length} Python file(s) from your PC!`, "success");
+        addToast(`Loaded ${files.length} Python file(s) from your PC (Auto-Detected: ${autoCat.toUpperCase()})!`, "success");
       }
     });
 
@@ -599,9 +636,9 @@ export const Renamer = () => {
                     <p style={styles.presetDesc}>{codeItem.description}</p>
 
                     {/* Format Preview Badge */}
-                    <div style={styles.presetFormatMiniPill}>
+                    <div style={styles.presetFormatMiniPill} title={`Extracted format string: ${itemFormat.extractedTemplateStr}`}>
                       <Sparkles size={12} color="#e50914" />
-                      <span>Format: {itemFormat.categoryName}</span>
+                      <span>Extracted: {itemFormat.extractedTemplateStr || itemFormat.categoryName}</span>
                     </div>
 
                     <div style={styles.presetCardFooter}>
@@ -714,15 +751,153 @@ export const Renamer = () => {
               );
             })()}
 
-            {/* 🎯 SECTION 1: VISUAL FILENAME FORMAT PREVIEW (BEFORE ➔ AFTER) 🎯 */}
+            {/* 🎯 SECTION 1: VISUAL FILENAME FORMAT BLUEPRINT & LIVE PREVIEW 🎯 */}
             <div style={styles.formatPreviewCard}>
               <div style={styles.formatPreviewCardHeader}>
-                <Sparkles size={18} color="#e50914" />
-                <h3 style={styles.formatPreviewCardTitle}>
-                  Renamed Output Format (Final Look Preview)
-                </h3>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <Sparkles size={20} color="#e50914" />
+                  <div>
+                    <h3 style={styles.formatPreviewCardTitle}>
+                      Renamed Output Format Anatomy & Blueprint
+                    </h3>
+                    <span style={styles.formatCardSubtitle}>
+                      Formats both <strong>Movies (.mkv, .mp4)</strong> and <strong>Subtitles (.srt, .ass)</strong> into standardized media patterns.
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  style={styles.toggleCustomizerBtn}
+                  onClick={() => setShowFormatCustomizer(!showFormatCustomizer)}
+                >
+                  <Sliders size={13} /> {showFormatCustomizer ? "Close Format Customizer" : "Customize / Change Format"}
+                </button>
               </div>
 
+              {/* Format Tokens Anatomy Legend (Color Coded Chips) */}
+              <div style={styles.tokenChipsContainer}>
+                <div style={styles.tokenChipsHeader}>
+                  <Tag size={13} color="#f59e0b" />
+                  <span style={styles.tokenChipsTitle}>Active Format Tokens Breakdown:</span>
+                </div>
+                <div style={styles.tokenChipsRow}>
+                  {formatBlueprint.tokens.map((tok, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        ...styles.tokenChip,
+                        color: tok.color,
+                        backgroundColor: tok.bg,
+                        borderColor: tok.border
+                      }}
+                      title={tok.desc}
+                    >
+                      <span style={styles.tokenChipKey}>{`{${tok.key}}`}</span>
+                      <span style={styles.tokenChipLabel}>{tok.label}</span>
+                      <span style={styles.tokenChipExample}>{tok.example}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* 🎬 Movie vs Subtitle 1:1 Matching Visualization Showcase */}
+              <div style={styles.syncShowcaseCard}>
+                <div style={styles.syncHeader}>
+                  <Film size={14} color="#f59e0b" />
+                  <span style={styles.syncTitle}>Movie & Subtitle 1:1 Name Alignment (Guaranteed Auto-Sync):</span>
+                </div>
+                <div style={styles.syncRows}>
+                  <div style={styles.syncItem}>
+                    <span style={styles.syncTagMovie}>🎬 Movie File:</span>
+                    <code style={styles.syncCodeMovie}>
+                      {transformFilenamePreview("Gladiator.II.2024.2160p.WEB-DL.mkv", selectedCode.parts, showName, selectedCode.category)}
+                    </code>
+                  </div>
+                  <div style={styles.syncItem}>
+                    <span style={styles.syncTagSub}>💬 Subtitle File:</span>
+                    <code style={styles.syncCodeSub}>
+                      {transformFilenamePreview("Gladiator.II.2024.2160p.Arabic.srt", selectedCode.parts, showName, "subtitle")}
+                    </code>
+                  </div>
+                </div>
+                <div style={styles.syncNoteBox}>
+                  <CheckCircle2 size={13} color="#10b981" />
+                  <span style={styles.syncNote}>
+                    When subtitle and movie filenames match 100% (excluding extension), VLC, Smart TVs (Samsung/LG USB), Plex, Infuse, and Kodi automatically play subtitles without manual selection.
+                  </span>
+                </div>
+              </div>
+
+              {/* ⚡ Quick Format Switcher & Customizer Drawer */}
+              {showFormatCustomizer && (
+                <div style={styles.customizerDrawer}>
+                  <div style={styles.customizerHeader}>
+                    <Settings2 size={15} color="#e50914" />
+                    <span style={styles.customizerTitle}>Instant Format Preset Switcher (1-Click Change):</span>
+                  </div>
+                  <div style={styles.presetButtonsGrid}>
+                    {COMMON_FORMAT_PRESETS.map((p) => {
+                      const isCurrent = detectedFormat?.parsedTemplate?.template === p.template;
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          style={{
+                            ...styles.formatPresetBtn,
+                            borderColor: isCurrent ? "var(--accent-red)" : "#2e2e32",
+                            backgroundColor: isCurrent ? "rgba(229, 9, 20, 0.15)" : "#131316"
+                          }}
+                          onClick={() => handleApplyFormatPreset(p.template)}
+                        >
+                          <div style={styles.formatPresetBtnTop}>
+                            <span style={{ fontWeight: 700, color: isCurrent ? "#ffffff" : "#e5e5e5" }}>{p.label}</span>
+                            {isCurrent && <span style={styles.activeFormatBadge}>Active</span>}
+                          </div>
+                          <code style={styles.formatPresetTemplate}>{p.template}</code>
+                          <span style={styles.formatPresetExample}>Preview: {p.movieExample}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Manual Custom Template Input */}
+                  <div style={styles.manualFormatRow}>
+                    <span style={styles.manualFormatLabel}>Or Type Custom Format Template:</span>
+                    <div style={styles.manualFormatInputGroup}>
+                      <input
+                        type="text"
+                        value={customTemplateInput || detectedFormat?.parsedTemplate?.template || ""}
+                        onChange={(e) => setCustomTemplateInput(e.target.value)}
+                        placeholder="{m_prefix} - ({year}) - {clean_title}{res_str}{ext}"
+                        style={styles.manualFormatInput}
+                      />
+                      <button
+                        type="button"
+                        style={styles.applyManualFormatBtn}
+                        onClick={() => handleApplyFormatPreset(customTemplateInput || detectedFormat?.parsedTemplate?.template)}
+                      >
+                        Apply Format to Python Script
+                      </button>
+                    </div>
+                    <div style={styles.tokenInsertRow}>
+                      <span style={{ fontSize: "0.75rem", color: "#a3a3a3", fontWeight: 600 }}>Quick Insert Tokens:</span>
+                      {["{m_prefix}", "{year}", "{clean_title}", "{part_str}", "{res_str}", "{ext}"].map((tok) => (
+                        <button
+                          key={tok}
+                          type="button"
+                          style={styles.insertTokenBtn}
+                          onClick={() => setCustomTemplateInput(prev => (prev || detectedFormat?.parsedTemplate?.template || "") + tok)}
+                        >
+                          + {tok}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Transformation Examples (Before ➔ After) */}
               <div style={styles.examplesList}>
                 {detectedFormat?.examples.map((ex, idx) => (
                   <div key={idx} style={styles.exampleRow}>
@@ -745,13 +920,13 @@ export const Renamer = () => {
 
               {/* Interactive Test Sandbox */}
               <div style={styles.sandboxBox}>
-                <span style={styles.sandboxTitle}>🧪 Try Your Own Filename:</span>
+                <span style={styles.sandboxTitle}>🧪 Try Your Own Filename (Movie or Subtitle):</span>
                 <div style={styles.sandboxInputRow}>
                   <input
                     type="text"
                     value={testFilename}
                     onChange={(e) => setTestFilename(e.target.value)}
-                    placeholder="e.g. Gladiator.II.2024.2160p.WEB-DL.mkv"
+                    placeholder="e.g. Gladiator.II.2024.2160p.WEB-DL.mkv or movie.arabic.srt"
                     style={styles.sandboxInput}
                   />
                   <div style={styles.sandboxArrow}>➔</div>
@@ -1001,17 +1176,46 @@ export const Renamer = () => {
                 </div>
 
                 <div style={styles.formGroup}>
-                  <label style={styles.inputLabel}>Target Category:</label>
-                  <select
-                    value={formCategory}
-                    onChange={(e) => setFormCategory(e.target.value)}
-                    style={styles.selectInput}
-                  >
-                    <option value="movie">Movie</option>
-                    <option value="series">TV Series</option>
-                    <option value="subtitle">Subtitle</option>
-                    <option value="multi_part">Multi-Part Pipeline</option>
-                  </select>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                    <label style={styles.inputLabel}>Target Category:</label>
+                    {liveFormDetection?.autoCategory && (
+                      <span style={{ fontSize: "0.75rem", color: "#10b981", fontWeight: 600 }}>
+                        Auto-Detected: {liveFormDetection.autoCategory.toUpperCase()}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <select
+                      value={formCategory}
+                      onChange={(e) => setFormCategory(e.target.value)}
+                      style={styles.selectInput}
+                    >
+                      <option value="movie">Movie</option>
+                      <option value="series">TV Series</option>
+                      <option value="subtitle">Subtitle</option>
+                      <option value="multi_part">Multi-Part Pipeline</option>
+                    </select>
+                    {liveFormDetection?.autoCategory && formCategory !== liveFormDetection.autoCategory && (
+                      <button
+                        type="button"
+                        style={{
+                          backgroundColor: "#166534",
+                          color: "#4ade80",
+                          border: "1px solid #22c55e",
+                          borderRadius: "12px",
+                          padding: "6px 12px",
+                          fontSize: "0.75rem",
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          whiteSpace: "nowrap"
+                        }}
+                        onClick={() => setFormCategory(liveFormDetection.autoCategory)}
+                        title={`Switch category to auto-detected '${liveFormDetection.autoCategory}'`}
+                      >
+                        ⚡ Apply Auto ({liveFormDetection.autoCategory})
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -1116,34 +1320,64 @@ export const Renamer = () => {
                 {/* 🎯 Real-Time Format Detection & Simulated Output Box inside Modal */}
                 <div style={styles.modalLivePreviewBox}>
                   <div style={styles.modalLivePreviewHeader}>
-                    <Sparkles size={14} color="#e50914" />
-                    <span style={styles.modalLivePreviewTitle}>
-                      Live Code Simulation:
-                    </span>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <Sparkles size={14} color="#e50914" />
+                      <span style={styles.modalLivePreviewTitle}>
+                        Live Code Simulation & Extracted Format:
+                      </span>
+                    </div>
                     <span style={styles.modalFormatBadge}>
                       {liveFormDetection?.categoryName}
                     </span>
                   </div>
-                  <div style={styles.modalLivePreviewRow}>
-                    <div style={styles.modalPreviewCol}>
-                      <span style={styles.previewSubLabel}>Test Input:</span>
-                      <code style={styles.modalPreviewBeforeCode}>
-                        {formCategory === "series" ? "loki.s01.2022.1080p.mkv" : "Inception.2010.1080p.BluRay.x264.mkv"}
-                      </code>
+
+                  {liveFormDetection?.extractedTemplateStr && (
+                    <div style={{
+                      backgroundColor: "rgba(229, 9, 20, 0.1)",
+                      border: "1px solid rgba(229, 9, 20, 0.3)",
+                      borderRadius: "6px",
+                      padding: "6px 12px",
+                      marginBottom: "12px",
+                      fontSize: "0.82rem",
+                      color: "#fca5a5",
+                      fontFamily: "monospace",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px"
+                    }}>
+                      <Code size={13} color="#e50914" />
+                      <span>Extracted Code Format: <strong>{liveFormDetection.extractedTemplateStr}</strong></span>
                     </div>
-                    <ArrowRight size={16} color="#e50914" style={{ alignSelf: "center", marginTop: "14px" }} />
-                    <div style={styles.modalPreviewCol}>
-                      <span style={styles.previewSubLabelGreen}>Simulated Python Output:</span>
-                      <code style={styles.modalPreviewAfterCode}>
-                        {transformFilenamePreview(
-                          formCategory === "series" ? "loki.s01.2022.1080p.mkv" : "Inception.2010.1080p.BluRay.x264.mkv",
-                          formParts,
-                          "",
-                          formCategory
-                        )}
-                      </code>
-                    </div>
-                  </div>
+                  )}
+
+                  {(() => {
+                    const sampleInput =
+                      formCategory === "series"
+                        ? "loki.s01.2022.1080p.mkv"
+                        : formCategory === "subtitle"
+                          ? "Inception.2010.1080p.BluRay.Arabic.srt"
+                          : "Inception.2010.1080p.BluRay.x264.mkv";
+
+                    return (
+                      <div style={styles.modalLivePreviewRow}>
+                        <div style={styles.modalPreviewCol}>
+                          <span style={styles.previewSubLabel}>
+                            Test Input ({formCategory === "series" ? "TV Episode" : formCategory === "subtitle" ? "Subtitle File" : "Film/Movie File"}):
+                          </span>
+                          <code style={styles.modalPreviewBeforeCode}>
+                            {sampleInput}
+                          </code>
+                        </div>
+                        <ArrowRight size={16} color="#e50914" style={{ alignSelf: "center", marginTop: "14px" }} />
+                        <div style={styles.modalPreviewCol}>
+                          <span style={styles.previewSubLabelGreen}>Simulated Python Output:</span>
+                          <code style={styles.modalPreviewAfterCode}>
+                            {transformFilenamePreview(sampleInput, formParts, "", formCategory)}
+                          </code>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -1535,24 +1769,281 @@ const styles = {
   // Visual Formatter Preview Box
   formatPreviewCard: {
     backgroundColor: "#141416",
-    borderRadius: "12px",
+    borderRadius: "14px",
     border: "1px solid rgba(229, 9, 20, 0.3)",
-    padding: "18px 20px",
+    padding: "20px 22px",
     display: "flex",
     flexDirection: "column",
-    gap: "14px",
-    boxShadow: "0 4px 20px rgba(0, 0, 0, 0.3)"
+    gap: "16px",
+    boxShadow: "0 6px 24px rgba(0, 0, 0, 0.35)"
   },
   formatPreviewCardHeader: {
     display: "flex",
     alignItems: "center",
-    gap: "8px"
+    justifyContent: "space-between",
+    gap: "12px",
+    flexWrap: "wrap",
+    borderBottom: "1px solid #26262a",
+    paddingBottom: "12px"
   },
   formatPreviewCardTitle: {
-    fontSize: "1.05rem",
+    fontSize: "1.1rem",
     fontWeight: 800,
     margin: 0,
     color: "#ffffff"
+  },
+  formatCardSubtitle: {
+    fontSize: "0.8rem",
+    color: "#a3a3a3",
+    display: "block",
+    marginTop: "2px"
+  },
+  toggleCustomizerBtn: {
+    backgroundColor: "rgba(229, 9, 20, 0.15)",
+    color: "#ef4444",
+    border: "1px solid rgba(229, 9, 20, 0.4)",
+    padding: "6px 14px",
+    borderRadius: "16px",
+    fontSize: "0.8rem",
+    fontWeight: 700,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    transition: "all 0.2s"
+  },
+  // Token Anatomy Chips
+  tokenChipsContainer: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "8px",
+    backgroundColor: "#0d0d10",
+    padding: "12px 14px",
+    borderRadius: "10px",
+    border: "1px solid #222226"
+  },
+  tokenChipsHeader: {
+    display: "flex",
+    alignItems: "center",
+    gap: "6px"
+  },
+  tokenChipsTitle: {
+    fontSize: "0.78rem",
+    fontWeight: 700,
+    color: "#d4d4d8",
+    letterSpacing: "0.3px"
+  },
+  tokenChipsRow: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "8px"
+  },
+  tokenChip: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "6px",
+    padding: "4px 10px",
+    borderRadius: "8px",
+    border: "1px solid",
+    fontSize: "0.78rem"
+  },
+  tokenChipKey: {
+    fontWeight: 800,
+    fontFamily: "monospace"
+  },
+  tokenChipLabel: {
+    fontWeight: 600,
+    opacity: 0.9
+  },
+  tokenChipExample: {
+    fontFamily: "monospace",
+    backgroundColor: "rgba(0,0,0,0.3)",
+    padding: "2px 6px",
+    borderRadius: "4px",
+    fontSize: "0.74rem",
+    fontWeight: 700
+  },
+  // Movie vs Subtitle Sync Showcase
+  syncShowcaseCard: {
+    backgroundColor: "#0c0d10",
+    borderRadius: "10px",
+    padding: "14px 16px",
+    border: "1px solid #1f2937",
+    display: "flex",
+    flexDirection: "column",
+    gap: "10px"
+  },
+  syncHeader: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px"
+  },
+  syncTitle: {
+    fontSize: "0.85rem",
+    fontWeight: 700,
+    color: "#f59e0b"
+  },
+  syncRows: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "6px"
+  },
+  syncItem: {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    backgroundColor: "#14151a",
+    padding: "8px 12px",
+    borderRadius: "6px",
+    border: "1px solid #27272a"
+  },
+  syncTagMovie: {
+    fontSize: "0.76rem",
+    fontWeight: 700,
+    color: "#38bdf8",
+    minWidth: "100px"
+  },
+  syncCodeMovie: {
+    color: "#ffffff",
+    fontFamily: "monospace",
+    fontWeight: 700,
+    fontSize: "0.86rem"
+  },
+  syncTagSub: {
+    fontSize: "0.76rem",
+    fontWeight: 700,
+    color: "#34d399",
+    minWidth: "100px"
+  },
+  syncCodeSub: {
+    color: "#34d399",
+    fontFamily: "monospace",
+    fontWeight: 700,
+    fontSize: "0.86rem"
+  },
+  syncNoteBox: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: "6px",
+    marginTop: "2px"
+  },
+  syncNote: {
+    fontSize: "0.75rem",
+    color: "#a1a1aa",
+    lineHeight: "1.4"
+  },
+  // Customizer Drawer
+  customizerDrawer: {
+    backgroundColor: "#0b0b0e",
+    border: "1px solid rgba(229, 9, 20, 0.4)",
+    borderRadius: "12px",
+    padding: "16px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "14px"
+  },
+  customizerHeader: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px"
+  },
+  customizerTitle: {
+    fontSize: "0.88rem",
+    fontWeight: 800,
+    color: "#ffffff"
+  },
+  presetButtonsGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+    gap: "10px"
+  },
+  formatPresetBtn: {
+    border: "1px solid",
+    borderRadius: "10px",
+    padding: "12px",
+    textAlign: "left",
+    cursor: "pointer",
+    display: "flex",
+    flexDirection: "column",
+    gap: "6px",
+    transition: "all 0.2s"
+  },
+  formatPresetBtnTop: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center"
+  },
+  activeFormatBadge: {
+    fontSize: "0.68rem",
+    backgroundColor: "var(--accent-red)",
+    color: "#ffffff",
+    padding: "2px 6px",
+    borderRadius: "4px",
+    fontWeight: 800
+  },
+  formatPresetTemplate: {
+    fontSize: "0.78rem",
+    fontFamily: "monospace",
+    color: "#38bdf8",
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
+    padding: "4px 8px",
+    borderRadius: "4px"
+  },
+  formatPresetExample: {
+    fontSize: "0.72rem",
+    color: "#a3a3a3"
+  },
+  manualFormatRow: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "8px",
+    borderTop: "1px solid #222226",
+    paddingTop: "12px"
+  },
+  manualFormatLabel: {
+    fontSize: "0.8rem",
+    fontWeight: 700,
+    color: "#e4e4e7"
+  },
+  manualFormatInputGroup: {
+    display: "flex",
+    gap: "10px"
+  },
+  manualFormatInput: {
+    flex: 1,
+    backgroundColor: "#16161a",
+    border: "1px solid #3f3f46",
+    borderRadius: "8px",
+    padding: "8px 12px",
+    color: "#ffffff",
+    fontFamily: "monospace",
+    fontSize: "0.85rem"
+  },
+  applyManualFormatBtn: {
+    backgroundColor: "var(--accent-red)",
+    color: "#ffffff",
+    border: "none",
+    borderRadius: "8px",
+    padding: "8px 16px",
+    fontSize: "0.8rem",
+    fontWeight: 700,
+    cursor: "pointer"
+  },
+  tokenInsertRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    flexWrap: "wrap"
+  },
+  insertTokenBtn: {
+    backgroundColor: "#18181b",
+    color: "#a1a1aa",
+    border: "1px solid #27272a",
+    borderRadius: "6px",
+    padding: "3px 8px",
+    fontSize: "0.72rem",
+    fontFamily: "monospace",
+    cursor: "pointer"
   },
   examplesList: {
     display: "flex",
