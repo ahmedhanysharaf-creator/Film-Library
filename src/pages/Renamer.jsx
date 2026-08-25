@@ -843,13 +843,13 @@ export const Renamer = () => {
                   <div style={styles.syncItem}>
                     <span style={styles.syncTagMovie}>🎬 Movie File:</span>
                     <code style={styles.syncCodeMovie}>
-                      {transformFilenamePreview("Gladiator.II.2024.2160p.WEB-DL.mkv", selectedCode.parts, showName, selectedCode.category)}
+                      {transformFilenamePreview("Gladiator.II.2024.2160p.WEB-DL.mkv", selectedCode?.parts || [], showName, selectedCode?.category || "movie")}
                     </code>
                   </div>
                   <div style={styles.syncItem}>
                     <span style={styles.syncTagSub}>💬 Subtitle File:</span>
                     <code style={styles.syncCodeSub}>
-                      {transformFilenamePreview("Gladiator.II.2024.2160p.Arabic.srt", selectedCode.parts, showName, "subtitle")}
+                      {transformFilenamePreview("Gladiator.II.2024.2160p.Arabic.srt", selectedCode?.parts || [], showName, "subtitle")}
                     </code>
                   </div>
                 </div>
@@ -991,7 +991,7 @@ export const Renamer = () => {
                       />
                       <div style={styles.sandboxArrow}>➔</div>
                       <div style={{ ...styles.sandboxResult, color: "#38bdf8", borderColor: "#0284c7" }}>
-                        {transformFilenamePreview(testSubFilename, selectedCode.parts, showName, "subtitle", activeFormatOverride)}
+                        {transformFilenamePreview(testSubFilename, selectedCode?.parts || [], showName, "subtitle", activeFormatOverride)}
                       </div>
                     </div>
                   </div>
@@ -1011,7 +1011,7 @@ export const Renamer = () => {
                       />
                       <div style={styles.sandboxArrow}>➔</div>
                       <div style={{ ...styles.sandboxResult, color: "#fbbf24", borderColor: "#d97706" }}>
-                        {transformFilenamePreview(testSubfolderPath, selectedCode.parts, showName, selectedCode.category, activeFormatOverride)}
+                        {transformFilenamePreview(testSubfolderPath, selectedCode?.parts || [], showName, selectedCode?.category || "movie", activeFormatOverride)}
                       </div>
                     </div>
                   </div>
