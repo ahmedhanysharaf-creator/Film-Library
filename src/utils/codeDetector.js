@@ -720,11 +720,12 @@ export function transformFilenamePreview(rawName = "", categoryOrParts = "movie"
  * Inspects python code parts and returns metadata, variable list, modules, and dynamic sample examples.
  */
 export function detectCodeFormat(parts = [], categoryHint = "", nameHint = "", customFormatOverride = "") {
-  if (!parts || parts.length === 0) {
+  if (!parts || !Array.isArray(parts) || parts.length === 0) {
     return {
-      category: categoryHint || "generic",
-      categoryName: "Generic Renamer",
-      badge: "Python Code",
+      category: categoryHint || "movie",
+      autoCategory: "movie",
+      categoryName: "Movie Collection Renamer",
+      badge: "Movie Standardizer",
       isMultiPart: false,
       partsCount: 0,
       detectedVariables: [],
@@ -732,7 +733,8 @@ export function detectCodeFormat(parts = [], categoryHint = "", nameHint = "", c
       detectedModules: [],
       hasDryRun: false,
       examples: [],
-      summary: "No code submitted."
+      extractedTemplateStr: "{m_prefix} - ({year}) - {clean_title}{part_str}{res_str}{ext}",
+      summary: "Default media renamer format."
     };
   }
 

@@ -28,7 +28,7 @@ import {
   HelpCircle
 } from "lucide-react";
 import { useToast } from "../context/ToastContext";
-import { getRenamerCodes, saveRenamerCode, deleteRenamerCode, resetRenamerPresetsToDefault } from "../services/renamerStorage";
+import { getRenamerCodes, saveRenamerCode, deleteRenamerCode, resetRenamerPresetsToDefault, DEFAULT_RENAMER_PRESETS } from "../services/renamerStorage";
 import {
   detectCodeFormat,
   transformFilenamePreview,
@@ -41,10 +41,10 @@ import { generatePowerShellCommands } from "../utils/powershellGenerator";
 export const Renamer = () => {
   const { addToast } = useToast();
 
-  const [codes, setCodes] = useState([]);
-  const [selectedCodeId, setSelectedCodeId] = useState(null);
+  const [codes, setCodes] = useState(DEFAULT_RENAMER_PRESETS);
+  const [selectedCodeId, setSelectedCodeId] = useState(DEFAULT_RENAMER_PRESETS[0]?.id || "preset_movie_standard");
   const [filterCategory, setFilterCategory] = useState("all");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   // File explorer hidden inputs refs
   const headerFileInputRef = useRef(null);
@@ -131,7 +131,9 @@ export const Renamer = () => {
     }
   };
 
-  const selectedCode = codes.find((c) => c.id === selectedCodeId) || codes[0];
+  const selectedCode = (Array.isArray(codes) && codes.length > 0)
+    ? (codes.find((c) => c && c.id === selectedCodeId) || codes[0])
+    : DEFAULT_RENAMER_PRESETS[0];
 
   // Sync workspace format template state whenever selectedCode changes
   useEffect(() => {
