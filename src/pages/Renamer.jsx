@@ -90,6 +90,11 @@ export const Renamer = () => {
     initialInputs.testSubfolderPath || "Season 01/Loki.S01E01.1080p.mkv"
   );
 
+  // Editable manual override outputs for sandbox (user can type expected output to teach the website)
+  const [manualMovieOutput, setManualMovieOutput] = useState("");
+  const [manualSubOutput, setManualSubOutput] = useState("");
+  const [manualFolderOutput, setManualFolderOutput] = useState("");
+
   // Auto-save all typed input fields to localStorage on every change
   useEffect(() => {
     const dataToSave = {
@@ -852,13 +857,13 @@ export const Renamer = () => {
                   <div style={styles.syncItem}>
                     <span style={styles.syncTagMovie}>🎬 Movie File:</span>
                     <code style={styles.syncCodeMovie}>
-                      {transformFilenamePreview("Gladiator.II.2024.2160p.WEB-DL.mkv", selectedCode?.parts || [], showName, selectedCode?.category || "movie")}
+                      {transformFilenamePreview("Gladiator.II.2024.2160p.WEB-DL.mkv", selectedCode?.parts || [], showName, selectedCode?.category || "movie", activeFormatOverride)}
                     </code>
                   </div>
                   <div style={styles.syncItem}>
                     <span style={styles.syncTagSub}>💬 Subtitle File:</span>
                     <code style={styles.syncCodeSub}>
-                      {transformFilenamePreview("Gladiator.II.2024.2160p.Arabic.srt", selectedCode?.parts || [], showName, "subtitle")}
+                      {transformFilenamePreview("Gladiator.II.2024.2160p.Arabic.srt", selectedCode?.parts || [], showName, "subtitle", activeFormatOverride)}
                     </code>
                   </div>
                 </div>
@@ -963,7 +968,7 @@ export const Renamer = () => {
               <div style={styles.sandboxBox}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
                   <span style={styles.sandboxTitle}>🧪 Interactive Filename, Subtitle & Subfolder Live Testing Sandbox:</span>
-                  <span style={{ fontSize: "0.75rem", color: "#a3a3a3" }}>Type any filename or path to test instant renaming</span>
+                  <span style={{ fontSize: "0.75rem", color: "#a3a3a3" }}>Type input filenames on left, edit expected output on right</span>
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
@@ -981,7 +986,21 @@ export const Renamer = () => {
                         style={styles.sandboxInput}
                       />
                       <div style={styles.sandboxArrow}>➔</div>
-                      <div style={styles.sandboxResult}>{liveTestResult || "Formatted Filename"}</div>
+                      <input
+                        type="text"
+                        value={manualMovieOutput || liveTestResult || ""}
+                        onChange={(e) => setManualMovieOutput(e.target.value)}
+                        placeholder={liveTestResult || "Expected renamed output..."}
+                        title="Edit this to tell the website what the renamed output should look like"
+                        style={{
+                          ...styles.sandboxInput,
+                          color: manualMovieOutput ? "#4ade80" : "#10b981",
+                          borderColor: manualMovieOutput ? "#059669" : "#166534",
+                          backgroundColor: manualMovieOutput ? "#0a1f0a" : "#0d1117",
+                          fontFamily: "monospace",
+                          fontSize: "0.82rem"
+                        }}
+                      />
                     </div>
                   </div>
 
@@ -999,9 +1018,21 @@ export const Renamer = () => {
                         style={{ ...styles.sandboxInput, borderColor: "#0284c7" }}
                       />
                       <div style={styles.sandboxArrow}>➔</div>
-                      <div style={{ ...styles.sandboxResult, color: "#38bdf8", borderColor: "#0284c7" }}>
-                        {transformFilenamePreview(testSubFilename, selectedCode?.parts || [], showName, "subtitle", activeFormatOverride)}
-                      </div>
+                      <input
+                        type="text"
+                        value={manualSubOutput || transformFilenamePreview(testSubFilename, selectedCode?.parts || [], showName, "subtitle", activeFormatOverride) || ""}
+                        onChange={(e) => setManualSubOutput(e.target.value)}
+                        placeholder="Expected subtitle renamed output..."
+                        title="Edit this to tell the website what the subtitle rename should look like"
+                        style={{
+                          ...styles.sandboxInput,
+                          color: manualSubOutput ? "#38bdf8" : "#0ea5e9",
+                          borderColor: manualSubOutput ? "#0284c7" : "#075985",
+                          backgroundColor: manualSubOutput ? "#0a1520" : "#0d1117",
+                          fontFamily: "monospace",
+                          fontSize: "0.82rem"
+                        }}
+                      />
                     </div>
                   </div>
 
@@ -1019,12 +1050,45 @@ export const Renamer = () => {
                         style={{ ...styles.sandboxInput, borderColor: "#d97706" }}
                       />
                       <div style={styles.sandboxArrow}>➔</div>
-                      <div style={{ ...styles.sandboxResult, color: "#fbbf24", borderColor: "#d97706" }}>
-                        {transformFilenamePreview(testSubfolderPath, selectedCode?.parts || [], showName, selectedCode?.category || "movie", activeFormatOverride)}
-                      </div>
+                      <input
+                        type="text"
+                        value={manualFolderOutput || transformFilenamePreview(testSubfolderPath, selectedCode?.parts || [], showName, selectedCode?.category || "movie", activeFormatOverride) || ""}
+                        onChange={(e) => setManualFolderOutput(e.target.value)}
+                        placeholder="Expected subfolder renamed output..."
+                        title="Edit this to tell the website what the subfolder rename should look like"
+                        style={{
+                          ...styles.sandboxInput,
+                          color: manualFolderOutput ? "#fbbf24" : "#d97706",
+                          borderColor: manualFolderOutput ? "#d97706" : "#92400e",
+                          backgroundColor: manualFolderOutput ? "#1a1505" : "#0d1117",
+                          fontFamily: "monospace",
+                          fontSize: "0.82rem"
+                        }}
+                      />
                     </div>
                   </div>
                 </div>
+
+                {/* Clear manual overrides button */}
+                {(manualMovieOutput || manualSubOutput || manualFolderOutput) && (
+                  <div style={{ marginTop: "10px", textAlign: "right" }}>
+                    <button
+                      type="button"
+                      style={{
+                        background: "none",
+                        border: "1px solid #333",
+                        borderRadius: "6px",
+                        color: "#a3a3a3",
+                        fontSize: "0.75rem",
+                        padding: "4px 10px",
+                        cursor: "pointer"
+                      }}
+                      onClick={() => { setManualMovieOutput(""); setManualSubOutput(""); setManualFolderOutput(""); }}
+                    >
+                      <RotateCcw size={11} /> Reset to Auto-Detected Outputs
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 

@@ -704,15 +704,20 @@ export function simulatePythonRename(
 
 /**
  * Universal filename transformer used by both live preview cards and sandbox inputs.
+ * @param {string} rawName - The messy original filename
+ * @param {string|Array} categoryOrParts - Either a category string or array of code parts
+ * @param {string} showNameOverride - Optional show name override for TV series
+ * @param {string} defaultCategory - The content category (movie, series, subtitle, etc.)
+ * @param {string} customFormatOverride - Optional custom format template string
  */
-export function transformFilenamePreview(rawName = "", categoryOrParts = "movie", showNameOverride = "", customFormatOverride = "") {
+export function transformFilenamePreview(rawName = "", categoryOrParts = "movie", showNameOverride = "", defaultCategory = "movie", customFormatOverride = "") {
   if (!rawName || !rawName.trim()) return "";
 
   if (Array.isArray(categoryOrParts) || (typeof categoryOrParts === "string" && (categoryOrParts.includes("import") || categoryOrParts.includes("def ") || categoryOrParts.includes("return") || categoryOrParts.includes("f\"")))) {
-    return simulatePythonRename(rawName, categoryOrParts, showNameOverride, "movie", 1, customFormatOverride);
+    return simulatePythonRename(rawName, categoryOrParts, showNameOverride, defaultCategory, 1, customFormatOverride);
   }
 
-  const category = typeof categoryOrParts === "string" ? categoryOrParts : "movie";
+  const category = typeof categoryOrParts === "string" ? categoryOrParts : defaultCategory;
   return simulatePythonRename(rawName, "", showNameOverride, category, 1, customFormatOverride);
 }
 
