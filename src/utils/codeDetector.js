@@ -411,6 +411,11 @@ export function normalizeUserFormatInput(rawInput = "") {
   if (!rawInput || typeof rawInput !== "string") return "";
   let tmpl = rawInput.trim();
 
+  // Strip double/triple curly braces from Python f-strings e.g. {{clean_title}} -> {clean_title}
+  tmpl = tmpl.replace(/\{\{+/g, '{').replace(/\}\}+/g, '}');
+  tmpl = tmpl.replace(/\(position:\d+d\)/gi, '');
+  tmpl = tmpl.replace(/\[\s*-\s*\{\s*-\s*/g, ' - {');
+
   // Replace human words with tokens if not already formatted with braces
   tmpl = tmpl.replace(/\bMxx\b/gi, '{m_prefix}');
   tmpl = tmpl.replace(/\(Year\)/gi, '___YEAR_PARENS___');
@@ -441,9 +446,18 @@ export function simulatePythonRename(
 ) {
   if (!rawName || !rawName.trim()) return "";
 
-  const dotIdx = rawName.lastIndexOf(".");
-  const ext = dotIdx > 0 ? rawName.substring(dotIdx).toLowerCase() : ".mkv";
-  const baseName = dotIdx > 0 ? rawName.substring(0, dotIdx) : rawName;
+  // Support subfolder paths e.g. "Season 01/loki.s01.2022.1080p.mkv" or "Subs/Arabic/Inception.srt"
+  let dirPrefix = "";
+  let targetName = rawName;
+  if (/[\\/]/.test(rawName)) {
+    const pathParts = rawName.split(/[\\/]/);
+    targetName = pathParts.pop();
+    dirPrefix = pathParts.join("/") + "/";
+  }
+
+  const dotIdx = targetName.lastIndexOf(".");
+  const ext = dotIdx > 0 ? targetName.substring(dotIdx).toLowerCase() : ".mkv";
+  const baseName = dotIdx > 0 ? targetName.substring(0, dotIdx) : targetName;
 
   // Normalize code input (can be string or array of parts)
   let codeStr = "";
@@ -645,6 +659,11 @@ export function simulatePythonRename(
     result = result.replace(/\s*-\s*(\.[a-zA-Z0-9]+)$/, '$1');
     result = result.replace(/^[\s-]+/, '').trim();
 
+    // Clean remaining braces around evaluated text e.g. {breaking bad} -> breaking bad
+    result = result.replace(/\{([^{}]+)\}/g, (match, inner) => {
+      return inner.replace(/[\{\}]/g, '').trim();
+    });
+
     // Ensure extension exists
     if (!result.toLowerCase().endsWith(ext)) {
       result += ext;
@@ -654,12 +673,13 @@ export function simulatePythonRename(
     const bareName = result.replace(ext, '').trim();
     if (!bareName || bareName === "." || bareName === "-") {
       const isSeriesFallback = defaultCategory === "series" || hasSeason;
-      return isSeriesFallback
+      const fallbackName = isSeriesFallback
         ? `${showNameFinal} - S${String(seasonNum).padStart(2, '0')}E${String(episodeNum).padStart(2, '0')}${ext}`
         : `${mIndex} - (${year}) - ${titleFormatted}${resTag}${ext}`;
+      return dirPrefix ? `${dirPrefix}${fallbackName}` : fallbackName;
     }
 
-    return result;
+    return dirPrefix ? `${dirPrefix}${result}` : result;
   }
 
   // ── 3. Fallback Smart Inference based on Code Category ─────────────────────
@@ -667,16 +687,19 @@ export function simulatePythonRename(
   const isSubtitle = defaultCategory === "subtitle";
 
   if (isSeries) {
-    return `${showNameFinal} - S${String(seasonNum).padStart(2, '0')}E${String(episodeNum).padStart(2, '0')}${ext}`;
+    const fallbackSeries = `${showNameFinal} - S${String(seasonNum).padStart(2, '0')}E${String(episodeNum).padStart(2, '0')}${ext}`;
+    return dirPrefix ? `${dirPrefix}${fallbackSeries}` : fallbackSeries;
   }
 
   if (isSubtitle) {
     const subExt = ext.replace(/\.(mkv|mp4|avi)$/i, '.srt');
-    return `${mIndex} - (${year}) - ${titleFormatted}${resTag}${subExt}`;
+    const fallbackSub = `${mIndex} - (${year}) - ${titleFormatted}${resTag}${subExt}`;
+    return dirPrefix ? `${dirPrefix}${fallbackSub}` : fallbackSub;
   }
 
   // Default standard movie collection format: Mxx - (Year) - Moviename[ - Part][ - Resolution].ext
-  return `${mIndex} - (${year}) - ${titleFormatted}${partTag}${resTag}${ext}`;
+  const defaultMovie = `${mIndex} - (${year}) - ${titleFormatted}${partTag}${resTag}${ext}`;
+  return dirPrefix ? `${dirPrefix}${defaultMovie}` : defaultMovie;
 }
 
 /**

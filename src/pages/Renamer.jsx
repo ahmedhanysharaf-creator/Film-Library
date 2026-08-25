@@ -950,19 +950,71 @@ export const Renamer = () => {
                 ))}
               </div>
 
-              {/* Interactive Test Sandbox */}
+              {/* Interactive Test Sandbox for Movie, Subtitle & Subfolder paths */}
               <div style={styles.sandboxBox}>
-                <span style={styles.sandboxTitle}>🧪 Try Your Own Filename (Movie or Subtitle):</span>
-                <div style={styles.sandboxInputRow}>
-                  <input
-                    type="text"
-                    value={testFilename}
-                    onChange={(e) => setTestFilename(e.target.value)}
-                    placeholder="e.g. Gladiator.II.2024.2160p.WEB-DL.mkv or movie.arabic.srt"
-                    style={styles.sandboxInput}
-                  />
-                  <div style={styles.sandboxArrow}>➔</div>
-                  <div style={styles.sandboxResult}>{liveTestResult || "Formatted Filename"}</div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                  <span style={styles.sandboxTitle}>🧪 Interactive Filename, Subtitle & Subfolder Live Testing Sandbox:</span>
+                  <span style={{ fontSize: "0.75rem", color: "#a3a3a3" }}>Type any filename or path to test instant renaming</span>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  {/* 1. Video File Input */}
+                  <div>
+                    <span style={{ fontSize: "0.75rem", color: "#e50914", fontWeight: 700, display: "block", marginBottom: "4px" }}>
+                      🎬 Movie / Video Filename Test Input:
+                    </span>
+                    <div style={styles.sandboxInputRow}>
+                      <input
+                        type="text"
+                        value={testFilename}
+                        onChange={(e) => setTestFilename(e.target.value)}
+                        placeholder="e.g. Gladiator.II.2024.2160p.WEB-DL.mkv or loki.s01.2022.1080p.mkv"
+                        style={styles.sandboxInput}
+                      />
+                      <div style={styles.sandboxArrow}>➔</div>
+                      <div style={styles.sandboxResult}>{liveTestResult || "Formatted Filename"}</div>
+                    </div>
+                  </div>
+
+                  {/* 2. Subtitle File Input */}
+                  <div>
+                    <span style={{ fontSize: "0.75rem", color: "#38bdf8", fontWeight: 700, display: "block", marginBottom: "4px" }}>
+                      💬 Subtitle Filename Test Input:
+                    </span>
+                    <div style={styles.sandboxInputRow}>
+                      <input
+                        type="text"
+                        value={testSubFilename}
+                        onChange={(e) => setTestSubFilename(e.target.value)}
+                        placeholder="e.g. Gladiator.II.2024.2160p.Arabic.srt"
+                        style={{ ...styles.sandboxInput, borderColor: "#0284c7" }}
+                      />
+                      <div style={styles.sandboxArrow}>➔</div>
+                      <div style={{ ...styles.sandboxResult, color: "#38bdf8", borderColor: "#0284c7" }}>
+                        {transformFilenamePreview(testSubFilename, selectedCode.parts, showName, "subtitle", activeFormatOverride)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 3. Subfolder Path Input */}
+                  <div>
+                    <span style={{ fontSize: "0.75rem", color: "#f59e0b", fontWeight: 700, display: "block", marginBottom: "4px" }}>
+                      📁 Subfolder / Relative Path Test Input:
+                    </span>
+                    <div style={styles.sandboxInputRow}>
+                      <input
+                        type="text"
+                        value={testSubfolderPath}
+                        onChange={(e) => setTestSubfolderPath(e.target.value)}
+                        placeholder="e.g. Season 01/loki.s01.2022.1080p.mkv or Subs/Arabic/Gladiator.srt"
+                        style={{ ...styles.sandboxInput, borderColor: "#d97706" }}
+                      />
+                      <div style={styles.sandboxArrow}>➔</div>
+                      <div style={{ ...styles.sandboxResult, color: "#fbbf24", borderColor: "#d97706" }}>
+                        {transformFilenamePreview(testSubfolderPath, selectedCode.parts, showName, selectedCode.category, activeFormatOverride)}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
