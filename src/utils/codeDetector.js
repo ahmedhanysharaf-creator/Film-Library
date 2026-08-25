@@ -215,30 +215,67 @@ export function extractPythonNamingTemplate(pythonCode = "") {
     };
   }
 
-  // 3. Find return f"..." or filename assignment f-strings
-  const candidateRegex = /(?:return|\b(?:new_name|new_filename|new_file|renamed|renamed_name|formatted_name|target_name|new_sub_name|out_name|dest_name|final_name|formatted|output_name)\s*=)\s*f["']([^"'\r\n]+)["']/gi;
+  // 3. Scan os.rename(src, dst), shutil.move(src, dst), pathlib.Path.rename() statements
+  const renameCallMatches = pythonCode.match(/(?:os\.rename|shutil\.move|path\.rename|rename)\s*\([^,]+,\s*([^)]+)\)/gi);
+  if (renameCallMatches) {
+    for (const call of renameCallMatches) {
+      const fMatch = call.match(/f["']([^"'\r\n]+)["']/i);
+      if (fMatch && fMatch[1]) {
+        let tmpl = fMatch[1];
+        // If template has os.path.join, extract basename portion
+        if (tmpl.includes(",") || /[\\/]/.test(tmpl)) {
+          const parts = tmpl.split(/[,\\/]/);
+          tmpl = parts[parts.length - 1].trim();
+        }
+        if (tmpl && !/^\[RENAME\]|^\[MATCH\]/i.test(tmpl)) {
+          return {
+            type: "os_rename_fstring",
+            template: tmpl,
+            staticShowName,
+            rawCode: pythonCode
+          };
+        }
+      }
+    }
+  }
+
+  // 4. Find ALL f-strings across the script (returns, variable assignments, print formatters)
+  const allFStringRegex = /(?:return|\b(?:new_name|new_filename|new_file|renamed|renamed_name|formatted_name|target_name|new_sub_name|out_name|dest_name|final_name|formatted|output_name|name|dest|filename|target|out_file)\s*=)\s*f["']([^"'\r\n]+)["']/gi;
 
   const validTemplates = [];
   let match;
-  while ((match = candidateRegex.exec(pythonCode)) !== null) {
-    const rawTemplate = match[1];
-    if (/[\\/]/.test(rawTemplate) || /\{(?:root|TARGET_DIR|target_path|dir|folder_path|output_dir)\}/i.test(rawTemplate)) {
+  while ((match = allFStringRegex.exec(pythonCode)) !== null) {
+    let rawTemplate = match[1];
+
+    // Isolate filename if inside os.path.join or path string
+    if (/[\\/]/.test(rawTemplate)) {
+      const parts = rawTemplate.split(/[\\/]/);
+      rawTemplate = parts[parts.length - 1];
+    }
+
+    // Ignore root directory variables alone
+    if (/^\{(?:root|TARGET_DIR|target_path|dir|folder_path|output_dir)\}$/i.test(rawTemplate)) {
       continue;
     }
-    if (/^\[RENAME\]|^\[MATCH\]|^\[FOLDER/i.test(rawTemplate)) {
+
+    // Reject log messages or print outputs
+    if (/^\[RENAME\]|^\[MATCH\]|^\[FOLDER|^\[ERROR\]|^\[INFO\]/i.test(rawTemplate)) {
       continue;
     }
-    validTemplates.push(rawTemplate);
+
+    if (rawTemplate && rawTemplate.length > 2) {
+      validTemplates.push(rawTemplate);
+    }
   }
 
   if (validTemplates.length > 0) {
     const scored = validTemplates.map(tmpl => {
       let score = 0;
-      if (/\{m_prefix|\{mIndex|\{m_tag|\{m_code|\{index/i.test(tmpl)) score += 4;
-      if (/\{year|\{movie_year/i.test(tmpl)) score += 4;
-      if (/\{clean_title|\{title|\{movie|\{film|\{name|\{matched_vid_base/i.test(tmpl)) score += 4;
-      if (/\{season|\{episode|\{show/i.test(tmpl)) score += 4;
-      if (/\{res|\{part|\{ext/i.test(tmpl)) score += 2;
+      if (/\{m_prefix|\{mIndex|\{m_tag|\{m_code|\{index|\{idx|\{num/i.test(tmpl)) score += 5;
+      if (/\{year|\{movie_year|\{release_year|\{yr/i.test(tmpl)) score += 5;
+      if (/\{clean_title|\{title|\{movie|\{film|\{name|\{matched_vid_base|\{show/i.test(tmpl)) score += 5;
+      if (/\{season|\{episode|\{ep_title|\{episode_title/i.test(tmpl)) score += 5;
+      if (/\{res|\{quality|\{codec|\{audio|\{part|\{ext/i.test(tmpl)) score += 3;
       return { template: tmpl, score };
     });
 
@@ -253,7 +290,30 @@ export function extractPythonNamingTemplate(pythonCode = "") {
     };
   }
 
-  // 4. Find standard return "..." or '...' format templates (.format or %)
+  // 5. Check string concatenations (e.g. m_prefix + " - (" + year + ") - " + title + ext)
+  const concatMatch = pythonCode.match(/(?:new_name|new_filename|formatted|return)\s*=\s*([^\r\n]+(?:\+|\.format|%)[^\r\n]+)/i);
+  if (concatMatch && concatMatch[1]) {
+    const expr = concatMatch[1];
+    if (/m_prefix|year|clean_title|season|episode/i.test(expr)) {
+      let reconstructed = "";
+      if (/m_prefix|m_match/i.test(expr)) reconstructed += "{m_prefix} - ";
+      if (/year/i.test(expr)) reconstructed += "({year}) - ";
+      if (/clean_title|title|show/i.test(expr)) reconstructed += "{clean_title}";
+      if (/season/i.test(expr)) reconstructed += " - S{season:02d}E{episode:02d}";
+      if (/part/i.test(expr)) reconstructed += "{part_str}";
+      if (/res/i.test(expr)) reconstructed += "{res_str}";
+      reconstructed += "{ext}";
+
+      return {
+        type: "concatenation",
+        template: reconstructed,
+        staticShowName,
+        rawCode: pythonCode
+      };
+    }
+  }
+
+  // 6. Find standard return "..." or '...' format templates (.format or %)
   const formatMatches = pythonCode.match(/(?:return|\bnew_name\s*=|\bnew_filename\s*=)\s*["']([^"'\r\n]+)["']\s*\.(?:format)/gi);
   if (formatMatches && formatMatches.length > 0) {
     const lastMatch = formatMatches[formatMatches.length - 1];
@@ -268,7 +328,7 @@ export function extractPythonNamingTemplate(pythonCode = "") {
     }
   }
 
-  // 5. Check for % formatting strings e.g. "%s - (%s) - %s"
+  // 7. Check for % formatting strings e.g. "%s - (%s) - %s"
   const percentMatches = pythonCode.match(/(?:return|\bnew_name\s*=|\bnew_filename\s*=)\s*["']([^"'\r\n]+)["']\s*%/gi);
   if (percentMatches && percentMatches.length > 0) {
     const lastMatch = percentMatches[percentMatches.length - 1];
@@ -331,6 +391,37 @@ export function simulatePythonRename(rawName = "", codeInput = "", showNameOverr
     episodeNum = parseInt(sEMatch[2] || sEMatch[4] || sEMatch[6] || "1", 10);
   }
 
+  // Episode Title extraction (e.g. Loki.S01E01.Glorious.Purpose.1080p.mkv -> Glorious Purpose)
+  let episodeTitle = "";
+  if (sEMatch) {
+    const afterSE = baseName.substring(sEMatch.index + sEMatch[0].length);
+    const cleanedAfter = cleanRawTitle(afterSE);
+    if (cleanedAfter && cleanedAfter.length > 2 && !/^\d+p$/i.test(cleanedAfter)) {
+      episodeTitle = toTitleCase(cleanedAfter);
+    }
+  }
+  if (!episodeTitle) episodeTitle = "Episode Title";
+
+  // Audio Codec / Spec (AAC, DDP5.1, Atmos, etc.)
+  const audioMatch = baseName.match(/\b(aac|ddp5\.1|dd5\.1|dd\+|ac3|dts-hd|dts|truehd|atmos|flac|mp3|5\.1|7\.1)\b/i);
+  const audioTag = audioMatch ? audioMatch[1].toUpperCase() : "AAC";
+
+  // Video Codec (x264, x265, HEVC, H264, H265, AV1)
+  const codecMatch = baseName.match(/\b(x264|x265|h264|h265|hevc|av1|avc|10bit)\b/i);
+  const codecTag = codecMatch ? codecMatch[1].toLowerCase() : "x264";
+
+  // Release Group / Scene Tag (YTS, RARBG, PSA, QxR, Tigole, EVO, etc.)
+  const groupMatch = baseName.match(/(?:-|\b)(yify|yts|rarbg|psa|galaxyrg|evo|etrg|sparks|ntg|flux|playweb|qxr|tigole)\b/i);
+  const groupTag = groupMatch ? groupMatch[1].toUpperCase() : "RELEASE";
+
+  // Subtitle Language (Arabic, English, eng, ar)
+  const langMatch = baseName.match(/\b(arabic|english|eng|ara|ita|fre|ger|spa|rus|hin|kor|jpn|subs?)\b/i);
+  const langTag = langMatch ? toTitleCase(langMatch[1]) : "Arabic";
+
+  // Edition / Source (BluRay, WEB-DL, WEBRip, HDTV, REMUX, EXTENDED)
+  const sourceMatch = baseName.match(/\b(bluray|blu-ray|brrip|bdrip|web-dl|webrip|web|hdtv|dvdrip|remux|extended|repack|unrated)\b/i);
+  const sourceTag = sourceMatch ? sourceMatch[1].toUpperCase() : "BluRay";
+
   // Resolution (2160p, 1080p, 720p, 480p, 4k)
   const resMatch = baseName.match(/\b(2160p|1080p|720p|480p|4k|uhd|fhd|hd)\b/i);
   const resRaw = resMatch ? resMatch[1].toLowerCase() : "1080p";
@@ -387,7 +478,7 @@ export function simulatePythonRename(rawName = "", codeInput = "", showNameOverr
     result = result.replace(/\{(?:matched_vid_base|matched_video|vid_base|video_base|matched_base|clean_video_name|target_base|base_name|target_name|video_name|dest_name)[^}]*\}/gi, videoBaseFormatted);
 
     // Mxx prefix tokens
-    result = result.replace(/\{(?:m_prefix|mIndex|m_num|m_tag|index|idx)[^}]*\}/gi, mIndex);
+    result = result.replace(/\{(?:m_prefix|mIndex|m_num|m_tag|index|idx|num|number)[^}]*\}/gi, mIndex);
 
     // Year tokens
     result = result.replace(/\{(?:year|release_year|movie_year|yr|clean_year)[^}]*\}/gi, year);
@@ -404,11 +495,21 @@ export function simulatePythonRename(rawName = "", codeInput = "", showNameOverr
     result = result.replace(/\{(?:episode_str|ep_str)\}/gi, `E${String(episodeNum).padStart(2, '0')}`);
     result = result.replace(/\{(?:episode|ep|episode_num|ep_num|episode_number)\}/gi, String(episodeNum));
 
+    // Episode Title tokens
+    result = result.replace(/\{(?:ep_title|episode_title|ep_name|episode_name|title_str)[^}]*\}/gi, episodeTitle);
+
+    // Audio & Codec & Group tokens
+    result = result.replace(/\{(?:audio|audio_codec|audio_spec|audio_tag)[^}]*\}/gi, audioTag);
+    result = result.replace(/\{(?:codec|video_codec|codec_tag)[^}]*\}/gi, codecTag);
+    result = result.replace(/\{(?:group|release_group|scene_group|group_tag|tag)[^}]*\}/gi, groupTag);
+    result = result.replace(/\{(?:lang|language|sub_lang)[^}]*\}/gi, langTag);
+    result = result.replace(/\{(?:source|edition|quality_tag)[^}]*\}/gi, sourceTag);
+
     // Resolution tokens
     if (result.includes('{res_str}') || result.includes('{res_part}') || result.includes('{res_tag}')) {
       result = result.replace(/\{(?:res_str|res_part|res_tag)[^}]*\}/gi, resTag);
     } else {
-      result = result.replace(/\{(?:res|resolution|quality|quality_tag)[^}]*\}/gi, resRaw);
+      result = result.replace(/\{(?:res|resolution|quality)[^}]*\}/gi, resRaw);
     }
 
     // Part tokens
@@ -425,15 +526,19 @@ export function simulatePythonRename(rawName = "", codeInput = "", showNameOverr
     result = result.replace(/\{(?:show|detected_show|SHOW_NAME|show_name|series_name|clean_show_name)[^}]*\}/gi, showNameFinal);
     result = result.replace(/\{(?:clean_title|title|movie|movie_name|clean_movie_name|clean_name|clean|clean_prefix|raw_title|main_title|new_title|name|folder_name|dir_name)[^}]*\}/gi, titleFormatted);
 
-    // UNIVERSAL TITLE CATCH-ALL:
-    // If result does not yet contain the title, replace the first remaining unrecognized {token} with titleFormatted!
-    const currentTextWithoutExt = result.replace(ext, '');
-    if (!currentTextWithoutExt.toLowerCase().includes(cleanTitle.toLowerCase()) && /\{[a-zA-Z0-9_().:]+\}/.test(result)) {
-      result = result.replace(/\{[a-zA-Z0-9_().:]+\}/, titleFormatted);
-    }
-
-    // Clear any remaining unused placeholder tokens
-    result = result.replace(/\{[a-zA-Z0-9_().:]+\}/g, '');
+    // UNIVERSAL CUSTOM VARIABLE DYNAMIC CATCH-ALL:
+    // Any remaining {custom_var} is intelligently replaced instead of broken!
+    result = result.replace(/\{([a-zA-Z0-9_().:]+)\}/g, (match, varName) => {
+      const v = varName.toLowerCase();
+      if (v.includes("title") || v.includes("name") || v.includes("movie") || v.includes("show")) return titleFormatted;
+      if (v.includes("year") || v.includes("date")) return year;
+      if (v.includes("season") || v.includes("s")) return `S${String(seasonNum).padStart(2, '0')}`;
+      if (v.includes("ep") || v.includes("e")) return `E${String(episodeNum).padStart(2, '0')}`;
+      if (v.includes("res") || v.includes("quality")) return resRaw;
+      if (v.includes("ext")) return ext;
+      if (v.includes("idx") || v.includes("index") || v.includes("num") || v.includes("prefix")) return mIndex;
+      return "Sample";
+    });
 
     // Cleanup Orphan Hyphens & Spacing (fixes `(2010) - - 1080p` -> `(2010) - Inception - 1080p`)
     result = result.replace(/\s*-\s*(?:-\s*)+/g, ' - ');
