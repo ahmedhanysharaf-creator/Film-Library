@@ -215,14 +215,40 @@ export function extractPythonNamingTemplate(pythonCode = "") {
     };
   }
 
-  // 3. Scan os.rename(src, dst), shutil.move(src, dst), pathlib.Path.rename() statements
+  // 3. Inspect Docstring / Header Comments for Canonical Format Specification
+  // e.g. "canonical format: Mxx - (Year) - Moviename[ - Part][ - Resolution].ext"
+  const docstringMatch = pythonCode.match(/(?:canonical\s+format|format|renames\s+to|output\s+format)\s*:\s*[\r\n\s]*([^\r\n"']+)/i);
+  if (docstringMatch && docstringMatch[1]) {
+    const rawDocFormat = docstringMatch[1].trim();
+    if (/Mxx|\(Year\)|Moviename|S\d+E\d+|Season|Episode/i.test(rawDocFormat)) {
+      let normalizedDoc = rawDocFormat;
+      normalizedDoc = normalizedDoc.replace(/Mxx/gi, '{m_prefix}');
+      normalizedDoc = normalizedDoc.replace(/\(Year\)/gi, '({year})');
+      normalizedDoc = normalizedDoc.replace(/Moviename/gi, '{clean_title}');
+      normalizedDoc = normalizedDoc.replace(/\[\s*-\s*Part\s*\]/gi, '{part_str}');
+      normalizedDoc = normalizedDoc.replace(/\[\s*-\s*Resolution\s*\]/gi, '{res_str}');
+      normalizedDoc = normalizedDoc.replace(/\.ext/gi, '{ext}');
+      normalizedDoc = normalizedDoc.replace(/Show/gi, '{show}');
+      normalizedDoc = normalizedDoc.replace(/S(\d+)E(\d+)/gi, 'S{season:02d}E{episode:02d}');
+
+      if (normalizedDoc.includes('{clean_title}') || normalizedDoc.includes('{m_prefix}')) {
+        return {
+          type: "docstring_canonical",
+          template: normalizedDoc,
+          staticShowName,
+          rawCode: pythonCode
+        };
+      }
+    }
+  }
+
+  // 4. Scan os.rename(src, dst), shutil.move(src, dst), pathlib.Path.rename() statements
   const renameCallMatches = pythonCode.match(/(?:os\.rename|shutil\.move|path\.rename|rename)\s*\([^,]+,\s*([^)]+)\)/gi);
   if (renameCallMatches) {
     for (const call of renameCallMatches) {
       const fMatch = call.match(/f["']([^"'\r\n]+)["']/i);
       if (fMatch && fMatch[1]) {
         let tmpl = fMatch[1];
-        // If template has os.path.join, extract basename portion
         if (tmpl.includes(",") || /[\\/]/.test(tmpl)) {
           const parts = tmpl.split(/[,\\/]/);
           tmpl = parts[parts.length - 1].trim();
@@ -239,7 +265,7 @@ export function extractPythonNamingTemplate(pythonCode = "") {
     }
   }
 
-  // 4. Find ALL f-strings across the script (returns, variable assignments, print formatters)
+  // 5. Find ALL f-strings across the script (including method calls like ext.lower() or season:02d)
   const allFStringRegex = /(?:return|\b(?:new_name|new_filename|new_file|renamed|renamed_name|formatted_name|target_name|new_sub_name|out_name|dest_name|final_name|formatted|output_name|name|dest|filename|target|out_file)\s*=)\s*f["']([^"'\r\n]+)["']/gi;
 
   const validTemplates = [];
@@ -247,18 +273,15 @@ export function extractPythonNamingTemplate(pythonCode = "") {
   while ((match = allFStringRegex.exec(pythonCode)) !== null) {
     let rawTemplate = match[1];
 
-    // Isolate filename if inside os.path.join or path string
     if (/[\\/]/.test(rawTemplate)) {
       const parts = rawTemplate.split(/[\\/]/);
       rawTemplate = parts[parts.length - 1];
     }
 
-    // Ignore root directory variables alone
     if (/^\{(?:root|TARGET_DIR|target_path|dir|folder_path|output_dir)\}$/i.test(rawTemplate)) {
       continue;
     }
 
-    // Reject log messages or print outputs
     if (/^\[RENAME\]|^\[MATCH\]|^\[FOLDER|^\[ERROR\]|^\[INFO\]/i.test(rawTemplate)) {
       continue;
     }
@@ -271,11 +294,22 @@ export function extractPythonNamingTemplate(pythonCode = "") {
   if (validTemplates.length > 0) {
     const scored = validTemplates.map(tmpl => {
       let score = 0;
-      if (/\{m_prefix|\{mIndex|\{m_tag|\{m_code|\{index|\{idx|\{num/i.test(tmpl)) score += 5;
-      if (/\{year|\{movie_year|\{release_year|\{yr/i.test(tmpl)) score += 5;
-      if (/\{clean_title|\{title|\{movie|\{film|\{name|\{matched_vid_base|\{show/i.test(tmpl)) score += 5;
-      if (/\{season|\{episode|\{ep_title|\{episode_title/i.test(tmpl)) score += 5;
+
+      const hasIndex = /\{m_prefix|\{mIndex|\{m_tag|\{m_code|\{index|\{idx|\{num/i.test(tmpl);
+      const hasYear = /\{year|\{movie_year|\{release_year|\{yr/i.test(tmpl);
+      const hasTitle = /\{clean_title|\{title|\{movie|\{film|\{name|\{matched_vid_base|\{show/i.test(tmpl);
+      const hasSeasonEp = /\{season|\{episode|\{ep_title|\{episode_title/i.test(tmpl);
+      const isBaseFragment = /\{base\b|\{base_name\b/i.test(tmpl) && !hasYear && !hasIndex;
+
+      if (hasIndex) score += 10;
+      if (hasYear) score += 10;
+      if (hasTitle) score += 10;
+      if (hasSeasonEp) score += 10;
       if (/\{res|\{quality|\{codec|\{audio|\{part|\{ext/i.test(tmpl)) score += 3;
+
+      // Penalize intermediate base fragments (e.g. f"{base} - {resolution}")
+      if (isBaseFragment) score -= 15;
+
       return { template: tmpl, score };
     });
 
@@ -290,7 +324,7 @@ export function extractPythonNamingTemplate(pythonCode = "") {
     };
   }
 
-  // 5. Check string concatenations (e.g. m_prefix + " - (" + year + ") - " + title + ext)
+  // 6. Check string concatenations (e.g. m_prefix + " - (" + year + ") - " + title + ext)
   const concatMatch = pythonCode.match(/(?:new_name|new_filename|formatted|return)\s*=\s*([^\r\n]+(?:\+|\.format|%)[^\r\n]+)/i);
   if (concatMatch && concatMatch[1]) {
     const expr = concatMatch[1];
@@ -313,7 +347,7 @@ export function extractPythonNamingTemplate(pythonCode = "") {
     }
   }
 
-  // 6. Find standard return "..." or '...' format templates (.format or %)
+  // 7. Find standard return "..." or '...' format templates (.format or %)
   const formatMatches = pythonCode.match(/(?:return|\bnew_name\s*=|\bnew_filename\s*=)\s*["']([^"'\r\n]+)["']\s*\.(?:format)/gi);
   if (formatMatches && formatMatches.length > 0) {
     const lastMatch = formatMatches[formatMatches.length - 1];
@@ -328,7 +362,7 @@ export function extractPythonNamingTemplate(pythonCode = "") {
     }
   }
 
-  // 7. Check for % formatting strings e.g. "%s - (%s) - %s"
+  // 8. Check for % formatting strings e.g. "%s - (%s) - %s"
   const percentMatches = pythonCode.match(/(?:return|\bnew_name\s*=|\bnew_filename\s*=)\s*["']([^"'\r\n]+)["']\s*%/gi);
   if (percentMatches && percentMatches.length > 0) {
     const lastMatch = percentMatches[percentMatches.length - 1];
