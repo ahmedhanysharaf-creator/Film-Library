@@ -228,8 +228,9 @@ export function extractPythonNamingTemplate(pythonCode = "") {
         if (/Mxx|\(Year\)|Year|Movie|Title|Season|Episode|S\d+E\d+|Resolution/i.test(rawDocFormat)) {
           let normalizedDoc = rawDocFormat;
           normalizedDoc = normalizedDoc.replace(/\bMxx\b/gi, '{m_prefix}');
-          normalizedDoc = normalizedDoc.replace(/\(Year\)/gi, '({year})');
+          normalizedDoc = normalizedDoc.replace(/\(Year\)/gi, '___YEAR_PARENS___');
           normalizedDoc = normalizedDoc.replace(/\bYear\b/gi, '{year}');
+          normalizedDoc = normalizedDoc.replace(/___YEAR_PARENS___/g, '({year})');
           normalizedDoc = normalizedDoc.replace(/\b(?:Movie\s*Title|Moviename|Movie\s*Name|Film\s*Title|Title)\b/gi, '{clean_title}');
           normalizedDoc = normalizedDoc.replace(/\b(?:Show\s*Title|Show\s*Name|Series\s*Name|Series\s*Title)\b/gi, '{show}');
           normalizedDoc = normalizedDoc.replace(/\b(?:Episode\s*Title|Ep\s*Title|Episode\s*Name)\b/gi, '{ep_title}');
@@ -578,17 +579,20 @@ export function simulatePythonRename(rawName = "", codeInput = "", showNameOverr
     result = result.replace(/\{(?:clean_title|title|movie|movie_name|clean_movie_name|clean_name|clean|clean_prefix|raw_title|main_title|new_title|name|folder_name|dir_name)[^}]*\}/gi, titleFormatted);
 
     // UNIVERSAL CUSTOM VARIABLE DYNAMIC CATCH-ALL:
-    // Any remaining {custom_var} is intelligently replaced instead of broken!
+    // Any remaining {custom_var} is intelligently replaced cleanly!
     result = result.replace(/\{([a-zA-Z0-9_().:]+)\}/g, (match, varName) => {
-      const v = varName.toLowerCase();
+      const rawV = varName.replace(/[\{\}()]/g, '').trim();
+      const v = rawV.toLowerCase();
+      if (!v) return "";
+      if (/^\d+$/.test(v)) return v; // If already evaluated numeric string e.g. 2010 or 1080
       if (v.includes("title") || v.includes("name") || v.includes("movie") || v.includes("show")) return titleFormatted;
-      if (v.includes("year") || v.includes("date")) return year;
+      if (v.includes("year") || v.includes("date") || v.includes("yr")) return year;
       if (v.includes("season") || v.includes("s")) return `S${String(seasonNum).padStart(2, '0')}`;
       if (v.includes("ep") || v.includes("e")) return `E${String(episodeNum).padStart(2, '0')}`;
       if (v.includes("res") || v.includes("quality")) return resRaw;
       if (v.includes("ext")) return ext;
       if (v.includes("idx") || v.includes("index") || v.includes("num") || v.includes("prefix")) return mIndex;
-      return "Sample";
+      return titleFormatted || year;
     });
 
     // Cleanup Orphan Hyphens & Spacing (fixes `(2010) - - 1080p` -> `(2010) - Inception - 1080p`)
