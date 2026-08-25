@@ -25,7 +25,8 @@ import {
   Sliders,
   Settings2,
   Tag,
-  HelpCircle
+  HelpCircle,
+  FileCode
 } from "lucide-react";
 import { useToast } from "../context/ToastContext";
 import { getRenamerCodes, saveRenamerCode, deleteRenamerCode, resetRenamerPresetsToDefault, DEFAULT_RENAMER_PRESETS } from "../services/renamerStorage";
@@ -82,6 +83,12 @@ export const Renamer = () => {
   const [showRawCode, setShowRawCode] = useState(false);
   const [showFormatCustomizer, setShowFormatCustomizer] = useState(false);
   const [customTemplateInput, setCustomTemplateInput] = useState("");
+  const [testSubFilename, setTestSubFilename] = useState(
+    initialInputs.testSubFilename || "Inception.2010.1080p.Arabic.srt"
+  );
+  const [testSubfolderPath, setTestSubfolderPath] = useState(
+    initialInputs.testSubfolderPath || "Season 01/Loki.S01E01.1080p.mkv"
+  );
 
   // Auto-save all typed input fields to localStorage on every change
   useEffect(() => {
