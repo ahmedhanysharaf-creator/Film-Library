@@ -139,24 +139,42 @@ export const Renamer = () => {
 
   const isSeriesPreset = selectedCode?.category === "series" || /series|show|season|episode/i.test(selectedCode?.name || "");
 
+  const getPresetSandboxKey = (presetId) => `filmlibrary_renamer_sandbox_${presetId}`;
+
   // Sync workspace format template & rename toggle whenever selectedCode changes
   useEffect(() => {
     if (selectedCode) {
       setCustomWorkspaceFormat(selectedCode.formatTemplate || "");
       setRenamePreviewEnabled(selectedCode.isRenamer !== false);
+
+      // Check if specific alignment test data was saved for this code
+      try {
+        const raw = localStorage.getItem(getPresetSandboxKey(selectedCode.id));
+        const savedData = raw ? JSON.parse(raw) : (selectedCode.sandboxData || null);
+        if (savedData) {
+          if (savedData.testFilename) setTestFilename(savedData.testFilename);
+          if (savedData.testSubFilename) setTestSubFilename(savedData.testSubFilename);
+          if (savedData.testSubfolderPath) setTestSubfolderPath(savedData.testSubfolderPath);
+          setManualMovieOutput(savedData.manualMovieOutput || "");
+          setManualSubOutput(savedData.manualSubOutput || "");
+          setManualFolderOutput(savedData.manualFolderOutput || "");
+          return;
+        }
+      } catch {}
+
+      // Fallback defaults per category if nothing saved yet
       if (selectedCode.category === "series" || /series|show|season|episode/i.test(selectedCode.name || "")) {
-        if (!testFilename || testFilename.includes("Inception") || testFilename.includes("Gladiator")) {
-          setTestFilename("loki.s01e01.2021.1080p.mkv");
-          setTestSubFilename("loki.s01e01.2021.1080p.Arabic.srt");
-          setTestSubfolderPath("Season 01/loki.s01e01.2021.1080p.mkv");
-        }
+        setTestFilename("loki.s01e01.2021.1080p.mkv");
+        setTestSubFilename("loki.s01e01.2021.1080p.Arabic.srt");
+        setTestSubfolderPath("Season 01/loki.s01e01.2021.1080p.mkv");
       } else {
-        if (testFilename && testFilename.includes("loki")) {
-          setTestFilename("Gladiator.II.2024.2160p.WEB-DL.mkv");
-          setTestSubFilename("Gladiator.II.2024.2160p.Arabic.srt");
-          setTestSubfolderPath("Movies/Gladiator.II.2024.2160p.mkv");
-        }
+        setTestFilename("Gladiator.II.2024.2160p.WEB-DL.mkv");
+        setTestSubFilename("Gladiator.II.2024.2160p.Arabic.srt");
+        setTestSubfolderPath("Movies/Gladiator.II.2024.2160p.mkv");
       }
+      setManualMovieOutput("");
+      setManualSubOutput("");
+      setManualFolderOutput("");
     }
   }, [selectedCodeId]);
 
@@ -213,6 +231,56 @@ export const Renamer = () => {
     setManualSubOutput("");
     setManualFolderOutput("");
     addToast(`Saved format template: ${normalized}`, "success");
+  };
+
+  const handleSavePresetAlignmentData = async () => {
+    if (!selectedCode) return;
+
+    // 1. Gather current test values specific to this preset
+    const sandboxData = {
+      testFilename,
+      testSubFilename,
+      testSubfolderPath,
+      manualMovieOutput,
+      manualSubOutput,
+      manualFolderOutput
+    };
+
+    // 2. Persist specifically for this code in localStorage
+    try {
+      localStorage.setItem(getPresetSandboxKey(selectedCode.id), JSON.stringify(sandboxData));
+    } catch {}
+
+    // 3. If any output was manually edited, extract the format template & update python code
+    const activeManual = manualMovieOutput || manualFolderOutput || manualSubOutput;
+    let newTemplate = selectedCode.formatTemplate || "";
+    if (activeManual && activeManual.trim()) {
+      newTemplate = normalizeUserFormatInput(activeManual);
+    }
+
+    const updatedParts = (selectedCode.parts || []).map((p) => ({
+      ...p,
+      code: newTemplate ? updatePythonCodeFormat(p.code, newTemplate) : p.code
+    }));
+
+    const updatedObj = {
+      ...selectedCode,
+      formatTemplate: newTemplate || selectedCode.formatTemplate,
+      sandboxData,
+      parts: updatedParts
+    };
+
+    try {
+      const updatedList = await saveRenamerCode(updatedObj);
+      setCodes(updatedList);
+      if (newTemplate) {
+        setCustomWorkspaceFormat(newTemplate);
+        setCustomTemplateInput(newTemplate);
+      }
+      addToast(`✓ Saved alignment settings specifically for "${selectedCode.name}"!`, "success");
+    } catch (err) {
+      addToast(`Error saving preset settings: ${err.message}`, "error");
+    }
   };
 
   const handleClearAllInputs = () => {
@@ -1029,7 +1097,7 @@ export const Renamer = () => {
                 </div>
 
                 {/* Bottom Action Bar for Alignment Card */}
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "12px", flexWrap: "wrap", gap: "8px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "14px", flexWrap: "wrap", gap: "10px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                     <CheckCircle2 size={13} color="#10b981" />
                     <span style={{ fontSize: "0.76rem", color: "#9ca3af" }}>
@@ -1039,49 +1107,48 @@ export const Renamer = () => {
                     </span>
                   </div>
 
-                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                    {(manualMovieOutput || manualSubOutput || manualFolderOutput) && (
-                      <>
-                        <button
-                          type="button"
-                          style={{
-                            padding: "6px 12px",
-                            backgroundColor: "#166534",
-                            color: "#4ade80",
-                            border: "1px solid #22c55e",
-                            borderRadius: "6px",
-                            fontSize: "0.78rem",
-                            fontWeight: 700,
-                            cursor: "pointer",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "6px"
-                          }}
-                          onClick={() => handleSaveManualOutputAsTemplate(manualMovieOutput || manualFolderOutput || manualSubOutput)}
-                          title="Save this custom output format into the active Python preset so the website learns it permanently"
-                        >
-                          <Sparkles size={13} /> ⚡ Apply & Save Custom Format
-                        </button>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                    <button
+                      type="button"
+                      style={{
+                        padding: "7px 14px",
+                        backgroundColor: "#166534",
+                        color: "#4ade80",
+                        border: "1px solid #22c55e",
+                        borderRadius: "8px",
+                        fontSize: "0.82rem",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        boxShadow: "0 2px 8px rgba(34, 197, 94, 0.2)"
+                      }}
+                      onClick={handleSavePresetAlignmentData}
+                      title={`Save these test inputs & format specifically for "${selectedCode?.name}" so they persist on refresh without affecting other scripts`}
+                    >
+                      <FileCheck size={15} /> 💾 Save Settings for "{selectedCode?.name}"
+                    </button>
 
-                        <button
-                          type="button"
-                          style={{
-                            background: "none",
-                            border: "1px solid #333",
-                            borderRadius: "6px",
-                            color: "#a3a3a3",
-                            fontSize: "0.75rem",
-                            padding: "6px 10px",
-                            cursor: "pointer",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "4px"
-                          }}
-                          onClick={() => { setManualMovieOutput(""); setManualSubOutput(""); setManualFolderOutput(""); }}
-                        >
-                          <RotateCcw size={11} /> Reset Outputs
-                        </button>
-                      </>
+                    {(manualMovieOutput || manualSubOutput || manualFolderOutput) && (
+                      <button
+                        type="button"
+                        style={{
+                          background: "none",
+                          border: "1px solid #333",
+                          borderRadius: "6px",
+                          color: "#a3a3a3",
+                          fontSize: "0.75rem",
+                          padding: "6px 10px",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "4px"
+                        }}
+                        onClick={() => { setManualMovieOutput(""); setManualSubOutput(""); setManualFolderOutput(""); }}
+                      >
+                        <RotateCcw size={11} /> Reset Outputs
+                      </button>
                     )}
                   </div>
                 </div>
