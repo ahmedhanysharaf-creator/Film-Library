@@ -1089,7 +1089,7 @@ export const Renamer = () => {
                 </div>
               </div>
 
-              {selectedCode.category === "series" && (
+              {selectedCode?.category === "series" && (
                 <div style={styles.optionItem}>
                   <label style={styles.inputLabel}>Show Name Override (Optional):</label>
                   <input
@@ -1114,7 +1114,7 @@ export const Renamer = () => {
                   type="text"
                   value={customMode}
                   onChange={(e) => setCustomMode(e.target.value)}
-                  placeholder={`Auto: ${selectedCode.category === "series" ? "series" : "movies"}`}
+                  placeholder={`Auto: ${selectedCode?.category === "series" ? "series" : "movies"}`}
                   style={styles.textInputSmall}
                 />
                 <div style={styles.quickPathButtons}>
