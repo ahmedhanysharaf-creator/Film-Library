@@ -20,9 +20,9 @@ export const ToolsHub = ({ initialToolId = null, onOpenRenamer }) => {
     },
     {
       id: "renamer",
-      name: "Python Media Renamer",
-      tagline: "Movie & Series Renamer Suite",
-      description: "Manage multi-part Python renamers, auto-detect code formats, and generate copy-pasteable PowerShell execution commands.",
+      name: "Code Workspace",
+      tagline: "Python Scripts, Renamers & Organizers Suite",
+      description: "Manage multi-part Python scripts, format renamers, folder organizers, and generate copy-pasteable PowerShell execution commands.",
       icon: Terminal,
       badge: "PowerShell & Python",
       isInternal: true,

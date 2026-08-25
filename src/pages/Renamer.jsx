@@ -26,7 +26,8 @@ import {
   Settings2,
   Tag,
   HelpCircle,
-  FileCode
+  FileCode,
+  FolderSync
 } from "lucide-react";
 import { useToast } from "../context/ToastContext";
 import { getRenamerCodes, saveRenamerCode, deleteRenamerCode, resetRenamerPresetsToDefault, DEFAULT_RENAMER_PRESETS } from "../services/renamerStorage";
@@ -95,20 +96,8 @@ export const Renamer = () => {
   const [manualSubOutput, setManualSubOutput] = useState("");
   const [manualFolderOutput, setManualFolderOutput] = useState("");
 
-  // Auto-save all typed input fields to localStorage on every change
-  useEffect(() => {
-    const dataToSave = {
-      targetPath,
-      scriptsFolder,
-      customMode,
-      dryRun,
-      showName,
-      testFilename
-    };
-    try {
-      localStorage.setItem(RENAMER_INPUTS_KEY, JSON.stringify(dataToSave));
-    } catch {}
-  }, [targetPath, scriptsFolder, customMode, dryRun, showName, testFilename]);
+  // Toggle for making rename preview optional (e.g. for folder organizers / utilities)
+  const [renamePreviewEnabled, setRenamePreviewEnabled] = useState(true);
 
   // Modal State for Adding/Editing Code
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -116,6 +105,7 @@ export const Renamer = () => {
   const [formName, setFormName] = useState("");
   const [formDesc, setFormDesc] = useState("");
   const [formCategory, setFormCategory] = useState("movie");
+  const [formIsRenamer, setFormIsRenamer] = useState(true);
   const [formFormatTemplate, setFormFormatTemplate] = useState("");
   const [customWorkspaceFormat, setCustomWorkspaceFormat] = useState("");
   const [formParts, setFormParts] = useState([
@@ -147,10 +137,11 @@ export const Renamer = () => {
     ? (codes.find((c) => c && c.id === selectedCodeId) || codes[0])
     : DEFAULT_RENAMER_PRESETS[0];
 
-  // Sync workspace format template state whenever selectedCode changes
+  // Sync workspace format template & rename toggle whenever selectedCode changes
   useEffect(() => {
     if (selectedCode) {
       setCustomWorkspaceFormat(selectedCode.formatTemplate || "");
+      setRenamePreviewEnabled(selectedCode.isRenamer !== false);
     }
   }, [selectedCodeId]);
 
@@ -424,12 +415,13 @@ export const Renamer = () => {
     setFormName("");
     setFormDesc("");
     setFormCategory("movie");
+    setFormIsRenamer(true);
     setFormFormatTemplate("");
     setFormParts([
       {
         id: `part_${Date.now()}_1`,
-        name: "1_custom_renamer.py",
-        code: `# Custom Python Renamer Code\nimport os\nimport re\n\nTARGET_DIR = r"{TARGET_DIR}"\nDRY_RUN = True\n\nprint(f"Scanning target directory: {TARGET_DIR}")\n`
+        name: "1_custom_script.py",
+        code: `# Custom Python Script\nimport os\nimport re\n\nTARGET_DIR = r"{TARGET_DIR}"\nDRY_RUN = True\n\nprint(f"Scanning target directory: {TARGET_DIR}")\n`
       }
     ]);
     setActivePartIndex(0);
@@ -441,6 +433,7 @@ export const Renamer = () => {
     setFormName(codeObj.name || "");
     setFormDesc(codeObj.description || "");
     setFormCategory(codeObj.category || "movie");
+    setFormIsRenamer(codeObj.isRenamer !== false);
     setFormFormatTemplate(codeObj.formatTemplate || "");
     setFormParts(
       codeObj.parts && codeObj.parts.length > 0
@@ -482,12 +475,13 @@ export const Renamer = () => {
     }
 
     const newCodeObj = {
-      id: editingCodeObj ? editingCodeObj.id : `custom_renamer_${Date.now()}`,
+      id: editingCodeObj ? editingCodeObj.id : `custom_code_${Date.now()}`,
       name: formName.trim(),
       description: formDesc.trim(),
       category: formCategory,
+      isRenamer: formIsRenamer,
       formatTemplate: formFormatTemplate.trim(),
-      badge: formParts.length > 1 ? `${formParts.length}-Step Pipeline` : `${formCategory.toUpperCase()} Code`,
+      badge: formParts.length > 1 ? `${formParts.length}-Step Pipeline` : `${formCategory.toUpperCase()} Script`,
       parts: formParts
     };
 
@@ -570,9 +564,9 @@ export const Renamer = () => {
             <Terminal size={14} color="#e50914" />
             <span>Python & PowerShell Workspace</span>
           </div>
-          <h1 style={styles.title}>Media File Renamer Suite</h1>
+          <h1 style={styles.title}>Code Workspace</h1>
           <p style={styles.subtitle}>
-            Select target media folders from your computer, view live BEFORE ➔ AFTER filename format previews, and copy short PowerShell execution commands directly.
+            Manage Python media scripts, renamers, and custom folder organizers. Customize naming formats, test live simulations, and generate ready-to-run PowerShell execution commands.
           </p>
         </div>
 
@@ -804,22 +798,87 @@ export const Renamer = () => {
                   <Sparkles size={20} color="#e50914" />
                   <div>
                     <h3 style={styles.formatPreviewCardTitle}>
-                      Renamed Output Format Anatomy & Blueprint
+                      {renamePreviewEnabled ? "Renamed Output Format Anatomy & Blueprint" : "Code Configuration & Script Mode"}
                     </h3>
                     <span style={styles.formatCardSubtitle}>
-                      Formats both <strong>Movies (.mkv, .mp4)</strong> and <strong>Subtitles (.srt, .ass)</strong> into standardized media patterns.
+                      {renamePreviewEnabled
+                        ? "Formats Movies (.mkv, .mp4) and Subtitles (.srt, .ass) into standardized media patterns."
+                        : "Filename renaming simulation is optional and currently disabled for this organizer/utility script."}
                     </span>
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  style={styles.toggleCustomizerBtn}
-                  onClick={() => setShowFormatCustomizer(!showFormatCustomizer)}
-                >
-                  <Sliders size={13} /> {showFormatCustomizer ? "Close Format Customizer" : "Customize / Change Format"}
-                </button>
+                <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    style={{
+                      ...styles.toggleCustomizerBtn,
+                      backgroundColor: renamePreviewEnabled ? "rgba(16, 185, 129, 0.15)" : "rgba(56, 189, 248, 0.12)",
+                      color: renamePreviewEnabled ? "#4ade80" : "#38bdf8",
+                      borderColor: renamePreviewEnabled ? "#16a34a" : "#0284c7"
+                    }}
+                    onClick={() => setRenamePreviewEnabled(!renamePreviewEnabled)}
+                    title="Toggle between Rename Format Simulation Mode vs Non-Renaming / Organizer Mode"
+                  >
+                    {renamePreviewEnabled ? <CheckCircle2 size={13} /> : <FolderSync size={13} />}
+                    {renamePreviewEnabled ? "Rename Simulation: Active" : "Rename Simulation: Disabled (Organizer Mode)"}
+                  </button>
+
+                  {renamePreviewEnabled && (
+                    <button
+                      type="button"
+                      style={styles.toggleCustomizerBtn}
+                      onClick={() => setShowFormatCustomizer(!showFormatCustomizer)}
+                    >
+                      <Sliders size={13} /> {showFormatCustomizer ? "Close Format Customizer" : "Customize Format"}
+                    </button>
+                  )}
+                </div>
               </div>
+
+              {!renamePreviewEnabled ? (
+                <div style={{
+                  padding: "20px 24px",
+                  backgroundColor: "rgba(15, 23, 42, 0.6)",
+                  borderRadius: "10px",
+                  border: "1px dashed #334155",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: "16px",
+                  margin: "12px 0 6px 0",
+                  flexWrap: "wrap"
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+                    <FolderSync size={24} color="#38bdf8" />
+                    <div>
+                      <div style={{ fontWeight: 700, color: "#f8fafc", fontSize: "0.95rem" }}>
+                        Non-Renaming / Organizer Script Mode Active
+                      </div>
+                      <div style={{ color: "#94a3b8", fontSize: "0.84rem", marginTop: "3px" }}>
+                        This script operates as a folder organizer, metadata collector, or custom utility without renaming files. Rename preview is bypassed.
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    style={{
+                      padding: "8px 14px",
+                      backgroundColor: "rgba(56, 189, 248, 0.15)",
+                      color: "#38bdf8",
+                      border: "1px solid #0284c7",
+                      borderRadius: "6px",
+                      fontSize: "0.8rem",
+                      fontWeight: 700,
+                      cursor: "pointer"
+                    }}
+                    onClick={() => setRenamePreviewEnabled(true)}
+                  >
+                    ⚡ Enable Rename Simulation
+                  </button>
+                </div>
+              ) : (
+                <>
 
               {/* Format Tokens Anatomy Legend (Color Coded Chips) */}
               <div style={styles.tokenChipsContainer}>
@@ -1090,6 +1149,8 @@ export const Renamer = () => {
                   </div>
                 )}
               </div>
+                </>
+              )}
             </div>
 
             {/* 🎯 SECTION 2: TARGET FOLDER & SHORT POWERSHELL COMMAND GENERATOR 🎯 */}
@@ -1347,9 +1408,11 @@ export const Renamer = () => {
                       onChange={(e) => setFormCategory(e.target.value)}
                       style={styles.selectInput}
                     >
-                      <option value="movie">Movie</option>
-                      <option value="series">TV Series</option>
-                      <option value="subtitle">Subtitle</option>
+                      <option value="movie">Movie Renamer</option>
+                      <option value="series">TV Series Renamer</option>
+                      <option value="subtitle">Subtitle Matcher / Renamer</option>
+                      <option value="organizer">Folder Organizer / Cleaner</option>
+                      <option value="utility">General Python Script / Utility</option>
                       <option value="multi_part">Multi-Part Pipeline</option>
                     </select>
                     {liveFormDetection?.autoCategory && formCategory !== liveFormDetection.autoCategory && (
@@ -1376,6 +1439,28 @@ export const Renamer = () => {
                 </div>
               </div>
 
+              {/* Checkbox: Does this script rename files? */}
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                padding: "10px 14px",
+                backgroundColor: "rgba(255,255,255,0.03)",
+                borderRadius: "8px",
+                border: "1px solid #2d3748"
+              }}>
+                <input
+                  type="checkbox"
+                  id="formIsRenamerCheck"
+                  checked={formIsRenamer}
+                  onChange={(e) => setFormIsRenamer(e.target.checked)}
+                  style={{ width: "16px", height: "16px", cursor: "pointer", accentColor: "#e50914" }}
+                />
+                <label htmlFor="formIsRenamerCheck" style={{ color: "#f3f4f6", fontSize: "0.85rem", cursor: "pointer", fontWeight: 600 }}>
+                  This script renames media files (Enable Filename Format & Preview Simulation)
+                </label>
+              </div>
+
               <div style={styles.formGroup}>
                 <label style={styles.inputLabel}>Description / Notes:</label>
                 <input
@@ -1387,60 +1472,73 @@ export const Renamer = () => {
                 />
               </div>
 
-              {/* 🎯 EDITABLE RENAMED OUTPUT FORMAT TEMPLATE INPUT 🎯 */}
-              <div style={styles.formGroup}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
-                  <label style={styles.inputLabel}>
-                    ✨ Renamed Output Format Template (Editable / Customizable):
-                  </label>
-                  {liveFormDetection?.extractedTemplateStr && (
-                    <span style={{ fontSize: "0.75rem", color: "#38bdf8", fontWeight: 600 }}>
-                      Auto-Filled: {liveFormDetection.extractedTemplateStr}
-                    </span>
-                  )}
+              {/* 🎯 EDITABLE RENAMED OUTPUT FORMAT TEMPLATE INPUT (Optional) 🎯 */}
+              {formIsRenamer ? (
+                <div style={styles.formGroup}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                    <label style={styles.inputLabel}>
+                      ✨ Renamed Output Format Template (Editable / Customizable):
+                    </label>
+                    {liveFormDetection?.extractedTemplateStr && (
+                      <span style={{ fontSize: "0.75rem", color: "#38bdf8", fontWeight: 600 }}>
+                        Auto-Filled: {liveFormDetection.extractedTemplateStr}
+                      </span>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    value={formFormatTemplate}
+                    onChange={(e) => setFormFormatTemplate(e.target.value)}
+                    placeholder={liveFormDetection?.extractedTemplateStr || "{m_prefix} - ({year}) - {clean_title}{part_str}{res_str}{ext}  OR  (Year) - Movie Title - Resolution.ext"}
+                    style={{
+                      ...styles.textInput,
+                      fontFamily: "monospace",
+                      color: "#4ade80",
+                      borderColor: "#059669",
+                      backgroundColor: "#0d1117"
+                    }}
+                  />
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "8px", alignItems: "center" }}>
+                    <span style={{ fontSize: "0.75rem", color: "#a3a3a3", fontWeight: 600 }}>Quick Format Presets:</span>
+                    {[
+                      { label: "Mxx Standard", tmpl: "{m_prefix} - ({year}) - {clean_title}{part_str}{res_str}{ext}" },
+                      { label: "Plex Standard", tmpl: "{clean_title} ({year}){res_str}{ext}" },
+                      { label: "Minimal", tmpl: "{clean_title} ({year}){ext}" },
+                      { label: "TV Series", tmpl: "{show} - S{season:02d}E{episode:02d}{ext}" },
+                      { label: "Year First", tmpl: "({year}) {clean_title}{res_str}{ext}" }
+                    ].map((item) => (
+                      <button
+                        key={item.label}
+                        type="button"
+                        style={{
+                          backgroundColor: formFormatTemplate === item.tmpl ? "rgba(16, 185, 129, 0.25)" : "#222222",
+                          color: formFormatTemplate === item.tmpl ? "#4ade80" : "#a3a3a3",
+                          border: formFormatTemplate === item.tmpl ? "1px solid #10b981" : "1px solid #333333",
+                          borderRadius: "8px",
+                          padding: "4px 8px",
+                          fontSize: "0.72rem",
+                          cursor: "pointer",
+                          fontWeight: 600
+                        }}
+                        onClick={() => setFormFormatTemplate(item.tmpl)}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <input
-                  type="text"
-                  value={formFormatTemplate}
-                  onChange={(e) => setFormFormatTemplate(e.target.value)}
-                  placeholder={liveFormDetection?.extractedTemplateStr || "{m_prefix} - ({year}) - {clean_title}{part_str}{res_str}{ext}  OR  (Year) - Movie Title - Resolution.ext"}
-                  style={{
-                    ...styles.textInput,
-                    fontFamily: "monospace",
-                    color: "#4ade80",
-                    borderColor: "#059669",
-                    backgroundColor: "#0d1117"
-                  }}
-                />
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "8px", alignItems: "center" }}>
-                  <span style={{ fontSize: "0.75rem", color: "#a3a3a3", fontWeight: 600 }}>Quick Format Presets:</span>
-                  {[
-                    { label: "Mxx Standard", tmpl: "{m_prefix} - ({year}) - {clean_title}{part_str}{res_str}{ext}" },
-                    { label: "Plex Standard", tmpl: "{clean_title} ({year}){res_str}{ext}" },
-                    { label: "Minimal", tmpl: "{clean_title} ({year}){ext}" },
-                    { label: "TV Series", tmpl: "{show} - S{season:02d}E{episode:02d}{ext}" },
-                    { label: "Year First", tmpl: "({year}) {clean_title}{res_str}{ext}" }
-                  ].map((item) => (
-                    <button
-                      key={item.label}
-                      type="button"
-                      style={{
-                        backgroundColor: formFormatTemplate === item.tmpl ? "rgba(16, 185, 129, 0.25)" : "#222222",
-                        color: formFormatTemplate === item.tmpl ? "#4ade80" : "#a3a3a3",
-                        border: formFormatTemplate === item.tmpl ? "1px solid #10b981" : "1px solid #333333",
-                        borderRadius: "8px",
-                        padding: "4px 8px",
-                        fontSize: "0.72rem",
-                        cursor: "pointer",
-                        fontWeight: 600
-                      }}
-                      onClick={() => setFormFormatTemplate(item.tmpl)}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
+              ) : (
+                <div style={{
+                  padding: "10px 14px",
+                  backgroundColor: "rgba(56, 189, 248, 0.08)",
+                  borderRadius: "8px",
+                  border: "1px dashed #0284c7",
+                  fontSize: "0.82rem",
+                  color: "#38bdf8"
+                }}>
+                  ℹ️ Non-renaming organizer script: Filename format template & simulation are bypassed for this preset.
                 </div>
-              </div>
+              )}
 
               {/* Multi-Part Python Editor Selector */}
               <div style={styles.partsEditorSection}>
