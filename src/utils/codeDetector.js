@@ -404,9 +404,41 @@ export function extractPythonNamingTemplate(pythonCode = "") {
 }
 
 /**
+ * Converts user-entered human format text (e.g. "(Year) - Movie Title - Resolution.ext")
+ * or token templates into standard normalized token strings.
+ */
+export function normalizeUserFormatInput(rawInput = "") {
+  if (!rawInput || typeof rawInput !== "string") return "";
+  let tmpl = rawInput.trim();
+
+  // Replace human words with tokens if not already formatted with braces
+  tmpl = tmpl.replace(/\bMxx\b/gi, '{m_prefix}');
+  tmpl = tmpl.replace(/\(Year\)/gi, '___YEAR_PARENS___');
+  tmpl = tmpl.replace(/\bYear\b/gi, '{year}');
+  tmpl = tmpl.replace(/___YEAR_PARENS___/g, '({year})');
+  tmpl = tmpl.replace(/\b(?:Movie\s*Title|Moviename|Movie\s*Name|Film\s*Title)\b/gi, '{clean_title}');
+  tmpl = tmpl.replace(/\b(?:Show\s*Title|Show\s*Name|Series\s*Name|Series\s*Title)\b/gi, '{show}');
+  tmpl = tmpl.replace(/\b(?:Episode\s*Title|Ep\s*Title|Episode\s*Name)\b/gi, '{ep_title}');
+  tmpl = tmpl.replace(/\bS(\d+)E(\d+)\b|\bSxxExx\b/gi, 'S{season:02d}E{episode:02d}');
+  tmpl = tmpl.replace(/\[\s*-\s*Part\s*\]/gi, '{part_str}');
+  tmpl = tmpl.replace(/\[\s*-\s*Resolution\s*\]/gi, '{res_str}');
+  tmpl = tmpl.replace(/\bResolution\b|\bQuality\b/gi, '{res_str}');
+  tmpl = tmpl.replace(/\.ext\b/gi, '{ext}');
+
+  return tmpl;
+}
+
+/**
  * Simulates Python string formatting on a given filename using the parsed Python code logic.
  */
-export function simulatePythonRename(rawName = "", codeInput = "", showNameOverride = "", defaultCategory = "movie", fileIndex = 1) {
+export function simulatePythonRename(
+  rawName = "",
+  codeInput = "",
+  showNameOverride = "",
+  defaultCategory = "movie",
+  fileIndex = 1,
+  customFormatOverride = ""
+) {
   if (!rawName || !rawName.trim()) return "";
 
   const dotIdx = rawName.lastIndexOf(".");
@@ -421,7 +453,18 @@ export function simulatePythonRename(rawName = "", codeInput = "", showNameOverr
     codeStr = codeInput;
   }
 
-  const parsedTemplate = extractPythonNamingTemplate(codeStr);
+  // Use custom format override if supplied by user, otherwise parse from code
+  let parsedTemplate = null;
+  if (customFormatOverride && customFormatOverride.trim()) {
+    parsedTemplate = {
+      type: "user_custom",
+      template: normalizeUserFormatInput(customFormatOverride),
+      staticShowName: showNameOverride
+    };
+  } else {
+    parsedTemplate = extractPythonNamingTemplate(codeStr);
+  }
+
   const staticShow = showNameOverride || parsedTemplate?.staticShowName || "";
 
   // ── 1. Token Extraction from Input Filename ────────────────────────────────
@@ -639,21 +682,21 @@ export function simulatePythonRename(rawName = "", codeInput = "", showNameOverr
 /**
  * Universal filename transformer used by both live preview cards and sandbox inputs.
  */
-export function transformFilenamePreview(rawName = "", categoryOrParts = "movie", showNameOverride = "") {
+export function transformFilenamePreview(rawName = "", categoryOrParts = "movie", showNameOverride = "", customFormatOverride = "") {
   if (!rawName || !rawName.trim()) return "";
 
   if (Array.isArray(categoryOrParts) || (typeof categoryOrParts === "string" && (categoryOrParts.includes("import") || categoryOrParts.includes("def ") || categoryOrParts.includes("return") || categoryOrParts.includes("f\"")))) {
-    return simulatePythonRename(rawName, categoryOrParts, showNameOverride);
+    return simulatePythonRename(rawName, categoryOrParts, showNameOverride, "movie", 1, customFormatOverride);
   }
 
   const category = typeof categoryOrParts === "string" ? categoryOrParts : "movie";
-  return simulatePythonRename(rawName, "", showNameOverride, category);
+  return simulatePythonRename(rawName, "", showNameOverride, category, 1, customFormatOverride);
 }
 
 /**
  * Inspects python code parts and returns metadata, variable list, modules, and dynamic sample examples.
  */
-export function detectCodeFormat(parts = [], categoryHint = "", nameHint = "") {
+export function detectCodeFormat(parts = [], categoryHint = "", nameHint = "", customFormatOverride = "") {
   if (!parts || parts.length === 0) {
     return {
       category: categoryHint || "generic",
@@ -672,7 +715,9 @@ export function detectCodeFormat(parts = [], categoryHint = "", nameHint = "") {
 
   const isMultiPart = parts.length > 1;
   const combinedCode = parts.map(p => p.code || "").join("\n");
-  const parsedTemplate = extractPythonNamingTemplate(combinedCode);
+  const parsedTemplate = (customFormatOverride && customFormatOverride.trim())
+    ? { type: "user_custom", template: normalizeUserFormatInput(customFormatOverride) }
+    : extractPythonNamingTemplate(combinedCode);
 
   // 1. Detect Python Modules Imported
   const moduleMatches = combinedCode.match(/^(?:from\s+([a-zA-Z0-9_]+)|import\s+([a-zA-Z0-9_]+))/gm) || [];
@@ -759,7 +804,7 @@ export function detectCodeFormat(parts = [], categoryHint = "", nameHint = "") {
 
   const examples = rawSampleInputs.map((input, idx) => ({
     before: input,
-    after: simulatePythonRename(input, combinedCode, parsedTemplate?.staticShowName, category, idx + 1)
+    after: simulatePythonRename(input, combinedCode, parsedTemplate?.staticShowName, category, idx + 1, customFormatOverride)
   }));
 
   const extractedTemplateStr = parsedTemplate?.template

@@ -104,6 +104,8 @@ export const Renamer = () => {
   const [formName, setFormName] = useState("");
   const [formDesc, setFormDesc] = useState("");
   const [formCategory, setFormCategory] = useState("movie");
+  const [formFormatTemplate, setFormFormatTemplate] = useState("");
+  const [customWorkspaceFormat, setCustomWorkspaceFormat] = useState("");
   const [formParts, setFormParts] = useState([
     { id: "part_1", name: "1_renamer.py", code: "# Write your python renamer code here...\nimport os\n" }
   ]);
@@ -131,18 +133,28 @@ export const Renamer = () => {
 
   const selectedCode = codes.find((c) => c.id === selectedCodeId) || codes[0];
 
+  // Sync workspace format template state whenever selectedCode changes
+  useEffect(() => {
+    if (selectedCode) {
+      setCustomWorkspaceFormat(selectedCode.formatTemplate || "");
+    }
+  }, [selectedCodeId]);
+
   // Active Code Detection & PowerShell Outputs
-  const detectedFormat = selectedCode ? detectCodeFormat(selectedCode.parts, selectedCode.category, selectedCode.name) : null;
+  const activeFormatOverride = customWorkspaceFormat || selectedCode?.formatTemplate || "";
+  const detectedFormat = selectedCode
+    ? detectCodeFormat(selectedCode.parts, selectedCode.category, selectedCode.name, activeFormatOverride)
+    : null;
   const generatedCommands = selectedCode
     ? generatePowerShellCommands(selectedCode, targetPath, { dryRun, showName, scriptsFolder, customMode })
     : { powershellShortCommand: "", powershellScript: "", pythonStandaloneFiles: [] };
 
-  // Form detection real-time preview (based on typed code in formParts)
-  const liveFormDetection = detectCodeFormat(formParts, formCategory, formName);
+  // Form detection real-time preview (based on typed code in formParts & formFormatTemplate)
+  const liveFormDetection = detectCodeFormat(formParts, formCategory, formName, formFormatTemplate);
 
   // Live sandbox calculation directly evaluated from selected Python code
   const liveTestResult = selectedCode
-    ? transformFilenamePreview(testFilename, selectedCode.parts, showName, selectedCode.category)
+    ? transformFilenamePreview(testFilename, selectedCode.parts, showName, selectedCode.category, activeFormatOverride)
     : "";
 
   // Visual format tokens blueprint for anatomy legend
@@ -320,11 +332,13 @@ export const Renamer = () => {
 
       const detection = detectCodeFormat(partsForDetection);
       const autoCat = scriptParts.length > 1 ? "multi_part" : (detection.autoCategory || "movie");
+      const autoFmt = detection.extractedTemplateStr || "";
 
       setEditingCodeObj(null);
       setFormName(folderName.replace(/[_-]/g, " "));
       setFormDesc(`Pipeline loaded from folder: ${folderName} (${pyFiles.length} scripts + format txt)`);
       setFormCategory(autoCat);
+      setFormFormatTemplate(autoFmt);
       setFormParts(scriptParts);
       setActivePartIndex(0);
       setIsModalOpen(true);
@@ -361,12 +375,14 @@ export const Renamer = () => {
 
       const detection = detectCodeFormat(newParts);
       const autoCat = newParts.length > 1 ? "multi_part" : (detection.autoCategory || "movie");
+      const autoFmt = detection.extractedTemplateStr || "";
 
       if (isModalOpen) {
         if (formParts.length === 1 && (!formParts[0].code || formParts[0].code.includes("Write your python"))) {
           setFormParts(newParts);
           setActivePartIndex(0);
           setFormCategory(autoCat);
+          setFormFormatTemplate(autoFmt);
         } else {
           setFormParts((prev) => [...prev, ...newParts]);
         }
@@ -377,6 +393,7 @@ export const Renamer = () => {
         setFormName(primaryTitle);
         setFormDesc(`Imported from local files: ${files.map((f) => f.name).join(", ")}`);
         setFormCategory(autoCat);
+        setFormFormatTemplate(autoFmt);
         setFormParts(newParts);
         setActivePartIndex(0);
         setIsModalOpen(true);
@@ -393,6 +410,7 @@ export const Renamer = () => {
     setFormName("");
     setFormDesc("");
     setFormCategory("movie");
+    setFormFormatTemplate("");
     setFormParts([
       {
         id: `part_${Date.now()}_1`,
@@ -409,6 +427,7 @@ export const Renamer = () => {
     setFormName(codeObj.name || "");
     setFormDesc(codeObj.description || "");
     setFormCategory(codeObj.category || "movie");
+    setFormFormatTemplate(codeObj.formatTemplate || "");
     setFormParts(
       codeObj.parts && codeObj.parts.length > 0
         ? JSON.parse(JSON.stringify(codeObj.parts))
@@ -444,7 +463,7 @@ export const Renamer = () => {
   const handleSaveCodeForm = async (e) => {
     e.preventDefault();
     if (!formName.trim()) {
-      addToast("Please enter a name for your renamer code.", "warning");
+      addToast("Please enter a renamer preset title.", "warning");
       return;
     }
 
@@ -453,6 +472,7 @@ export const Renamer = () => {
       name: formName.trim(),
       description: formDesc.trim(),
       category: formCategory,
+      formatTemplate: formFormatTemplate.trim(),
       badge: formParts.length > 1 ? `${formParts.length}-Step Pipeline` : `${formCategory.toUpperCase()} Code`,
       parts: formParts
     };
@@ -1240,6 +1260,61 @@ export const Renamer = () => {
                   placeholder="Explain what this code formats or cleans..."
                   style={styles.textInput}
                 />
+              </div>
+
+              {/* 🎯 EDITABLE RENAMED OUTPUT FORMAT TEMPLATE INPUT 🎯 */}
+              <div style={styles.formGroup}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                  <label style={styles.inputLabel}>
+                    ✨ Renamed Output Format Template (Editable / Customizable):
+                  </label>
+                  {liveFormDetection?.extractedTemplateStr && (
+                    <span style={{ fontSize: "0.75rem", color: "#38bdf8", fontWeight: 600 }}>
+                      Auto-Filled: {liveFormDetection.extractedTemplateStr}
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  value={formFormatTemplate}
+                  onChange={(e) => setFormFormatTemplate(e.target.value)}
+                  placeholder={liveFormDetection?.extractedTemplateStr || "{m_prefix} - ({year}) - {clean_title}{part_str}{res_str}{ext}  OR  (Year) - Movie Title - Resolution.ext"}
+                  style={{
+                    ...styles.textInput,
+                    fontFamily: "monospace",
+                    color: "#4ade80",
+                    borderColor: "#059669",
+                    backgroundColor: "#0d1117"
+                  }}
+                />
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "8px", alignItems: "center" }}>
+                  <span style={{ fontSize: "0.75rem", color: "#a3a3a3", fontWeight: 600 }}>Quick Format Presets:</span>
+                  {[
+                    { label: "Mxx Standard", tmpl: "{m_prefix} - ({year}) - {clean_title}{part_str}{res_str}{ext}" },
+                    { label: "Plex Standard", tmpl: "{clean_title} ({year}){res_str}{ext}" },
+                    { label: "Minimal", tmpl: "{clean_title} ({year}){ext}" },
+                    { label: "TV Series", tmpl: "{show} - S{season:02d}E{episode:02d}{ext}" },
+                    { label: "Year First", tmpl: "({year}) {clean_title}{res_str}{ext}" }
+                  ].map((item) => (
+                    <button
+                      key={item.label}
+                      type="button"
+                      style={{
+                        backgroundColor: formFormatTemplate === item.tmpl ? "rgba(16, 185, 129, 0.25)" : "#222222",
+                        color: formFormatTemplate === item.tmpl ? "#4ade80" : "#a3a3a3",
+                        border: formFormatTemplate === item.tmpl ? "1px solid #10b981" : "1px solid #333333",
+                        borderRadius: "8px",
+                        padding: "4px 8px",
+                        fontSize: "0.72rem",
+                        cursor: "pointer",
+                        fontWeight: 600
+                      }}
+                      onClick={() => setFormFormatTemplate(item.tmpl)}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Multi-Part Python Editor Selector */}
