@@ -88,19 +88,27 @@ export const COMMON_FORMAT_PRESETS = [
 /**
  * Breaks down a format template into color-coded visual anatomy chips for UI display.
  */
-export function getFormatTokensBlueprint(templateStr = "") {
+export function getFormatTokensBlueprint(templateStr = "", category = "movie") {
   if (!templateStr || typeof templateStr !== "string") {
-    templateStr = "{m_prefix} - ({year}) - {clean_title}{part_str}{res_str}{ext}";
+    templateStr = category === "series"
+      ? "{show} - S{season:02d}E{episode:02d}{res_str}{ext}"
+      : "{m_prefix} - ({year}) - {clean_title}{part_str}{res_str}{ext}";
   }
 
+  const isSeries = category === "series" || /show|season|episode|s\d+e\d+/i.test(templateStr);
+
   const tokenDefs = [
+    { key: "show", label: "Series Title", example: "Loki", color: "#10b981", bg: "rgba(16, 185, 129, 0.15)", border: "rgba(16, 185, 129, 0.35)", desc: "Title-cased TV Show Name" },
+    { key: "season", label: "Season (S01)", example: "S01", color: "#f59e0b", bg: "rgba(245, 158, 11, 0.15)", border: "rgba(245, 158, 11, 0.35)", desc: "2-digit Season number (S01, S02...)" },
+    { key: "episode", label: "Episode (E01)", example: "E01", color: "#8b5cf6", bg: "rgba(139, 92, 246, 0.15)", border: "rgba(139, 92, 246, 0.35)", desc: "2-digit Episode number (E01, E02...)" },
+    { key: "ep_title", label: "Episode Title", example: "Glorious Purpose", color: "#06b6d4", bg: "rgba(6, 182, 212, 0.15)", border: "rgba(6, 182, 212, 0.35)", desc: "Name of the specific episode" },
     { key: "m_prefix", label: "Movie Index", example: "M01", color: "#e50914", bg: "rgba(229, 9, 20, 0.15)", border: "rgba(229, 9, 20, 0.35)", desc: "Sequential counter assigned to each film (M01, M02, M03...)" },
     { key: "year", label: "Release Year", example: "(2024)", color: "#3b82f6", bg: "rgba(59, 130, 246, 0.15)", border: "rgba(59, 130, 246, 0.35)", desc: "4-digit release year extracted from filename" },
-    { key: "clean_title", label: "Clean Movie Title", example: "Gladiator II", color: "#10b981", bg: "rgba(16, 185, 129, 0.15)", border: "rgba(16, 185, 129, 0.35)", desc: "Title-cased movie name with roman numerals & noise stripped" },
+    { key: "clean_title", label: isSeries ? "Clean Series Title" : "Clean Movie Title", example: isSeries ? "Loki" : "Gladiator II", color: "#10b981", bg: "rgba(16, 185, 129, 0.15)", border: "rgba(16, 185, 129, 0.35)", desc: isSeries ? "Title-cased series name" : "Title-cased movie name" },
     { key: "part_str", label: "Part / CD (Optional)", example: " - Part 1", color: "#f59e0b", bg: "rgba(245, 158, 11, 0.15)", border: "rgba(245, 158, 11, 0.35)", desc: "Only added if multi-part (CD1 / Part 2) is found" },
     { key: "res_str", label: "Resolution (Optional)", example: " - 2160p", color: "#8b5cf6", bg: "rgba(139, 92, 246, 0.15)", border: "rgba(139, 92, 246, 0.35)", desc: "Video resolution (2160p, 1080p, 720p, 4k)" },
     { key: "ext", label: "File Extension", example: ".mkv / .srt", color: "#ec4899", bg: "rgba(236, 72, 153, 0.15)", border: "rgba(236, 72, 153, 0.35)", desc: "Video (.mkv, .mp4) or subtitle (.srt, .ass) extension" },
-    { key: "matched_vid_base", label: "Synced Video Name", example: "M01 - (2024) - Gladiator II - 2160p", color: "#06b6d4", bg: "rgba(6, 182, 212, 0.15)", border: "rgba(6, 182, 212, 0.35)", desc: "Base filename of the matched movie video for 1:1 subtitle sync" }
+    { key: "matched_vid_base", label: "Synced Video Name", example: "Loki - S01E01 - 1080p", color: "#06b6d4", bg: "rgba(6, 182, 212, 0.15)", border: "rgba(6, 182, 212, 0.35)", desc: "Base filename of the matched video for 1:1 subtitle sync" }
   ];
 
   const presentTokens = [];
@@ -413,8 +421,14 @@ export function normalizeUserFormatInput(rawInput = "") {
 
   // Strip double/triple curly braces from Python f-strings e.g. {{clean_title}} -> {clean_title}
   tmpl = tmpl.replace(/\{\{+/g, '{').replace(/\}\}+/g, '}');
+  tmpl = tmpl.replace(/\{prefix\}\(position:\d+d\)/gi, 'S{season:02d}E{episode:02d}');
+  tmpl = tmpl.replace(/\{prefix\}/gi, '');
   tmpl = tmpl.replace(/\(position:\d+d\)/gi, '');
   tmpl = tmpl.replace(/\[\s*-\s*\{\s*-\s*/g, ' - {');
+  tmpl = tmpl.replace(/\[\s*-\s*\{\s*\{\s*res_str\s*\}\s*\}\s*\]/gi, '{res_str}');
+  tmpl = tmpl.replace(/\[\s*-\s*\{res_str\}\s*\]/gi, '{res_str}');
+  tmpl = tmpl.replace(/\[\s*-\s*-\s*(\d+p|resolution|quality)\s*\]/gi, ' - $1');
+  tmpl = tmpl.replace(/\[\s*-\s*\{ext\}\s*\]/gi, '{ext}');
 
   // Replace human words with tokens if not already formatted with braces
   tmpl = tmpl.replace(/\bMxx\b/gi, '{m_prefix}');
@@ -425,6 +439,7 @@ export function normalizeUserFormatInput(rawInput = "") {
   tmpl = tmpl.replace(/\b(?:Show\s*Title|Show\s*Name|Series\s*Name|Series\s*Title)\b/gi, '{show}');
   tmpl = tmpl.replace(/\b(?:Episode\s*Title|Ep\s*Title|Episode\s*Name)\b/gi, '{ep_title}');
   tmpl = tmpl.replace(/\bS(\d+)E(\d+)\b|\bSxxExx\b/gi, 'S{season:02d}E{episode:02d}');
+  tmpl = tmpl.replace(/\bS\{season\}\b/gi, 'S{season:02d}');
   tmpl = tmpl.replace(/\[\s*-\s*Part\s*\]/gi, '{part_str}');
   tmpl = tmpl.replace(/\[\s*-\s*Resolution\s*\]/gi, '{res_str}');
   tmpl = tmpl.replace(/\bResolution\b|\bQuality\b/gi, '{res_str}');
@@ -477,6 +492,9 @@ export function simulatePythonRename(
     };
   } else {
     parsedTemplate = extractPythonNamingTemplate(codeStr);
+    if (parsedTemplate && parsedTemplate.template) {
+      parsedTemplate.template = normalizeUserFormatInput(parsedTemplate.template);
+    }
   }
 
   const staticShow = showNameOverride || parsedTemplate?.staticShowName || "";

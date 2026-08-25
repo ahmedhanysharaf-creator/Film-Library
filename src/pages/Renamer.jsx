@@ -137,18 +137,33 @@ export const Renamer = () => {
     ? (codes.find((c) => c && c.id === selectedCodeId) || codes[0])
     : DEFAULT_RENAMER_PRESETS[0];
 
+  const isSeriesPreset = selectedCode?.category === "series" || /series|show|season|episode/i.test(selectedCode?.name || "");
+
   // Sync workspace format template & rename toggle whenever selectedCode changes
   useEffect(() => {
     if (selectedCode) {
       setCustomWorkspaceFormat(selectedCode.formatTemplate || "");
       setRenamePreviewEnabled(selectedCode.isRenamer !== false);
+      if (selectedCode.category === "series" || /series|show|season|episode/i.test(selectedCode.name || "")) {
+        if (!testFilename || testFilename.includes("Inception") || testFilename.includes("Gladiator")) {
+          setTestFilename("loki.s01e01.2021.1080p.mkv");
+          setTestSubFilename("loki.s01e01.2021.1080p.Arabic.srt");
+          setTestSubfolderPath("Season 01/loki.s01e01.2021.1080p.mkv");
+        }
+      } else {
+        if (testFilename && testFilename.includes("loki")) {
+          setTestFilename("Gladiator.II.2024.2160p.WEB-DL.mkv");
+          setTestSubFilename("Gladiator.II.2024.2160p.Arabic.srt");
+          setTestSubfolderPath("Movies/Gladiator.II.2024.2160p.mkv");
+        }
+      }
     }
   }, [selectedCodeId]);
 
   // Active Code Detection & PowerShell Outputs
   const activeFormatOverride = customWorkspaceFormat || selectedCode?.formatTemplate || "";
   const detectedFormat = selectedCode
-    ? detectCodeFormat(selectedCode.parts, selectedCode.category, selectedCode.name, activeFormatOverride)
+    ? detectCodeFormat(selectedCode.parts, isSeriesPreset ? "series" : selectedCode.category, selectedCode.name, activeFormatOverride)
     : null;
   const generatedCommands = selectedCode
     ? generatePowerShellCommands(selectedCode, targetPath, { dryRun, showName, scriptsFolder, customMode })
@@ -159,12 +174,13 @@ export const Renamer = () => {
 
   // Live sandbox calculation directly evaluated from selected Python code
   const liveTestResult = selectedCode
-    ? transformFilenamePreview(testFilename, selectedCode.parts, showName, selectedCode.category, activeFormatOverride)
+    ? transformFilenamePreview(testFilename, selectedCode.parts, showName, isSeriesPreset ? "series" : selectedCode.category, activeFormatOverride)
     : "";
 
   // Visual format tokens blueprint for anatomy legend
   const formatBlueprint = getFormatTokensBlueprint(
-    detectedFormat?.parsedTemplate?.template || "{m_prefix} - ({year}) - {clean_title}{part_str}{res_str}{ext}"
+    detectedFormat?.parsedTemplate?.template || (isSeriesPreset ? "{show} - S{season:02d}E{episode:02d}{res_str}{ext}" : "{m_prefix} - ({year}) - {clean_title}{part_str}{res_str}{ext}"),
+    isSeriesPreset ? "series" : "movie"
   );
 
   const handleApplyFormatPreset = async (newTemplate) => {
@@ -175,16 +191,28 @@ export const Renamer = () => {
     }));
     const updatedObj = {
       ...selectedCode,
+      formatTemplate: newTemplate,
       parts: updatedParts
     };
     try {
       const updatedList = await saveRenamerCode(updatedObj);
       setCodes(updatedList);
+      setCustomWorkspaceFormat(newTemplate);
       setCustomTemplateInput(newTemplate);
       addToast(`Applied naming format: ${newTemplate}`, "success");
     } catch (err) {
       addToast("Failed to update format", "error");
     }
+  };
+
+  const handleSaveManualOutputAsTemplate = async (manualOutputText) => {
+    if (!manualOutputText || !manualOutputText.trim()) return;
+    const normalized = normalizeUserFormatInput(manualOutputText);
+    await handleApplyFormatPreset(normalized);
+    setManualMovieOutput("");
+    setManualSubOutput("");
+    setManualFolderOutput("");
+    addToast(`Saved format template: ${normalized}`, "success");
   };
 
   const handleClearAllInputs = () => {
@@ -906,31 +934,180 @@ export const Renamer = () => {
                 </div>
               </div>
 
-              {/* 🎬 Movie vs Subtitle 1:1 Matching Visualization Showcase */}
+              {/* 🎯 Interactive Category-Specific Alignment Hub (3 Parts for Series, 2 Parts for Movie) 🎯 */}
               <div style={styles.syncShowcaseCard}>
                 <div style={styles.syncHeader}>
-                  <Film size={14} color="#f59e0b" />
-                  <span style={styles.syncTitle}>Movie & Subtitle 1:1 Name Alignment (Guaranteed Auto-Sync):</span>
-                </div>
-                <div style={styles.syncRows}>
-                  <div style={styles.syncItem}>
-                    <span style={styles.syncTagMovie}>🎬 Movie File:</span>
-                    <code style={styles.syncCodeMovie}>
-                      {transformFilenamePreview("Gladiator.II.2024.2160p.WEB-DL.mkv", selectedCode?.parts || [], showName, selectedCode?.category || "movie", activeFormatOverride)}
-                    </code>
-                  </div>
-                  <div style={styles.syncItem}>
-                    <span style={styles.syncTagSub}>💬 Subtitle File:</span>
-                    <code style={styles.syncCodeSub}>
-                      {transformFilenamePreview("Gladiator.II.2024.2160p.Arabic.srt", selectedCode?.parts || [], showName, "subtitle", activeFormatOverride)}
-                    </code>
+                  {isSeriesPreset ? <Tv size={16} color="#f59e0b" /> : <Film size={16} color="#f59e0b" />}
+                  <div>
+                    <span style={styles.syncTitle}>
+                      {isSeriesPreset
+                        ? "TV Series 3-Way Structure Alignment (Subfolder + Episode Video + Subtitle):"
+                        : "Movie & Subtitle 2-Way Alignment (Movie Video + Subtitle):"}
+                    </span>
+                    <span style={{ display: "block", fontSize: "0.75rem", color: "#9ca3af", marginTop: "2px" }}>
+                      {isSeriesPreset
+                        ? "A series has 3 parts: 1- Subfolder, 2- Episode Video, 3- Episode Subtitle. Edit inputs on left or outputs on right:"
+                        : "A movie collection has 2 parts: 1- Movie Video, 2- Subtitle File. Edit inputs on left or outputs on right:"}
+                    </span>
                   </div>
                 </div>
-                <div style={styles.syncNoteBox}>
-                  <CheckCircle2 size={13} color="#10b981" />
-                  <span style={styles.syncNote}>
-                    When subtitle and movie filenames match 100% (excluding extension), VLC, Smart TVs (Samsung/LG USB), Plex, Infuse, and Kodi automatically play subtitles without manual selection.
-                  </span>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "12px" }}>
+                  {/* SERIES ONLY: Part 1 - Series Subfolder */}
+                  {isSeriesPreset && (
+                    <div style={{ backgroundColor: "#12141a", padding: "10px 12px", borderRadius: "8px", border: "1px solid #1e293b" }}>
+                      <span style={{ fontSize: "0.75rem", color: "#f59e0b", fontWeight: 700, display: "block", marginBottom: "6px" }}>
+                        📁 1. Series Subfolder Path:
+                      </span>
+                      <div style={styles.sandboxInputRow}>
+                        <input
+                          type="text"
+                          value={testSubfolderPath}
+                          onChange={(e) => setTestSubfolderPath(e.target.value)}
+                          placeholder="e.g. Season 01/loki.s01e01.2021.1080p.mkv"
+                          style={{ ...styles.sandboxInput, borderColor: "#d97706" }}
+                        />
+                        <div style={styles.sandboxArrow}>➔</div>
+                        <input
+                          type="text"
+                          value={manualFolderOutput || transformFilenamePreview(testSubfolderPath, selectedCode?.parts || [], showName, "series", activeFormatOverride) || ""}
+                          onChange={(e) => setManualFolderOutput(e.target.value)}
+                          placeholder="Expected subfolder outcome..."
+                          title="Edit this to teach the website what the subfolder output should look like"
+                          style={{
+                            ...styles.sandboxInput,
+                            color: manualFolderOutput ? "#fbbf24" : "#f59e0b",
+                            borderColor: manualFolderOutput ? "#d97706" : "#78350f",
+                            backgroundColor: manualFolderOutput ? "#1c1404" : "#0d1117",
+                            fontFamily: "monospace",
+                            fontSize: "0.82rem"
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Part 1 (Movie) / Part 2 (Series) - Video File */}
+                  <div style={{ backgroundColor: "#12141a", padding: "10px 12px", borderRadius: "8px", border: "1px solid #1e293b" }}>
+                    <span style={{ fontSize: "0.75rem", color: "#e50914", fontWeight: 700, display: "block", marginBottom: "6px" }}>
+                      {isSeriesPreset ? "📺 2. Series Episode Video File:" : "🎬 1. Movie Video File:"}
+                    </span>
+                    <div style={styles.sandboxInputRow}>
+                      <input
+                        type="text"
+                        value={testFilename}
+                        onChange={(e) => setTestFilename(e.target.value)}
+                        placeholder={isSeriesPreset ? "e.g. loki.s01e01.2021.1080p.mkv" : "e.g. Gladiator.II.2024.2160p.WEB-DL.mkv"}
+                        style={styles.sandboxInput}
+                      />
+                      <div style={styles.sandboxArrow}>➔</div>
+                      <input
+                        type="text"
+                        value={manualMovieOutput || liveTestResult || ""}
+                        onChange={(e) => setManualMovieOutput(e.target.value)}
+                        placeholder={liveTestResult || "Expected renamed video output..."}
+                        title="Edit this to teach the website what the video output should look like"
+                        style={{
+                          ...styles.sandboxInput,
+                          color: manualMovieOutput ? "#4ade80" : "#10b981",
+                          borderColor: manualMovieOutput ? "#059669" : "#166534",
+                          backgroundColor: manualMovieOutput ? "#0a1f0a" : "#0d1117",
+                          fontFamily: "monospace",
+                          fontSize: "0.82rem"
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Part 2 (Movie) / Part 3 (Series) - Subtitle File */}
+                  <div style={{ backgroundColor: "#12141a", padding: "10px 12px", borderRadius: "8px", border: "1px solid #1e293b" }}>
+                    <span style={{ fontSize: "0.75rem", color: "#38bdf8", fontWeight: 700, display: "block", marginBottom: "6px" }}>
+                      {isSeriesPreset ? "💬 3. Series Episode Subtitle File:" : "💬 2. Movie Subtitle File:"}
+                    </span>
+                    <div style={styles.sandboxInputRow}>
+                      <input
+                        type="text"
+                        value={testSubFilename}
+                        onChange={(e) => setTestSubFilename(e.target.value)}
+                        placeholder={isSeriesPreset ? "e.g. loki.s01e01.2021.1080p.Arabic.srt" : "e.g. Gladiator.II.2024.2160p.Arabic.srt"}
+                        style={{ ...styles.sandboxInput, borderColor: "#0284c7" }}
+                      />
+                      <div style={styles.sandboxArrow}>➔</div>
+                      <input
+                        type="text"
+                        value={manualSubOutput || transformFilenamePreview(testSubFilename, selectedCode?.parts || [], showName, "subtitle", activeFormatOverride) || ""}
+                        onChange={(e) => setManualSubOutput(e.target.value)}
+                        placeholder="Expected subtitle outcome..."
+                        title="Edit this to teach the website what the subtitle output should look like"
+                        style={{
+                          ...styles.sandboxInput,
+                          color: manualSubOutput ? "#38bdf8" : "#0ea5e9",
+                          borderColor: manualSubOutput ? "#0284c7" : "#075985",
+                          backgroundColor: manualSubOutput ? "#0a1520" : "#0d1117",
+                          fontFamily: "monospace",
+                          fontSize: "0.82rem"
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bottom Action Bar for Alignment Card */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "12px", flexWrap: "wrap", gap: "8px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <CheckCircle2 size={13} color="#10b981" />
+                    <span style={{ fontSize: "0.76rem", color: "#9ca3af" }}>
+                      {isSeriesPreset
+                        ? "When episode video and subtitle match 100%, media players automatically load subtitles."
+                        : "When movie and subtitle match 100%, VLC & smart TVs automatically load subtitles."}
+                    </span>
+                  </div>
+
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    {(manualMovieOutput || manualSubOutput || manualFolderOutput) && (
+                      <>
+                        <button
+                          type="button"
+                          style={{
+                            padding: "6px 12px",
+                            backgroundColor: "#166534",
+                            color: "#4ade80",
+                            border: "1px solid #22c55e",
+                            borderRadius: "6px",
+                            fontSize: "0.78rem",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "6px"
+                          }}
+                          onClick={() => handleSaveManualOutputAsTemplate(manualMovieOutput || manualFolderOutput || manualSubOutput)}
+                          title="Save this custom output format into the active Python preset so the website learns it permanently"
+                        >
+                          <Sparkles size={13} /> ⚡ Apply & Save Custom Format
+                        </button>
+
+                        <button
+                          type="button"
+                          style={{
+                            background: "none",
+                            border: "1px solid #333",
+                            borderRadius: "6px",
+                            color: "#a3a3a3",
+                            fontSize: "0.75rem",
+                            padding: "6px 10px",
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "4px"
+                          }}
+                          onClick={() => { setManualMovieOutput(""); setManualSubOutput(""); setManualFolderOutput(""); }}
+                        >
+                          <RotateCcw size={11} /> Reset Outputs
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -939,10 +1116,20 @@ export const Renamer = () => {
                 <div style={styles.customizerDrawer}>
                   <div style={styles.customizerHeader}>
                     <Settings2 size={15} color="#e50914" />
-                    <span style={styles.customizerTitle}>Instant Format Preset Switcher (1-Click Change):</span>
+                    <span style={styles.customizerTitle}>
+                      {isSeriesPreset ? "Instant Series Format Presets:" : "Instant Movie Format Presets:"}
+                    </span>
                   </div>
                   <div style={styles.presetButtonsGrid}>
-                    {COMMON_FORMAT_PRESETS.map((p) => {
+                    {(isSeriesPreset
+                      ? [
+                          { id: "series_std", label: "Show - S01E01 - Res", template: "{show} - S{season:02d}E{episode:02d}{res_str}{ext}", example: "Loki - S01E01 - 1080p.mkv" },
+                          { id: "series_ep_title", label: "Show - S01E01 - Title", template: "{show} - S{season:02d}E{episode:02d} - {ep_title}{ext}", example: "Loki - S01E01 - Glorious Purpose.mkv" },
+                          { id: "series_plex", label: "Plex Series Standard", template: "{show} ({year}) - S{season:02d}E{episode:02d}{ext}", example: "Loki (2021) - S01E01.mkv" },
+                          { id: "series_minimal", label: "Minimal Series", template: "{show} S{season:02d}E{episode:02d}{ext}", example: "Loki S01E01.mkv" }
+                        ]
+                      : COMMON_FORMAT_PRESETS
+                    ).map((p) => {
                       const isCurrent = detectedFormat?.parsedTemplate?.template === p.template;
                       return (
                         <button
@@ -960,7 +1147,7 @@ export const Renamer = () => {
                             {isCurrent && <span style={styles.activeFormatBadge}>Active</span>}
                           </div>
                           <code style={styles.formatPresetTemplate}>{p.template}</code>
-                          <span style={styles.formatPresetExample}>Preview: {p.movieExample}</span>
+                          <span style={styles.formatPresetExample}>Preview: {p.example || p.movieExample}</span>
                         </button>
                       );
                     })}
@@ -974,7 +1161,7 @@ export const Renamer = () => {
                         type="text"
                         value={customTemplateInput || detectedFormat?.parsedTemplate?.template || ""}
                         onChange={(e) => setCustomTemplateInput(e.target.value)}
-                        placeholder="{m_prefix} - ({year}) - {clean_title}{res_str}{ext}"
+                        placeholder={isSeriesPreset ? "{show} - S{season:02d}E{episode:02d}{res_str}{ext}" : "{m_prefix} - ({year}) - {clean_title}{res_str}{ext}"}
                         style={styles.manualFormatInput}
                       />
                       <button
@@ -982,12 +1169,15 @@ export const Renamer = () => {
                         style={styles.applyManualFormatBtn}
                         onClick={() => handleApplyFormatPreset(customTemplateInput || detectedFormat?.parsedTemplate?.template)}
                       >
-                        Apply Format to Python Script
+                        Apply Format to Script
                       </button>
                     </div>
                     <div style={styles.tokenInsertRow}>
                       <span style={{ fontSize: "0.75rem", color: "#a3a3a3", fontWeight: 600 }}>Quick Insert Tokens:</span>
-                      {["{m_prefix}", "{year}", "{clean_title}", "{part_str}", "{res_str}", "{ext}"].map((tok) => (
+                      {(isSeriesPreset
+                        ? ["{show}", "{season:02d}", "{episode:02d}", "{ep_title}", "{year}", "{res_str}", "{ext}"]
+                        : ["{m_prefix}", "{year}", "{clean_title}", "{part_str}", "{res_str}", "{ext}"]
+                      ).map((tok) => (
                         <button
                           key={tok}
                           type="button"
@@ -1021,133 +1211,6 @@ export const Renamer = () => {
                     </div>
                   </div>
                 ))}
-              </div>
-
-              {/* Interactive Test Sandbox for Movie, Subtitle & Subfolder paths */}
-              <div style={styles.sandboxBox}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-                  <span style={styles.sandboxTitle}>🧪 Interactive Filename, Subtitle & Subfolder Live Testing Sandbox:</span>
-                  <span style={{ fontSize: "0.75rem", color: "#a3a3a3" }}>Type input filenames on left, edit expected output on right</span>
-                </div>
-
-                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                  {/* 1. Video File Input */}
-                  <div>
-                    <span style={{ fontSize: "0.75rem", color: "#e50914", fontWeight: 700, display: "block", marginBottom: "4px" }}>
-                      🎬 Movie / Video Filename Test Input:
-                    </span>
-                    <div style={styles.sandboxInputRow}>
-                      <input
-                        type="text"
-                        value={testFilename}
-                        onChange={(e) => setTestFilename(e.target.value)}
-                        placeholder="e.g. Gladiator.II.2024.2160p.WEB-DL.mkv or loki.s01.2022.1080p.mkv"
-                        style={styles.sandboxInput}
-                      />
-                      <div style={styles.sandboxArrow}>➔</div>
-                      <input
-                        type="text"
-                        value={manualMovieOutput || liveTestResult || ""}
-                        onChange={(e) => setManualMovieOutput(e.target.value)}
-                        placeholder={liveTestResult || "Expected renamed output..."}
-                        title="Edit this to tell the website what the renamed output should look like"
-                        style={{
-                          ...styles.sandboxInput,
-                          color: manualMovieOutput ? "#4ade80" : "#10b981",
-                          borderColor: manualMovieOutput ? "#059669" : "#166534",
-                          backgroundColor: manualMovieOutput ? "#0a1f0a" : "#0d1117",
-                          fontFamily: "monospace",
-                          fontSize: "0.82rem"
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* 2. Subtitle File Input */}
-                  <div>
-                    <span style={{ fontSize: "0.75rem", color: "#38bdf8", fontWeight: 700, display: "block", marginBottom: "4px" }}>
-                      💬 Subtitle Filename Test Input:
-                    </span>
-                    <div style={styles.sandboxInputRow}>
-                      <input
-                        type="text"
-                        value={testSubFilename}
-                        onChange={(e) => setTestSubFilename(e.target.value)}
-                        placeholder="e.g. Gladiator.II.2024.2160p.Arabic.srt"
-                        style={{ ...styles.sandboxInput, borderColor: "#0284c7" }}
-                      />
-                      <div style={styles.sandboxArrow}>➔</div>
-                      <input
-                        type="text"
-                        value={manualSubOutput || transformFilenamePreview(testSubFilename, selectedCode?.parts || [], showName, "subtitle", activeFormatOverride) || ""}
-                        onChange={(e) => setManualSubOutput(e.target.value)}
-                        placeholder="Expected subtitle renamed output..."
-                        title="Edit this to tell the website what the subtitle rename should look like"
-                        style={{
-                          ...styles.sandboxInput,
-                          color: manualSubOutput ? "#38bdf8" : "#0ea5e9",
-                          borderColor: manualSubOutput ? "#0284c7" : "#075985",
-                          backgroundColor: manualSubOutput ? "#0a1520" : "#0d1117",
-                          fontFamily: "monospace",
-                          fontSize: "0.82rem"
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* 3. Subfolder Path Input */}
-                  <div>
-                    <span style={{ fontSize: "0.75rem", color: "#f59e0b", fontWeight: 700, display: "block", marginBottom: "4px" }}>
-                      📁 Subfolder / Relative Path Test Input:
-                    </span>
-                    <div style={styles.sandboxInputRow}>
-                      <input
-                        type="text"
-                        value={testSubfolderPath}
-                        onChange={(e) => setTestSubfolderPath(e.target.value)}
-                        placeholder="e.g. Season 01/loki.s01.2022.1080p.mkv or Subs/Arabic/Gladiator.srt"
-                        style={{ ...styles.sandboxInput, borderColor: "#d97706" }}
-                      />
-                      <div style={styles.sandboxArrow}>➔</div>
-                      <input
-                        type="text"
-                        value={manualFolderOutput || transformFilenamePreview(testSubfolderPath, selectedCode?.parts || [], showName, selectedCode?.category || "movie", activeFormatOverride) || ""}
-                        onChange={(e) => setManualFolderOutput(e.target.value)}
-                        placeholder="Expected subfolder renamed output..."
-                        title="Edit this to tell the website what the subfolder rename should look like"
-                        style={{
-                          ...styles.sandboxInput,
-                          color: manualFolderOutput ? "#fbbf24" : "#d97706",
-                          borderColor: manualFolderOutput ? "#d97706" : "#92400e",
-                          backgroundColor: manualFolderOutput ? "#1a1505" : "#0d1117",
-                          fontFamily: "monospace",
-                          fontSize: "0.82rem"
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Clear manual overrides button */}
-                {(manualMovieOutput || manualSubOutput || manualFolderOutput) && (
-                  <div style={{ marginTop: "10px", textAlign: "right" }}>
-                    <button
-                      type="button"
-                      style={{
-                        background: "none",
-                        border: "1px solid #333",
-                        borderRadius: "6px",
-                        color: "#a3a3a3",
-                        fontSize: "0.75rem",
-                        padding: "4px 10px",
-                        cursor: "pointer"
-                      }}
-                      onClick={() => { setManualMovieOutput(""); setManualSubOutput(""); setManualFolderOutput(""); }}
-                    >
-                      <RotateCcw size={11} /> Reset to Auto-Detected Outputs
-                    </button>
-                  </div>
-                )}
               </div>
                 </>
               )}
