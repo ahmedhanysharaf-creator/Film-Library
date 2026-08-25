@@ -215,29 +215,43 @@ export function extractPythonNamingTemplate(pythonCode = "") {
     };
   }
 
-  // 3. Inspect Docstring / Header Comments for Canonical Format Specification
-  // e.g. "canonical format: Mxx - (Year) - Moviename[ - Part][ - Resolution].ext"
-  const docstringMatch = pythonCode.match(/(?:canonical\s+format|format|renames\s+to|output\s+format)\s*:\s*[\r\n\s]*([^\r\n"']+)/i);
-  if (docstringMatch && docstringMatch[1]) {
-    const rawDocFormat = docstringMatch[1].trim();
-    if (/Mxx|\(Year\)|Moviename|S\d+E\d+|Season|Episode/i.test(rawDocFormat)) {
-      let normalizedDoc = rawDocFormat;
-      normalizedDoc = normalizedDoc.replace(/Mxx/gi, '{m_prefix}');
-      normalizedDoc = normalizedDoc.replace(/\(Year\)/gi, '({year})');
-      normalizedDoc = normalizedDoc.replace(/Moviename/gi, '{clean_title}');
-      normalizedDoc = normalizedDoc.replace(/\[\s*-\s*Part\s*\]/gi, '{part_str}');
-      normalizedDoc = normalizedDoc.replace(/\[\s*-\s*Resolution\s*\]/gi, '{res_str}');
-      normalizedDoc = normalizedDoc.replace(/\.ext/gi, '{ext}');
-      normalizedDoc = normalizedDoc.replace(/Show/gi, '{show}');
-      normalizedDoc = normalizedDoc.replace(/S(\d+)E(\d+)/gi, 'S{season:02d}E{episode:02d}');
+  // 3. Inspect Docstrings & Header Comments for Target Format / Canonical Format Specifications
+  // Matches "Target format: (Year) - Movie Title - Resolution.ext", "Canonical format: Mxx - (Year) - Moviename...", "Format: ...", etc.
+  const docstringMatches = pythonCode.match(/(?:target\s+format|canonical\s+format|naming\s+format|output\s+format|renames?\s+(?:movie\s+files\s+)?to(?:\s+the)?(?:\s+canonical)?\s+format|format)\s*:\s*[\r\n\s]*([^\r\n"']+)/gi);
+  if (docstringMatches) {
+    for (const matchStr of docstringMatches) {
+      const parts = matchStr.split(":");
+      if (parts.length > 1) {
+        let rawDocFormat = parts.slice(1).join(":").trim();
+        rawDocFormat = rawDocFormat.replace(/^[`#*\s=]+/, '').replace(/[`#*\s=]+$/, '').trim();
 
-      if (normalizedDoc.includes('{clean_title}') || normalizedDoc.includes('{m_prefix}')) {
-        return {
-          type: "docstring_canonical",
-          template: normalizedDoc,
-          staticShowName,
-          rawCode: pythonCode
-        };
+        if (/Mxx|\(Year\)|Year|Movie|Title|Season|Episode|S\d+E\d+|Resolution/i.test(rawDocFormat)) {
+          let normalizedDoc = rawDocFormat;
+          normalizedDoc = normalizedDoc.replace(/\bMxx\b/gi, '{m_prefix}');
+          normalizedDoc = normalizedDoc.replace(/\(Year\)/gi, '({year})');
+          normalizedDoc = normalizedDoc.replace(/\bYear\b/gi, '{year}');
+          normalizedDoc = normalizedDoc.replace(/\b(?:Movie\s*Title|Moviename|Movie\s*Name|Film\s*Title|Title)\b/gi, '{clean_title}');
+          normalizedDoc = normalizedDoc.replace(/\b(?:Show\s*Title|Show\s*Name|Series\s*Name|Series\s*Title)\b/gi, '{show}');
+          normalizedDoc = normalizedDoc.replace(/\b(?:Episode\s*Title|Ep\s*Title|Episode\s*Name)\b/gi, '{ep_title}');
+          normalizedDoc = normalizedDoc.replace(/\bS(\d+)E(\d+)\b|\bSxxExx\b/gi, 'S{season:02d}E{episode:02d}');
+          normalizedDoc = normalizedDoc.replace(/\[\s*-\s*Part\s*\]/gi, '{part_str}');
+          normalizedDoc = normalizedDoc.replace(/\[\s*-\s*Resolution\s*\]/gi, '{res_str}');
+          normalizedDoc = normalizedDoc.replace(/\bResolution\b|\bQuality\b/gi, '{res_str}');
+          normalizedDoc = normalizedDoc.replace(/\.ext\b/gi, '{ext}');
+
+          // Fix double hyphens or bracket artifacts e.g. " - - " or "{res_str}{res_str}"
+          normalizedDoc = normalizedDoc.replace(/\{res_str\}\s*-\s*\{res_str\}/gi, '{res_str}');
+          normalizedDoc = normalizedDoc.replace(/\s*-\s*(?:-\s*)+/g, ' - ');
+
+          if (normalizedDoc.includes('{clean_title}') || normalizedDoc.includes('{show}') || normalizedDoc.includes('{year}') || normalizedDoc.includes('{m_prefix}')) {
+            return {
+              type: "docstring_canonical",
+              template: normalizedDoc,
+              staticShowName,
+              rawCode: pythonCode
+            };
+          }
+        }
       }
     }
   }
@@ -253,7 +267,7 @@ export function extractPythonNamingTemplate(pythonCode = "") {
           const parts = tmpl.split(/[,\\/]/);
           tmpl = parts[parts.length - 1].trim();
         }
-        if (tmpl && !/^\[RENAME\]|^\[MATCH\]/i.test(tmpl)) {
+        if (tmpl && !/Fore\.|Style\.|Back\.|colorama|cls\.|\[RENAME\]|^\[MATCH\]/i.test(tmpl)) {
           return {
             type: "os_rename_fstring",
             template: tmpl,
@@ -265,7 +279,7 @@ export function extractPythonNamingTemplate(pythonCode = "") {
     }
   }
 
-  // 5. Find ALL f-strings across the script (including method calls like ext.lower() or season:02d)
+  // 5. Find ALL f-strings across the script (ignoring colorama/ANSI/logging formatters)
   const allFStringRegex = /(?:return|\b(?:new_name|new_filename|new_file|renamed|renamed_name|formatted_name|target_name|new_sub_name|out_name|dest_name|final_name|formatted|output_name|name|dest|filename|target|out_file)\s*=)\s*f["']([^"'\r\n]+)["']/gi;
 
   const validTemplates = [];
@@ -282,7 +296,8 @@ export function extractPythonNamingTemplate(pythonCode = "") {
       continue;
     }
 
-    if (/^\[RENAME\]|^\[MATCH\]|^\[FOLDER|^\[ERROR\]|^\[INFO\]/i.test(rawTemplate)) {
+    // Strictly reject colorama, terminal formatting codes, and log statements!
+    if (/Fore\.|Style\.|Back\.|colorama|cls\.|\\033|\\e\[|^\[RENAME\]|^\[MATCH\]|^\[FOLDER|^\[ERROR\]|^\[INFO\]/i.test(rawTemplate)) {
       continue;
     }
 
@@ -316,12 +331,14 @@ export function extractPythonNamingTemplate(pythonCode = "") {
     scored.sort((a, b) => b.score - a.score);
     const bestMatch = scored[0].template;
 
-    return {
-      type: "fstring",
-      template: bestMatch,
-      staticShowName,
-      rawCode: pythonCode
-    };
+    if (bestMatch && !/Fore\.|Style\.|colorama/i.test(bestMatch)) {
+      return {
+        type: "fstring",
+        template: bestMatch,
+        staticShowName,
+        rawCode: pythonCode
+      };
+    }
   }
 
   // 6. Check string concatenations (e.g. m_prefix + " - (" + year + ") - " + title + ext)
