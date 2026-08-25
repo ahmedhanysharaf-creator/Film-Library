@@ -908,31 +908,7 @@ export const Renamer = () => {
               ) : (
                 <>
 
-              {/* Format Tokens Anatomy Legend (Color Coded Chips) */}
-              <div style={styles.tokenChipsContainer}>
-                <div style={styles.tokenChipsHeader}>
-                  <Tag size={13} color="#f59e0b" />
-                  <span style={styles.tokenChipsTitle}>Active Format Tokens Breakdown:</span>
-                </div>
-                <div style={styles.tokenChipsRow}>
-                  {formatBlueprint.tokens.map((tok, idx) => (
-                    <div
-                      key={idx}
-                      style={{
-                        ...styles.tokenChip,
-                        color: tok.color,
-                        backgroundColor: tok.bg,
-                        borderColor: tok.border
-                      }}
-                      title={tok.desc}
-                    >
-                      <span style={styles.tokenChipKey}>{`{${tok.key}}`}</span>
-                      <span style={styles.tokenChipLabel}>{tok.label}</span>
-                      <span style={styles.tokenChipExample}>{tok.example}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+
 
               {/* 🎯 Interactive Category-Specific Alignment Hub (3 Parts for Series, 2 Parts for Movie) 🎯 */}
               <div style={styles.syncShowcaseCard}>
@@ -1192,26 +1168,7 @@ export const Renamer = () => {
                 </div>
               )}
 
-              {/* Transformation Examples (Before ➔ After) */}
-              <div style={styles.examplesList}>
-                {detectedFormat?.examples.map((ex, idx) => (
-                  <div key={idx} style={styles.exampleRow}>
-                    <div style={styles.exampleBeforeBox}>
-                      <span style={styles.exampleLabel}>Original Messy Filename:</span>
-                      <code style={styles.beforeCode}>{ex.before}</code>
-                    </div>
 
-                    <div style={styles.arrowBox}>
-                      <ArrowRight size={18} color="#e50914" />
-                    </div>
-
-                    <div style={styles.exampleAfterBox}>
-                      <span style={styles.exampleLabelGreen}>Renamed Final Look:</span>
-                      <code style={styles.afterCode}>{ex.after}</code>
-                    </div>
-                  </div>
-                ))}
-              </div>
                 </>
               )}
             </div>
@@ -1237,19 +1194,7 @@ export const Renamer = () => {
                 </div>
               </div>
 
-              {/* Scripts Folder — where main.py lives */}
-              <div style={styles.inputGroup}>
-                <label style={styles.inputLabel}>
-                  📂 Scripts Folder (where your Python scripts / <code style={{ color: "#f59e0b" }}>main.py</code> are saved):
-                </label>
-                <input
-                  type="text"
-                  value={scriptsFolder}
-                  onChange={(e) => setScriptsFolder(e.target.value)}
-                  placeholder="e.g. C:\Users\Ahmed\Downloads\MediaOrganizerTool"
-                  style={styles.pathInput}
-                />
-              </div>
+
 
               {/* Target Media Folder */}
               <div style={styles.inputGroup}>
@@ -1286,18 +1231,7 @@ export const Renamer = () => {
                 </div>
               </div>
 
-              {selectedCode?.category === "series" && (
-                <div style={styles.optionItem}>
-                  <label style={styles.inputLabel}>Show Name Override (Optional):</label>
-                  <input
-                    type="text"
-                    value={showName}
-                    onChange={(e) => setShowName(e.target.value)}
-                    placeholder="e.g. Breaking Bad"
-                    style={styles.textInputSmall}
-                  />
-                </div>
-              )}
+
 
               {/* --mode value input */}
               <div style={styles.optionItem}>
