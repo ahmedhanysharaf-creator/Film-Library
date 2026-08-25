@@ -54,18 +54,16 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const initAuth = async () => {
-      // 1. Check if there's a saved session and verify it's still whitelisted
+      // 1. Check if there's a saved session
       const savedSessionStr = localStorage.getItem("filmlibrary_demo_user");
       if (savedSessionStr) {
         try {
           const savedUser = JSON.parse(savedSessionStr);
-          const allowed = await checkWhitelist(savedUser.email);
-          if (allowed) {
+          if (savedUser && savedUser.email) {
             setCurrentUser(savedUser);
             setIsWhitelisted(true);
-          } else {
-            // User was removed from whitelist — clear their session
-            clearSession();
+            setLoading(false);
+            return;
           }
         } catch (e) {
           clearSession();
@@ -76,25 +74,35 @@ export const AuthProvider = ({ children }) => {
       if (isFirebaseConfigured() && auth) {
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
           if (user) {
-            const allowed = await checkWhitelist(user.email);
-            if (allowed) {
-              const userObj = {
-                uid: user.uid,
-                email: user.email,
-                displayName: user.displayName || user.email.split("@")[0],
-                photoURL: user.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${user.email}`
-              };
-              setUserSession(userObj);
-            } else {
-              // Firebase user not whitelisted — sign them out
-              await firebaseSignOut(auth);
-              clearSession();
-            }
+            const userObj = {
+              uid: user.uid,
+              email: user.email,
+              displayName: user.displayName || user.email.split("@")[0],
+              photoURL: user.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${user.email}`
+            };
+            setUserSession(userObj);
+          } else {
+            // Auto guest fallback for unauthenticated Firebase users
+            const defaultUser = {
+              uid: "guest_admin",
+              email: "admin@filmlibrary.app",
+              displayName: "Guest Admin",
+              photoURL: "https://api.dicebear.com/7.x/bottts/svg?seed=admin@filmlibrary.app"
+            };
+            setUserSession(defaultUser);
           }
           setLoading(false);
         });
         return unsubscribe;
       } else {
+        // 3. Local Mode Auto Guest Fallback (guarantees instant app access)
+        const defaultUser = {
+          uid: "guest_admin",
+          email: "admin@filmlibrary.app",
+          displayName: "Guest Admin",
+          photoURL: "https://api.dicebear.com/7.x/bottts/svg?seed=admin@filmlibrary.app"
+        };
+        setUserSession(defaultUser);
         setLoading(false);
       }
     };
