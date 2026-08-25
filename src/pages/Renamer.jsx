@@ -277,22 +277,22 @@ export const Renamer = () => {
   // Import an entire folder of Python scripts as a multi-part preset
   const handlePythonFolderImport = (event) => {
     const allFiles = Array.from(event.target.files || []);
-    // Filter only .py files and sort by name so 1_xxx.py runs before 2_xxx.py
-    const pyFiles = allFiles
-      .filter((f) => f.name.endsWith(".py"))
+    // Include both .py code files and format documentation .txt files (e.g. NAMING_FORMAT.txt)
+    const targetFiles = allFiles
+      .filter((f) => f.name.endsWith(".py") || f.name.endsWith(".txt"))
       .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
 
-    if (pyFiles.length === 0) {
-      addToast("No Python (.py) files found in the selected folder.", "warning");
+    if (targetFiles.length === 0) {
+      addToast("No Python (.py) or format (.txt) files found in the selected folder.", "warning");
       event.target.value = "";
       return;
     }
 
     // Detect folder name from the first file's relative path
-    const firstRelative = pyFiles[0].webkitRelativePath || pyFiles[0].name;
+    const firstRelative = targetFiles[0].webkitRelativePath || targetFiles[0].name;
     const folderName = firstRelative.split("/")[0] || firstRelative.split("\\")[0];
 
-    const readPromises = pyFiles.map((file) =>
+    const readPromises = targetFiles.map((file) =>
       new Promise((resolve) => {
         const reader = new FileReader();
         reader.onload = (e) => resolve({ name: file.name, code: e.target.result || "" });
@@ -301,22 +301,34 @@ export const Renamer = () => {
     );
 
     Promise.all(readPromises).then((importedFiles) => {
-      const parts = importedFiles.map((item, idx) => ({
+      // Python scripts form execution parts
+      const pyFiles = importedFiles.filter((f) => f.name.endsWith(".py"));
+      const executionFiles = pyFiles.length > 0 ? pyFiles : importedFiles;
+
+      const scriptParts = executionFiles.map((item, idx) => ({
         id: `part_${Date.now()}_${idx}`,
         name: item.name,
         code: item.code
       }));
-      const detection = detectCodeFormat(parts);
-      const autoCat = parts.length > 1 ? "multi_part" : (detection.autoCategory || "movie");
+
+      // Pass ALL files (including NAMING_FORMAT.txt) to detectCodeFormat for full format extraction
+      const partsForDetection = importedFiles.map((item, idx) => ({
+        id: `part_detect_${idx}`,
+        name: item.name,
+        code: item.code
+      }));
+
+      const detection = detectCodeFormat(partsForDetection);
+      const autoCat = scriptParts.length > 1 ? "multi_part" : (detection.autoCategory || "movie");
 
       setEditingCodeObj(null);
       setFormName(folderName.replace(/[_-]/g, " "));
-      setFormDesc(`Pipeline loaded from folder: ${folderName} (${importedFiles.length} scripts)`);
+      setFormDesc(`Pipeline loaded from folder: ${folderName} (${pyFiles.length} scripts + format txt)`);
       setFormCategory(autoCat);
-      setFormParts(parts);
+      setFormParts(scriptParts);
       setActivePartIndex(0);
       setIsModalOpen(true);
-      addToast(`Loaded ${importedFiles.length} Python file(s) from "${folderName}" (Auto-Detected: ${autoCat.toUpperCase()})!`, "success");
+      addToast(`Loaded folder "${folderName}" and scanned format .txt! (Auto-Detected: ${autoCat.toUpperCase()})`, "success");
     });
 
     event.target.value = "";
