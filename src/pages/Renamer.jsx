@@ -947,10 +947,6 @@ export const Renamer = () => {
           >
             <UploadCloud size={16} /> Choose .py File from Laptop
           </button>
-
-          <button style={styles.addBtn} onClick={handleOpenAddModal}>
-            <Plus size={16} /> Add New Code Preset
-          </button>
         </div>
       </div>
 
