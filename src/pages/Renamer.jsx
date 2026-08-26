@@ -122,27 +122,6 @@ export const Renamer = () => {
     } catch {}
   }, [targetPath, scriptsFolder, folderArgStyle, customMode, includeMode, dryRun, showName]);
 
-  // Auto-save sandbox test values per preset
-  useEffect(() => {
-    if (!selectedCode?.id) return;
-    try {
-      const existing = localStorage.getItem(getPresetSandboxKey(selectedCode.id));
-      const parsed = existing ? JSON.parse(existing) : {};
-      localStorage.setItem(
-        getPresetSandboxKey(selectedCode.id),
-        JSON.stringify({
-          ...parsed,
-          testFilename,
-          testSubFilename,
-          testSubfolderPath,
-          manualMovieOutput,
-          manualSubOutput,
-          manualFolderOutput
-        })
-      );
-    } catch {}
-  }, [selectedCode?.id, testFilename, testSubFilename, testSubfolderPath, manualMovieOutput, manualSubOutput, manualFolderOutput]);
-
   // Modal State for Adding/Editing Code
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCodeObj, setEditingCodeObj] = useState(null);
