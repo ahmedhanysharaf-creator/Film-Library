@@ -39,6 +39,7 @@ import {
   COMMON_FORMAT_PRESETS
 } from "../utils/codeDetector";
 import { generatePowerShellCommands } from "../utils/powershellGenerator";
+import JSZip from "jszip";
 
 export const Renamer = () => {
   const { addToast } = useToast();
@@ -432,17 +433,19 @@ export const Renamer = () => {
     if (!codeObj || !codeObj.parts || codeObj.parts.length === 0) return;
     const preset = destFolders[codeObj.id];
     const dirHandle = preset?.handle;
+    const folderName = (codeObj.folderName || codeObj.name || "Renamer Scripts").replace(/[<>:"/\\|?*]/g, "_").trim();
 
     if (dirHandle) {
-      // Write directly into the chosen destination folder for this preset
+      // Write into a dedicated subfolder matching the preset name
       try {
+        const targetSubDir = await dirHandle.getDirectoryHandle(folderName, { create: true });
         for (const part of codeObj.parts) {
-          const fileHandle = await dirHandle.getFileHandle(part.name, { create: true });
+          const fileHandle = await targetSubDir.getFileHandle(part.name, { create: true });
           const writable = await fileHandle.createWritable();
           await writable.write(part.code);
           await writable.close();
         }
-        addToast(`✅ Saved ${codeObj.parts.length} script(s) into "${dirHandle.name}"`, "success");
+        addToast(`✅ Saved folder "${folderName}" with ${codeObj.parts.length} script(s) into "${dirHandle.name}"`, "success");
       } catch (err) {
         if (err.name === "NotAllowedError") {
           addToast("Permission denied — please re-select the destination folder.", "error");
@@ -456,14 +459,36 @@ export const Renamer = () => {
         }
       }
     } else {
-      // Fallback: regular browser downloads
-      codeObj.parts.forEach((part, idx) => {
-        setTimeout(() => {
-          handleDownloadFile(part.code, part.name, "text/x-python");
-        }, idx * 400);
-      });
-      if (codeObj.parts.length > 1) {
-        addToast(`Downloading ${codeObj.parts.length} script files…`, "info");
+      // Fallback: browser downloads
+      try {
+        if (codeObj.parts.length > 1) {
+          const zip = new JSZip();
+          const folder = zip.folder(folderName);
+          codeObj.parts.forEach((part) => {
+            folder.file(part.name, part.code);
+          });
+          const zipBlob = await zip.generateAsync({ type: "blob" });
+          const url = URL.createObjectURL(zipBlob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `${folderName}.zip`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          addToast(`✅ Downloaded "${folderName}.zip" (extracts as a folder)!`, "success");
+        } else {
+          handleDownloadFile(codeObj.parts[0].code, codeObj.parts[0].name, "text/x-python");
+        }
+      } catch (err) {
+        codeObj.parts.forEach((part, idx) => {
+          setTimeout(() => {
+            handleDownloadFile(part.code, part.name, "text/x-python");
+          }, idx * 400);
+        });
+        if (codeObj.parts.length > 1) {
+          addToast(`Downloading ${codeObj.parts.length} script files…`, "info");
+        }
       }
     }
   };
