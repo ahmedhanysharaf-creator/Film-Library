@@ -82,19 +82,13 @@ export const Renamer = () => {
   // Destination folder per preset: { [presetId]: { handle, name } }
   const [destFolders, setDestFolders] = useState({});
 
-  // Custom Test Filename Sandbox (persisted)
-  const [testFilename, setTestFilename] = useState(
-    initialInputs.testFilename || "Inception.2010.1080p.BluRay.x264.mkv"
-  );
+  // Custom Test Filename Sandbox (persisted per preset)
+  const [testFilename, setTestFilename] = useState("Gladiator.II.2024.2160p.WEB-DL.mkv");
   const [showRawCode, setShowRawCode] = useState(false);
   const [showFormatCustomizer, setShowFormatCustomizer] = useState(false);
   const [customTemplateInput, setCustomTemplateInput] = useState("");
-  const [testSubFilename, setTestSubFilename] = useState(
-    initialInputs.testSubFilename || "Inception.2010.1080p.Arabic.srt"
-  );
-  const [testSubfolderPath, setTestSubfolderPath] = useState(
-    initialInputs.testSubfolderPath || "Season 01/Loki.S01E01.1080p.mkv"
-  );
+  const [testSubFilename, setTestSubFilename] = useState("Gladiator.II.2024.2160p.Arabic.srt");
+  const [testSubfolderPath, setTestSubfolderPath] = useState("Movies/Gladiator.II.2024.2160p.mkv");
 
   // Editable manual override outputs for sandbox (user can type expected output to teach the website)
   const [manualMovieOutput, setManualMovieOutput] = useState("");
@@ -110,7 +104,7 @@ export const Renamer = () => {
   // Command Template with {PATH} placeholder for this preset
   const [commandTemplate, setCommandTemplate] = useState("");
 
-  // Auto-save input parameters across sessions
+  // Auto-save Target Folder & Command Generator inputs across sessions
   useEffect(() => {
     try {
       localStorage.setItem(
@@ -122,14 +116,32 @@ export const Renamer = () => {
           customMode,
           includeMode,
           dryRun,
-          showName,
-          testFilename,
-          testSubFilename,
-          testSubfolderPath
+          showName
         })
       );
     } catch {}
-  }, [targetPath, scriptsFolder, folderArgStyle, customMode, includeMode, dryRun, showName, testFilename, testSubFilename, testSubfolderPath]);
+  }, [targetPath, scriptsFolder, folderArgStyle, customMode, includeMode, dryRun, showName]);
+
+  // Auto-save sandbox test values per preset
+  useEffect(() => {
+    if (!selectedCode?.id) return;
+    try {
+      const existing = localStorage.getItem(getPresetSandboxKey(selectedCode.id));
+      const parsed = existing ? JSON.parse(existing) : {};
+      localStorage.setItem(
+        getPresetSandboxKey(selectedCode.id),
+        JSON.stringify({
+          ...parsed,
+          testFilename,
+          testSubFilename,
+          testSubfolderPath,
+          manualMovieOutput,
+          manualSubOutput,
+          manualFolderOutput
+        })
+      );
+    } catch {}
+  }, [selectedCode?.id, testFilename, testSubFilename, testSubfolderPath, manualMovieOutput, manualSubOutput, manualFolderOutput]);
 
   // Modal State for Adding/Editing Code
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -384,11 +396,10 @@ export const Renamer = () => {
     setShowName("");
     setDryRun(true);
     setCustomCommand("");
-    setTestFilename("Inception.2010.1080p.BluRay.x264.mkv");
     try {
       localStorage.removeItem(RENAMER_INPUTS_KEY);
     } catch {}
-    addToast("All input fields cleared and reset.", "info");
+    addToast("Target folder and command parameters cleared.", "info");
   };
 
   const handleCopy = (text) => {
