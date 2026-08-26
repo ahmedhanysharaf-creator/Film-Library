@@ -167,6 +167,8 @@ export const Renamer = () => {
     { id: "part_1", name: "1_renamer.py", code: "# Write your python renamer code here...\nimport os\n" }
   ]);
   const [activePartIndex, setActivePartIndex] = useState(0);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editingTitleValue, setEditingTitleValue] = useState("");
 
   // Load renamer presets on mount
   useEffect(() => {
@@ -248,6 +250,7 @@ export const Renamer = () => {
       setManualSubOutput("");
       setManualFolderOutput("");
       setCustomCommand("");
+      setIsEditingTitle(false);
     }
   }, [selectedCodeId]);
 
@@ -728,6 +731,42 @@ export const Renamer = () => {
     event.target.value = "";
   };
 
+  // Inline Title Editing Handlers
+  const handleStartEditingTitle = () => {
+    if (!selectedCode) return;
+    setEditingTitleValue(selectedCode.name || "");
+    setIsEditingTitle(true);
+  };
+
+  const handleSaveRenamedTitle = async () => {
+    if (!selectedCode) return;
+    const trimmed = editingTitleValue.trim();
+    if (!trimmed) {
+      addToast("Preset title cannot be empty.", "warning");
+      return;
+    }
+    if (trimmed === selectedCode.name) {
+      setIsEditingTitle(false);
+      return;
+    }
+    try {
+      const updatedCodeObj = {
+        ...selectedCode,
+        name: trimmed
+      };
+      const updatedList = await saveRenamerCode(updatedCodeObj);
+      setCodes(updatedList);
+      setIsEditingTitle(false);
+      addToast(`Preset renamed to "${trimmed}"!`, "success");
+    } catch (err) {
+      addToast(`Failed to update preset name: ${err.message}`, "error");
+    }
+  };
+
+  const handleCancelEditingTitle = () => {
+    setIsEditingTitle(false);
+  };
+
   // Modal Open Handlers
   const handleOpenAddModal = () => {
     setEditingCodeObj(null);
@@ -1045,8 +1084,103 @@ export const Renamer = () => {
             {/* Header Title & Quick Actions */}
             <div style={styles.inspectorHeader}>
               <div style={styles.inspectorTitleGroup}>
-                <h2 style={styles.inspectorTitle}>{selectedCode.name}</h2>
-                <span style={styles.inspectorBadge}>{detectedFormat?.badge || "Format"}</span>
+                {isEditingTitle ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1, maxWidth: "520px" }}>
+                    <input
+                      type="text"
+                      autoFocus
+                      value={editingTitleValue}
+                      onChange={(e) => setEditingTitleValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleSaveRenamedTitle();
+                        if (e.key === "Escape") handleCancelEditingTitle();
+                      }}
+                      style={{
+                        backgroundColor: "#0d1117",
+                        color: "#ffffff",
+                        border: "1px solid #38bdf8",
+                        borderRadius: "8px",
+                        padding: "6px 12px",
+                        fontSize: "1.3rem",
+                        fontWeight: 800,
+                        width: "100%",
+                        outline: "none",
+                        boxShadow: "0 0 10px rgba(56, 189, 248, 0.35)"
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSaveRenamedTitle}
+                      style={{
+                        backgroundColor: "#166534",
+                        color: "#4ade80",
+                        border: "1px solid #22c55e",
+                        borderRadius: "6px",
+                        padding: "7px 12px",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "4px",
+                        fontWeight: 700,
+                        fontSize: "0.8rem",
+                        whiteSpace: "nowrap"
+                      }}
+                      title="Save Name (Enter)"
+                    >
+                      <Check size={14} /> Save
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCancelEditingTitle}
+                      style={{
+                        backgroundColor: "#27272a",
+                        color: "#a1a1aa",
+                        border: "1px solid #3f3f46",
+                        borderRadius: "6px",
+                        padding: "7px 10px",
+                        cursor: "pointer",
+                        fontSize: "0.8rem"
+                      }}
+                      title="Cancel (Esc)"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      cursor: "pointer"
+                    }}
+                    onClick={handleStartEditingTitle}
+                    title="Click to rename this preset"
+                  >
+                    <h2 style={styles.inspectorTitle}>{selectedCode.name}</h2>
+                    <button
+                      type="button"
+                      style={{
+                        background: "none",
+                        border: "none",
+                        color: "#71717a",
+                        cursor: "pointer",
+                        padding: "4px",
+                        display: "flex",
+                        alignItems: "center",
+                        borderRadius: "4px"
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleStartEditingTitle();
+                      }}
+                      title="Click to rename"
+                    >
+                      <Edit3 size={15} />
+                    </button>
+                    <span style={styles.inspectorBadge}>{detectedFormat?.badge || "Format"}</span>
+                  </div>
+                )}
 
                 <div style={styles.presetTopActions}>
                   <button
