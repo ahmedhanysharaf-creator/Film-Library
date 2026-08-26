@@ -106,6 +106,9 @@ export const Renamer = () => {
   // Editable PowerShell Command override
   const [customCommand, setCustomCommand] = useState("");
 
+  // Command Template with {PATH} placeholder for this preset
+  const [commandTemplate, setCommandTemplate] = useState("");
+
   // Auto-save input parameters across sessions
   useEffect(() => {
     try {
@@ -168,12 +171,29 @@ export const Renamer = () => {
   const isSeriesPreset = selectedCode?.category === "series" || /series|show|season|episode/i.test(selectedCode?.name || "");
 
   const getPresetSandboxKey = (presetId) => `filmlibrary_renamer_sandbox_${presetId}`;
+  const getPresetCommandTemplateKey = (presetId) => `filmlibrary_renamer_cmd_tpl_${presetId}`;
 
   // Sync workspace format template & rename toggle whenever selectedCode changes
   useEffect(() => {
     if (selectedCode) {
       setCustomWorkspaceFormat(selectedCode.formatTemplate || "");
       setRenamePreviewEnabled(selectedCode.isRenamer !== false);
+
+      // Load saved command template for this preset
+      try {
+        const savedTpl = localStorage.getItem(getPresetCommandTemplateKey(selectedCode.id));
+        if (savedTpl !== null && savedTpl !== "") {
+          setCommandTemplate(savedTpl);
+        } else if (selectedCode.commandTemplate) {
+          setCommandTemplate(selectedCode.commandTemplate);
+        } else {
+          const firstPartName = selectedCode.parts?.[0]?.name || "renamer.py";
+          setCommandTemplate(`python "${firstPartName}" "{PATH}"`);
+        }
+      } catch {
+        const firstPartName = selectedCode.parts?.[0]?.name || "renamer.py";
+        setCommandTemplate(`python "${firstPartName}" "{PATH}"`);
+      }
 
       // Check if specific alignment test data was saved for this code
       try {
@@ -216,8 +236,47 @@ export const Renamer = () => {
     ? generatePowerShellCommands(selectedCode, targetPath, { dryRun, showName, scriptsFolder, customMode, includeMode, folderArgStyle })
     : { powershellShortCommand: "", powershellScript: "", pythonStandaloneFiles: [], detectedCli: { folderStyle: "positional", styleLabel: 'Direct "path"' } };
 
-  const effectiveCommand = customCommand !== "" ? customCommand : generatedCommands.powershellShortCommand;
-  const isCommandEdited = customCommand !== "" && customCommand !== generatedCommands.powershellShortCommand;
+  // Evaluate custom template dynamically by replacing {PATH} with targetPath
+  const evaluateCommandTemplate = (templateStr, pathStr) => {
+    if (!templateStr || !templateStr.trim()) return "";
+    const cleanPathVal = (pathStr || "").trim() || "<TARGET_FOLDER>";
+    let result = templateStr;
+    result = result.replace(/\{PATH\}|\{FOLDER\}|\{TARGET_DIR\}|<TARGET_FOLDER>|<PATH>/gi, cleanPathVal);
+    return result;
+  };
+
+  const evaluatedCommand = evaluateCommandTemplate(commandTemplate, targetPath);
+  const effectiveCommand = customCommand !== "" ? customCommand : (evaluatedCommand || generatedCommands.powershellShortCommand);
+  const isCommandEdited = customCommand !== "" && customCommand !== evaluatedCommand;
+
+  const handleSaveCommandTemplate = async () => {
+    if (!selectedCode) return;
+    try {
+      localStorage.setItem(getPresetCommandTemplateKey(selectedCode.id), commandTemplate);
+      const updatedObj = {
+        ...selectedCode,
+        commandTemplate
+      };
+      const updatedList = await saveRenamerCode(updatedObj);
+      setCodes(updatedList);
+      setCustomCommand("");
+      addToast(`💾 Saved command template for "${selectedCode.name}"!`, "success");
+    } catch (err) {
+      addToast(`Saved template locally: ${err.message}`, "info");
+    }
+  };
+
+  const handleResetCommandTemplate = () => {
+    if (!selectedCode) return;
+    const firstPartName = selectedCode?.parts?.[0]?.name || "renamer.py";
+    const defaultTpl = `python "${firstPartName}" "{PATH}"`;
+    setCommandTemplate(defaultTpl);
+    setCustomCommand("");
+    try {
+      localStorage.removeItem(getPresetCommandTemplateKey(selectedCode.id));
+    } catch {}
+    addToast("Reset command template to default.", "info");
+  };
 
   // Form detection real-time preview (based on typed code in formParts & formFormatTemplate)
   const liveFormDetection = detectCodeFormat(formParts, formCategory, formName, formFormatTemplate);
@@ -1516,7 +1575,122 @@ export const Renamer = () => {
                 </div>
               </div>
 
-              {/* 🚀 SHORT CLEAN POWERSHELL COMMAND BOX 🚀 */}
+              {/* 🛠️ STEP 1: CUSTOM COMMAND TEMPLATE WITH {PATH} 🛠️ */}
+              <div style={{ backgroundColor: "#0f131a", border: "1px solid #1e293b", borderRadius: "10px", padding: "14px", marginTop: "16px", marginBottom: "16px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px", flexWrap: "wrap", gap: "8px" }}>
+                  <label style={{ ...styles.inputLabel, margin: 0, display: "flex", alignItems: "center", gap: "6px", color: "#38bdf8" }}>
+                    <Code size={16} color="#38bdf8" /> Command Template:
+                    <span style={{ fontSize: "0.74rem", padding: "1px 7px", borderRadius: "8px", backgroundColor: "rgba(56, 189, 248, 0.15)", color: "#38bdf8", border: "1px solid rgba(56, 189, 248, 0.3)", fontWeight: 600 }}>
+                      Uses {'{PATH}'}
+                    </span>
+                  </label>
+
+                  <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                    <button
+                      type="button"
+                      style={{
+                        padding: "5px 12px",
+                        backgroundColor: "#166534",
+                        color: "#4ade80",
+                        border: "1px solid #22c55e",
+                        borderRadius: "6px",
+                        fontSize: "0.76rem",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "5px"
+                      }}
+                      onClick={handleSaveCommandTemplate}
+                      title={`Save this template specifically for "${selectedCode?.name}" so it loads every time`}
+                    >
+                      <FileCheck size={13} /> 💾 Save Template for "{selectedCode?.name}"
+                    </button>
+
+                    <button
+                      type="button"
+                      style={{
+                        background: "none",
+                        border: "1px solid #334155",
+                        borderRadius: "6px",
+                        color: "#94a3b8",
+                        fontSize: "0.74rem",
+                        padding: "5px 8px",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "4px"
+                      }}
+                      onClick={handleResetCommandTemplate}
+                      title="Reset template back to default"
+                    >
+                      <RotateCcw size={11} /> Reset
+                    </button>
+                  </div>
+                </div>
+
+                <textarea
+                  value={commandTemplate}
+                  onChange={(e) => {
+                    setCommandTemplate(e.target.value);
+                    setCustomCommand("");
+                  }}
+                  placeholder='e.g. python "Marvel Films Renamer.py" "{PATH}"'
+                  spellCheck={false}
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  rows={2}
+                  style={{
+                    width: "100%",
+                    backgroundColor: "#06090e",
+                    border: "1px solid #38bdf860",
+                    borderRadius: "6px",
+                    padding: "10px 12px",
+                    color: "#38bdf8",
+                    fontFamily: "Consolas, Monaco, monospace",
+                    fontSize: "0.9rem",
+                    fontWeight: 600,
+                    resize: "vertical",
+                    outline: "none",
+                    boxSizing: "border-box",
+                    lineHeight: "1.4"
+                  }}
+                />
+
+                {/* Token Helper Chips */}
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "8px", flexWrap: "wrap" }}>
+                  <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>Insert Path Variable:</span>
+                  <button
+                    type="button"
+                    style={{
+                      padding: "3px 9px",
+                      backgroundColor: "rgba(56, 189, 248, 0.15)",
+                      color: "#38bdf8",
+                      border: "1px solid #0284c7",
+                      borderRadius: "5px",
+                      fontSize: "0.75rem",
+                      cursor: "pointer",
+                      fontWeight: 700
+                    }}
+                    onClick={() => {
+                      if (!commandTemplate.includes("{PATH}")) {
+                        setCommandTemplate((prev) => (prev ? `${prev} "{PATH}"` : 'python "script.py" "{PATH}"'));
+                      } else {
+                        addToast("Template already contains {PATH}", "info");
+                      }
+                    }}
+                    title="Insert {PATH} placeholder into template"
+                  >
+                    + {'{PATH}'} (Target Folder)
+                  </button>
+                </div>
+
+                <p style={{ margin: "8px 0 0 0", fontSize: "0.76rem", color: "#94a3b8", lineHeight: "1.4" }}>
+                  💡 <strong>How it works:</strong> Paste your exact running command above and keep <code style={{ color: "#38bdf8", backgroundColor: "#06090e", padding: "1px 5px", borderRadius: "3px" }}>{'{PATH}'}</code> where the folder goes. As you change <strong>Target Media Folder</strong> above, it automatically inserts it into the <strong>Ready-to-Run</strong> command below!
+                </p>
+              </div>
+
+              {/* 🚀 STEP 2: READY-TO-RUN EVALUATED POWERSHELL COMMAND BOX 🚀 */}
               <div style={styles.shortCommandBox}>
                 <div style={styles.shortCommandHeader}>
                   <span style={styles.shortCommandTitle}>
@@ -1534,17 +1708,17 @@ export const Renamer = () => {
                         style={styles.resetCommandBtn}
                         onClick={() => {
                           setCustomCommand("");
-                          addToast("Reset command to auto-generated!", "info");
+                          addToast("Reset command to template!", "info");
                         }}
-                        title="Reset back to the auto-generated PowerShell command"
+                        title="Reset back to evaluated template"
                       >
-                        <RotateCcw size={12} /> Reset to Auto
+                        <RotateCcw size={12} /> Reset
                       </button>
                     )}
                     <button
                       style={styles.copyBtn}
                       onClick={() => handleCopy(effectiveCommand)}
-                      title="Copy command to clipboard"
+                      title="Copy final command with target path to clipboard"
                     >
                       {copied ? <Check size={14} color="#10b981" /> : <Copy size={14} />}
                       {copied ? "Copied Command!" : "Copy PowerShell Command"}
@@ -1555,7 +1729,7 @@ export const Renamer = () => {
                 <textarea
                   value={effectiveCommand}
                   onChange={(e) => setCustomCommand(e.target.value)}
-                  placeholder='e.g. python "Marvel Films Renamer.py" --folder "<TARGET_FOLDER>" --mode movies'
+                  placeholder='e.g. python "Marvel Films Renamer.py" "C:\path\to\folder"'
                   spellCheck={false}
                   autoCapitalize="off"
                   autoCorrect="off"
@@ -1566,11 +1740,11 @@ export const Renamer = () => {
                     color: isCommandEdited ? "#fbbf24" : "#38bdf8",
                     backgroundColor: isCommandEdited ? "#120f04" : "#000000"
                   }}
-                  title="You can edit or customize this command directly before copying"
+                  title="Final evaluated command with your target path inserted"
                 />
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "6px" }}>
                   <p style={styles.commandHint}>
-                    💡 Click inside the box above to edit the command directly, then copy and paste into Windows PowerShell.
+                    ⚡ Automatically updated with your Target Folder. Copy and paste into Windows PowerShell.
                   </p>
                   {isCommandEdited && (
                     <span style={{ fontSize: "0.74rem", color: "#f59e0b", fontWeight: 600 }}>
