@@ -69,6 +69,9 @@ export const Renamer = () => {
   // PowerShell Generator parameters (persisted automatically across all code and preset changes)
   const [targetPath, setTargetPath] = useState(initialInputs.targetPath || "");
   const [scriptsFolder, setScriptsFolder] = useState(initialInputs.scriptsFolder || "");
+  const [includeMode, setIncludeMode] = useState(
+    initialInputs.includeMode !== undefined ? initialInputs.includeMode : false
+  );
   const [customMode, setCustomMode] = useState(initialInputs.customMode || "");
   const [dryRun, setDryRun] = useState(initialInputs.dryRun !== undefined ? initialInputs.dryRun : true);
   const [showName, setShowName] = useState(initialInputs.showName || "");
@@ -98,6 +101,29 @@ export const Renamer = () => {
 
   // Toggle for making rename preview optional (e.g. for folder organizers / utilities)
   const [renamePreviewEnabled, setRenamePreviewEnabled] = useState(true);
+
+  // Editable PowerShell Command override
+  const [customCommand, setCustomCommand] = useState("");
+
+  // Auto-save input parameters across sessions
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        RENAMER_INPUTS_KEY,
+        JSON.stringify({
+          targetPath,
+          scriptsFolder,
+          customMode,
+          includeMode,
+          dryRun,
+          showName,
+          testFilename,
+          testSubFilename,
+          testSubfolderPath
+        })
+      );
+    } catch {}
+  }, [targetPath, scriptsFolder, customMode, includeMode, dryRun, showName, testFilename, testSubFilename, testSubfolderPath]);
 
   // Modal State for Adding/Editing Code
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -175,6 +201,7 @@ export const Renamer = () => {
       setManualMovieOutput("");
       setManualSubOutput("");
       setManualFolderOutput("");
+      setCustomCommand("");
     }
   }, [selectedCodeId]);
 
@@ -184,8 +211,11 @@ export const Renamer = () => {
     ? detectCodeFormat(selectedCode.parts, isSeriesPreset ? "series" : selectedCode.category, selectedCode.name, activeFormatOverride)
     : null;
   const generatedCommands = selectedCode
-    ? generatePowerShellCommands(selectedCode, targetPath, { dryRun, showName, scriptsFolder, customMode })
+    ? generatePowerShellCommands(selectedCode, targetPath, { dryRun, showName, scriptsFolder, customMode, includeMode })
     : { powershellShortCommand: "", powershellScript: "", pythonStandaloneFiles: [] };
+
+  const effectiveCommand = customCommand !== "" ? customCommand : generatedCommands.powershellShortCommand;
+  const isCommandEdited = customCommand !== "" && customCommand !== generatedCommands.powershellShortCommand;
 
   // Form detection real-time preview (based on typed code in formParts & formFormatTemplate)
   const liveFormDetection = detectCodeFormat(formParts, formCategory, formName, formFormatTemplate);
@@ -287,8 +317,10 @@ export const Renamer = () => {
     setTargetPath("");
     setScriptsFolder("");
     setCustomMode("");
+    setIncludeMode(false);
     setShowName("");
     setDryRun(true);
+    setCustomCommand("");
     setTestFilename("Inception.2010.1080p.BluRay.x264.mkv");
     try {
       localStorage.removeItem(RENAMER_INPUTS_KEY);
@@ -1300,37 +1332,105 @@ export const Renamer = () => {
 
 
 
-              {/* --mode value input */}
+              {/* Optional --mode value input */}
               <div style={styles.optionItem}>
-                <label style={styles.inputLabel}>
-                  --mode value{" "}
-                  <span style={{ color: "#737373", fontWeight: 400 }}>
-                    (the mode your script expects — leave blank to use preset default)
-                  </span>
-                </label>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px", flexWrap: "wrap", gap: "8px" }}>
+                  <label style={{ ...styles.inputLabel, margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span>⚙️ --mode argument:</span>
+                    <span
+                      style={{
+                        fontSize: "0.74rem",
+                        padding: "2px 8px",
+                        borderRadius: "10px",
+                        backgroundColor: includeMode ? "rgba(34,197,94,0.15)" : "rgba(115,115,115,0.15)",
+                        color: includeMode ? "#4ade80" : "#a3a3a3",
+                        border: includeMode ? "1px solid rgba(34,197,94,0.3)" : "1px solid #333333",
+                        fontWeight: 600
+                      }}
+                    >
+                      {includeMode ? "Active in command" : "Optional (Omitted)"}
+                    </span>
+                  </label>
+
+                  <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "0.8rem", color: includeMode ? "#4ade80" : "#a3a3a3", userSelect: "none" }}>
+                    <input
+                      type="checkbox"
+                      checked={includeMode}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setIncludeMode(checked);
+                        if (checked && !customMode) {
+                          setCustomMode(selectedCode?.category === "series" ? "series" : "movies");
+                        }
+                      }}
+                      style={{ cursor: "pointer", accentColor: "#e50914" }}
+                    />
+                    <span>Include <code style={{ color: "#f59e0b", backgroundColor: "#171717", padding: "1px 5px", borderRadius: "4px", fontSize: "0.78rem" }}>--mode</code> in command</span>
+                  </label>
+                </div>
+
                 <input
                   type="text"
-                  value={customMode}
-                  onChange={(e) => setCustomMode(e.target.value)}
-                  placeholder={`Auto: ${selectedCode?.category === "series" ? "series" : "movies"}`}
-                  style={styles.textInputSmall}
+                  value={includeMode ? customMode : ""}
+                  onChange={(e) => {
+                    setCustomMode(e.target.value);
+                    if (!includeMode && e.target.value.trim()) {
+                      setIncludeMode(true);
+                    }
+                  }}
+                  placeholder={includeMode ? `Mode value (e.g. ${selectedCode?.category === "series" ? "series" : "movies"})` : "Optional — omitted from command (click a mode below or check box to enable)"}
+                  style={{
+                    ...styles.textInputSmall,
+                    color: includeMode ? "#ffffff" : "#666666",
+                    borderColor: includeMode ? "rgba(245, 158, 11, 0.4)" : "#2a2a2a",
+                    backgroundColor: includeMode ? "#141414" : "#0d0d0d"
+                  }}
                 />
+
                 <div style={styles.quickPathButtons}>
                   <span style={styles.quickLabel}>Quick:</span>
-                  {["movies", "series", "subtitles", "anime", "documentary"].map((m) => (
-                    <button
-                      key={m}
-                      style={{
-                        ...styles.quickPathBtn,
-                        backgroundColor: customMode === m ? "rgba(229,9,20,0.15)" : "#222222",
-                        color: customMode === m ? "#e50914" : "#a3a3a3",
-                        border: customMode === m ? "1px solid rgba(229,9,20,0.4)" : "1px solid #333333"
-                      }}
-                      onClick={() => setCustomMode(customMode === m ? "" : m)}
-                    >
-                      {m}
-                    </button>
-                  ))}
+                  <button
+                    type="button"
+                    style={{
+                      ...styles.quickPathBtn,
+                      backgroundColor: !includeMode ? "rgba(239, 68, 68, 0.15)" : "#222222",
+                      color: !includeMode ? "#f87171" : "#a3a3a3",
+                      border: !includeMode ? "1px solid rgba(239, 68, 68, 0.4)" : "1px solid #333333"
+                    }}
+                    onClick={() => {
+                      setIncludeMode(false);
+                      setCustomMode("");
+                    }}
+                    title="Omit the --mode argument entirely from the command"
+                  >
+                    None (Omit --mode)
+                  </button>
+                  {["movies", "series", "subtitles", "anime", "documentary"].map((m) => {
+                    const isSelected = includeMode && (customMode === m || (!customMode && selectedCode?.category === m));
+                    return (
+                      <button
+                        key={m}
+                        type="button"
+                        style={{
+                          ...styles.quickPathBtn,
+                          backgroundColor: isSelected ? "rgba(229,9,20,0.2)" : "#222222",
+                          color: isSelected ? "#ffffff" : "#a3a3a3",
+                          border: isSelected ? "1px solid var(--accent-red)" : "1px solid #333333"
+                        }}
+                        onClick={() => {
+                          if (isSelected) {
+                            setIncludeMode(false);
+                            setCustomMode("");
+                          } else {
+                            setIncludeMode(true);
+                            setCustomMode(m);
+                          }
+                        }}
+                      >
+                        {m}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -1370,22 +1470,63 @@ export const Renamer = () => {
                 <div style={styles.shortCommandHeader}>
                   <span style={styles.shortCommandTitle}>
                     <Terminal size={15} color="#f59e0b" /> Ready-to-Run PowerShell Command:
+                    {isCommandEdited && (
+                      <span style={styles.commandEditedBadge} title="Command has been manually edited">
+                        ✏️ Custom Edited
+                      </span>
+                    )}
                   </span>
-                  <button
-                    style={styles.copyBtn}
-                    onClick={() => handleCopy(generatedCommands.powershellShortCommand)}
-                  >
-                    {copied ? <Check size={14} color="#10b981" /> : <Copy size={14} />}
-                    {copied ? "Copied Command!" : "Copy PowerShell Command"}
-                  </button>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    {isCommandEdited && (
+                      <button
+                        type="button"
+                        style={styles.resetCommandBtn}
+                        onClick={() => {
+                          setCustomCommand("");
+                          addToast("Reset command to auto-generated!", "info");
+                        }}
+                        title="Reset back to the auto-generated PowerShell command"
+                      >
+                        <RotateCcw size={12} /> Reset to Auto
+                      </button>
+                    )}
+                    <button
+                      style={styles.copyBtn}
+                      onClick={() => handleCopy(effectiveCommand)}
+                      title="Copy command to clipboard"
+                    >
+                      {copied ? <Check size={14} color="#10b981" /> : <Copy size={14} />}
+                      {copied ? "Copied Command!" : "Copy PowerShell Command"}
+                    </button>
+                  </div>
                 </div>
 
-                <div style={styles.commandCodeBlock}>
-                  {generatedCommands.powershellShortCommand}
+                <textarea
+                  value={effectiveCommand}
+                  onChange={(e) => setCustomCommand(e.target.value)}
+                  placeholder='e.g. python "Marvel Films Renamer.py" --folder "<TARGET_FOLDER>" --mode movies'
+                  spellCheck={false}
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  rows={2}
+                  style={{
+                    ...styles.commandCodeBlock,
+                    borderColor: isCommandEdited ? "#f59e0b" : "#3b82f640",
+                    color: isCommandEdited ? "#fbbf24" : "#38bdf8",
+                    backgroundColor: isCommandEdited ? "#120f04" : "#000000"
+                  }}
+                  title="You can edit or customize this command directly before copying"
+                />
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "6px" }}>
+                  <p style={styles.commandHint}>
+                    💡 Click inside the box above to edit the command directly, then copy and paste into Windows PowerShell.
+                  </p>
+                  {isCommandEdited && (
+                    <span style={{ fontSize: "0.74rem", color: "#f59e0b", fontWeight: 600 }}>
+                      Manual command active
+                    </span>
+                  )}
                 </div>
-                <p style={styles.commandHint}>
-                  Copy and paste this short command into Windows PowerShell terminal to execute.
-                </p>
               </div>
             </div>
 
@@ -2696,7 +2837,36 @@ const styles = {
     fontFamily: "Consolas, Monaco, monospace",
     fontSize: "0.95rem",
     fontWeight: 700,
-    wordBreak: "break-all"
+    wordBreak: "break-all",
+    width: "100%",
+    boxSizing: "border-box",
+    minHeight: "58px",
+    resize: "vertical",
+    outline: "none",
+    lineHeight: "1.45"
+  },
+  commandEditedBadge: {
+    fontSize: "0.72rem",
+    padding: "2px 8px",
+    borderRadius: "10px",
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    color: "#f59e0b",
+    border: "1px solid rgba(245, 158, 11, 0.3)",
+    fontWeight: 600
+  },
+  resetCommandBtn: {
+    background: "none",
+    border: "1px solid #444444",
+    borderRadius: "8px",
+    color: "#fbbf24",
+    fontSize: "0.78rem",
+    fontWeight: 600,
+    padding: "6px 12px",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "5px",
+    transition: "all 0.2s ease"
   },
   commandHint: {
     fontSize: "0.78rem",

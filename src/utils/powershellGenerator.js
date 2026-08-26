@@ -15,10 +15,12 @@ function categoryToMode(category) {
 }
 
 export function generatePowerShellCommands(renamer, targetPath = "", options = {}) {
-  const { dryRun = true, showName = "", scriptsFolder = "", customMode = "" } = options;
+  const { dryRun = true, showName = "", scriptsFolder = "", customMode = "", includeMode = false } = options;
   const cleanPath = targetPath.trim() || "<TARGET_FOLDER>";
   const parts = renamer?.parts || [];
-  // Use the user-supplied mode if set, otherwise auto-detect from preset category
+
+  // Mode argument is purely optional: only included if includeMode is true or customMode is explicitly provided
+  const hasMode = includeMode || Boolean(customMode && customMode.trim());
   const mode = customMode.trim() || categoryToMode(renamer?.category);
 
   if (parts.length === 0) {
@@ -51,11 +53,11 @@ export function generatePowerShellCommands(renamer, targetPath = "", options = {
   });
 
   // 2. Build the correct command:
-  //    If scriptsFolder is provided: python "C:\path\to\scripts\main.py" --folder "..." --mode movies [--execute]
-  //    If scriptsFolder is empty:    python main.py --folder "..." --mode movies [--execute]
+  //    If scriptsFolder is provided: python "C:\path\to\scripts\main.py" --folder "..." [--mode movies] [--execute]
+  //    If scriptsFolder is empty:    python main.py --folder "..." [--mode movies] [--execute]
 
   const folderArg = `--folder "${cleanPath}"`;
-  const modeArg = `--mode ${mode}`;
+  const modeArg = hasMode && mode ? ` --mode ${mode}` : "";
   const executeFlag = dryRun ? "" : " --execute";  // omit for dry run, add for live
   const showArg = showName ? ` --show-name "${showName}"` : "";
 
@@ -69,12 +71,14 @@ export function generatePowerShellCommands(renamer, targetPath = "", options = {
     scriptTarget = trimmedScriptDir ? `"${trimmedScriptDir}\\main.py"` : `main.py`;
   }
 
-  const powershellShortCommand = `python ${scriptTarget} ${folderArg} ${modeArg}${executeFlag}${showArg}`;
+  const powershellShortCommand = `python ${scriptTarget} ${folderArg}${modeArg}${executeFlag}${showArg}`;
 
   // 3. Complete clean .ps1 script block
   let ps1File = `# Film Library Renamer - ${renamer.name}\n`;
   ps1File += `# Target Folder: "${cleanPath}"\n`;
-  ps1File += `# Mode: ${mode}\n`;
+  if (hasMode && mode) {
+    ps1File += `# Mode: ${mode}\n`;
+  }
   ps1File += `# ${dryRun ? "DRY RUN (preview only — files will NOT be renamed)" : "LIVE RENAME (--execute flag is ON)"}\n\n`;
   ps1File += `${powershellShortCommand}\n`;
 
