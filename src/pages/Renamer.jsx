@@ -21,6 +21,7 @@ import {
   Eye,
   EyeOff,
   CheckCircle2,
+  CircleOff,
   FileCheck,
   Sliders,
   Settings2,
@@ -56,9 +57,23 @@ export const Renamer = () => {
   const commandTemplateRef = useRef(null);
 
   const RENAMER_INPUTS_KEY = "filmlibrary_renamer_inputs_v2";
+  const RENAMER_AUTOSAVE_KEY = "filmlibrary_renamer_autosave_setting";
+
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState(() => {
+    try {
+      const saved = localStorage.getItem(RENAMER_AUTOSAVE_KEY);
+      return saved !== null ? JSON.parse(saved) : true;
+    } catch {
+      return true;
+    }
+  });
 
   const loadSavedInputs = () => {
     try {
+      const autoSaveSetting = localStorage.getItem(RENAMER_AUTOSAVE_KEY);
+      if (autoSaveSetting !== null && JSON.parse(autoSaveSetting) === false) {
+        return {};
+      }
       const raw = localStorage.getItem(RENAMER_INPUTS_KEY);
       return raw ? JSON.parse(raw) : {};
     } catch {
@@ -68,7 +83,7 @@ export const Renamer = () => {
 
   const initialInputs = useRef(loadSavedInputs()).current;
 
-  // PowerShell Generator parameters (persisted automatically across all code and preset changes)
+  // PowerShell Generator parameters (persisted automatically across all code and preset changes when auto-save is ON)
   const [targetPath, setTargetPath] = useState(initialInputs.targetPath || "");
   const [scriptsFolder, setScriptsFolder] = useState(initialInputs.scriptsFolder || "");
   const [folderArgStyle, setFolderArgStyle] = useState(initialInputs.folderArgStyle || "auto");
@@ -103,23 +118,40 @@ export const Renamer = () => {
   // Command Template with {PATH} placeholder for this preset
   const [commandTemplate, setCommandTemplate] = useState("");
 
-  // Auto-save Target Folder & Command Generator inputs across sessions
+  // Auto-save Target Folder & Command Generator inputs across sessions when enabled
   useEffect(() => {
     try {
-      localStorage.setItem(
-        RENAMER_INPUTS_KEY,
-        JSON.stringify({
-          targetPath,
-          scriptsFolder,
-          folderArgStyle,
-          customMode,
-          includeMode,
-          dryRun,
-          showName
-        })
-      );
+      localStorage.setItem(RENAMER_AUTOSAVE_KEY, JSON.stringify(autoSaveEnabled));
+      if (autoSaveEnabled) {
+        localStorage.setItem(
+          RENAMER_INPUTS_KEY,
+          JSON.stringify({
+            targetPath,
+            scriptsFolder,
+            folderArgStyle,
+            customMode,
+            includeMode,
+            dryRun,
+            showName
+          })
+        );
+      } else {
+        localStorage.removeItem(RENAMER_INPUTS_KEY);
+      }
     } catch {}
-  }, [targetPath, scriptsFolder, folderArgStyle, customMode, includeMode, dryRun, showName]);
+  }, [autoSaveEnabled, targetPath, scriptsFolder, folderArgStyle, customMode, includeMode, dryRun, showName]);
+
+  const handleToggleAutoSave = () => {
+    setAutoSaveEnabled((prev) => {
+      const next = !prev;
+      if (next) {
+        addToast("Auto-save Enabled (Inputs will be saved automatically)", "success");
+      } else {
+        addToast("Auto-save Disabled (Inputs will not be saved)", "info");
+      }
+      return next;
+    });
+  };
 
   // Modal State for Adding/Editing Code
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -1342,9 +1374,37 @@ export const Renamer = () => {
                   <FolderSearch size={16} color="#e50914" /> Target Folder & Command Generator
                 </h3>
                 <div style={styles.autoSaveGroup}>
-                  <span style={styles.autoSaveBadge} title="Input paths and parameters automatically saved to browser storage">
-                    <CheckCircle2 size={13} color="#10b981" /> Auto-saved
-                  </span>
+                  <button
+                    type="button"
+                    onClick={handleToggleAutoSave}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      fontSize: "0.78rem",
+                      fontWeight: 700,
+                      padding: "4px 11px",
+                      borderRadius: "14px",
+                      cursor: "pointer",
+                      transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                      border: autoSaveEnabled ? "1px solid #10b981" : "1px solid #3f3f46",
+                      backgroundColor: autoSaveEnabled ? "rgba(16, 185, 129, 0.15)" : "rgba(255, 255, 255, 0.05)",
+                      color: autoSaveEnabled ? "#4ade80" : "#a1a1aa",
+                      boxShadow: autoSaveEnabled ? "0 0 10px rgba(16, 185, 129, 0.25)" : "none"
+                    }}
+                    title={
+                      autoSaveEnabled
+                        ? "Auto-save is ON (Inputs automatically save). Click to turn OFF."
+                        : "Auto-save is OFF (Inputs will not save). Click to turn ON."
+                    }
+                  >
+                    {autoSaveEnabled ? (
+                      <CheckCircle2 size={13} color="#10b981" />
+                    ) : (
+                      <CircleOff size={13} color="#a1a1aa" />
+                    )}
+                    {autoSaveEnabled ? "Auto-saved: ON" : "Auto-save: OFF"}
+                  </button>
                   <button
                     type="button"
                     style={styles.clearInputsBtn}
