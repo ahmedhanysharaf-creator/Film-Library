@@ -1649,19 +1649,7 @@ export const Renamer = () => {
                   <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
                     <button
                       type="button"
-                      style={{
-                        padding: "5px 12px",
-                        backgroundColor: "#166534",
-                        color: "#4ade80",
-                        border: "1px solid #22c55e",
-                        borderRadius: "6px",
-                        fontSize: "0.76rem",
-                        fontWeight: 700,
-                        cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "5px"
-                      }}
+                      className="save-preset-settings-btn"
                       onClick={handleSaveCommandTemplate}
                       title={`Save this template specifically for "${selectedCode?.name}" so it loads every time`}
                     >
