@@ -127,6 +127,7 @@ export const Renamer = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCodeObj, setEditingCodeObj] = useState(null);
   const [formName, setFormName] = useState("");
+  const [formFolderName, setFormFolderName] = useState("");
   const [formDesc, setFormDesc] = useState("");
   const [formCategory, setFormCategory] = useState("movie");
   const [formIsRenamer, setFormIsRenamer] = useState(true);
@@ -452,19 +453,41 @@ export const Renamer = () => {
     if (!codeObj || !codeObj.parts || codeObj.parts.length === 0) return;
     const preset = destFolders[codeObj.id];
     const dirHandle = preset?.handle;
-    const folderName = (codeObj.folderName || codeObj.name || "Renamer Scripts").replace(/[<>:"/\\|?*]/g, "_").trim();
+    const rawFolderName = codeObj.folderName || codeObj.name || "Renamer Scripts";
+    const folderName = rawFolderName.replace(/[<>:"/\\|?*]/g, "_").trim();
+
+    const isMulti = codeObj.parts.length > 1 || Boolean(codeObj.folderName) || codeObj.category === "multi_part";
 
     if (dirHandle) {
-      // Write into a dedicated subfolder matching the preset name
+      // Write into a dedicated subfolder matching the exact original folder name
       try {
-        const targetSubDir = await dirHandle.getDirectoryHandle(folderName, { create: true });
+        const targetSubDir = isMulti
+          ? await dirHandle.getDirectoryHandle(folderName, { create: true })
+          : dirHandle;
+
         for (const part of codeObj.parts) {
-          const fileHandle = await targetSubDir.getFileHandle(part.name, { create: true });
+          const relativeFilePath = (part.relativePath || part.name || "script.py").replace(/\\/g, "/");
+          const pathSegments = relativeFilePath.split("/").filter(Boolean);
+          const fileName = pathSegments.pop();
+
+          let currDir = targetSubDir;
+          for (const segment of pathSegments) {
+            if (segment && segment !== ".") {
+              currDir = await currDir.getDirectoryHandle(segment, { create: true });
+            }
+          }
+
+          const fileHandle = await currDir.getFileHandle(fileName, { create: true });
           const writable = await fileHandle.createWritable();
-          await writable.write(part.code);
+          await writable.write(part.code || "");
           await writable.close();
         }
-        addToast(`✅ Saved folder "${folderName}" with ${codeObj.parts.length} script(s) into "${dirHandle.name}"`, "success");
+
+        if (isMulti) {
+          addToast(`✅ Saved folder "${folderName}" with ${codeObj.parts.length} file(s) into "${dirHandle.name}"`, "success");
+        } else {
+          addToast(`✅ Saved "${codeObj.parts[0].name}" into "${dirHandle.name}"`, "success");
+        }
       } catch (err) {
         if (err.name === "NotAllowedError") {
           addToast("Permission denied — please re-select the destination folder.", "error");
@@ -480,11 +503,12 @@ export const Renamer = () => {
     } else {
       // Fallback: browser downloads
       try {
-        if (codeObj.parts.length > 1) {
+        if (isMulti) {
           const zip = new JSZip();
-          const folder = zip.folder(folderName);
+          const rootZipFolder = zip.folder(folderName);
           codeObj.parts.forEach((part) => {
-            folder.file(part.name, part.code);
+            const relPath = (part.relativePath || part.name || "script.py").replace(/\\/g, "/");
+            rootZipFolder.file(relPath, part.code || "");
           });
           const zipBlob = await zip.generateAsync({ type: "blob" });
           const url = URL.createObjectURL(zipBlob);
@@ -495,18 +519,18 @@ export const Renamer = () => {
           a.click();
           document.body.removeChild(a);
           URL.revokeObjectURL(url);
-          addToast(`✅ Downloaded "${folderName}.zip" (extracts as a folder)!`, "success");
+          addToast(`✅ Downloaded "${folderName}.zip" (contains all ${codeObj.parts.length} files in folder "${folderName}")!`, "success");
         } else {
           handleDownloadFile(codeObj.parts[0].code, codeObj.parts[0].name, "text/x-python");
         }
       } catch (err) {
         codeObj.parts.forEach((part, idx) => {
           setTimeout(() => {
-            handleDownloadFile(part.code, part.name, "text/x-python");
-          }, idx * 400);
+            handleDownloadFile(part.code, part.name, "text/plain");
+          }, idx * 250);
         });
         if (codeObj.parts.length > 1) {
-          addToast(`Downloading ${codeObj.parts.length} script files…`, "info");
+          addToast(`Downloading ${codeObj.parts.length} files…`, "info");
         }
       }
     }
@@ -525,63 +549,94 @@ export const Renamer = () => {
     addToast(`Downloaded ${filename}`, "info");
   };
 
-  // Import an entire folder of Python scripts as a multi-part preset
+  // Import an entire folder as a multi-part preset (including scripts, configs, keys, docs, logs)
   const handlePythonFolderImport = (event) => {
     const allFiles = Array.from(event.target.files || []);
-    // Include both .py code files and format documentation .txt files (e.g. NAMING_FORMAT.txt)
-    const targetFiles = allFiles
-      .filter((f) => f.name.endsWith(".py") || f.name.endsWith(".txt"))
-      .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
 
-    if (targetFiles.length === 0) {
-      addToast("No Python (.py) or format (.txt) files found in the selected folder.", "warning");
+    // Filter out temporary build/cache artifacts (__pycache__, .git, .DS_Store, Thumbs.db, .pyc, .pyo)
+    const validFiles = allFiles.filter((f) => {
+      const path = (f.webkitRelativePath || f.name).replace(/\\/g, "/");
+      if (path.includes("/__pycache__/") || path.includes("/.git/") || path.includes("/.idea/") || path.includes("/.vscode/")) {
+        return false;
+      }
+      if (f.name === ".DS_Store" || f.name === "Thumbs.db" || f.name.endsWith(".pyc") || f.name.endsWith(".pyo")) {
+        return false;
+      }
+      return true;
+    });
+
+    if (validFiles.length === 0) {
+      addToast("No valid files found in the selected folder.", "warning");
       event.target.value = "";
       return;
     }
 
-    // Detect folder name from the first file's relative path
-    const firstRelative = targetFiles[0].webkitRelativePath || targetFiles[0].name;
-    const folderName = firstRelative.split("/")[0] || firstRelative.split("\\")[0];
+    // Detect root folder name from relative path
+    const firstRelative = (validFiles[0].webkitRelativePath || validFiles[0].name).replace(/\\/g, "/");
+    const rootFolderName = firstRelative.split("/")[0] || "Custom Pipeline";
 
-    const readPromises = targetFiles.map((file) =>
+    // Sort files: Python scripts first (main.py first), then config/key files, then txt/docs/logs
+    const sortedFiles = validFiles.sort((a, b) => {
+      const relA = (a.webkitRelativePath || a.name).replace(/\\/g, "/");
+      const relB = (b.webkitRelativePath || b.name).replace(/\\/g, "/");
+      const pathA = relA.includes("/") ? relA.replace(/^[^/]+\//, "") : relA;
+      const pathB = relB.includes("/") ? relB.replace(/^[^/]+\//, "") : relB;
+      const isMainA = /main\.py$/i.test(pathA);
+      const isMainB = /main\.py$/i.test(pathB);
+      if (isMainA && !isMainB) return -1;
+      if (!isMainA && isMainB) return 1;
+      const isPyA = pathA.endsWith(".py");
+      const isPyB = pathB.endsWith(".py");
+      if (isPyA && !isPyB) return -1;
+      if (!isPyA && isPyB) return 1;
+      return pathA.localeCompare(pathB, undefined, { numeric: true });
+    });
+
+    const readPromises = sortedFiles.map((file) =>
       new Promise((resolve) => {
+        const rel = (file.webkitRelativePath || file.name).replace(/\\/g, "/");
+        const subPath = rel.includes("/") ? rel.replace(/^[^/]+\//, "") : file.name;
+
         const reader = new FileReader();
-        reader.onload = (e) => resolve({ name: file.name, code: e.target.result || "" });
+        reader.onload = (e) => resolve({
+          name: subPath,
+          relativePath: subPath,
+          code: e.target.result || "",
+          size: file.size
+        });
+        reader.onerror = () => resolve({
+          name: subPath,
+          relativePath: subPath,
+          code: "",
+          size: file.size
+        });
         reader.readAsText(file);
       })
     );
 
     Promise.all(readPromises).then((importedFiles) => {
-      // Python scripts form execution parts
-      const pyFiles = importedFiles.filter((f) => f.name.endsWith(".py"));
-      const executionFiles = pyFiles.length > 0 ? pyFiles : importedFiles;
-
-      const scriptParts = executionFiles.map((item, idx) => ({
+      const scriptParts = importedFiles.map((item, idx) => ({
         id: `part_${Date.now()}_${idx}`,
         name: item.name,
+        relativePath: item.relativePath,
         code: item.code
       }));
 
-      // Pass ALL files (including NAMING_FORMAT.txt) to detectCodeFormat for full format extraction
-      const partsForDetection = importedFiles.map((item, idx) => ({
-        id: `part_detect_${idx}`,
-        name: item.name,
-        code: item.code
-      }));
-
-      const detection = detectCodeFormat(partsForDetection);
+      const pyFiles = importedFiles.filter((f) => (f.name || "").endsWith(".py"));
+      const detection = detectCodeFormat(importedFiles);
       const autoCat = scriptParts.length > 1 ? "multi_part" : (detection.autoCategory || "movie");
       const autoFmt = detection.extractedTemplateStr || "";
 
       setEditingCodeObj(null);
-      setFormName(folderName.replace(/[_-]/g, " "));
-      setFormDesc(`Pipeline loaded from folder: ${folderName} (${pyFiles.length} scripts + format txt)`);
+      setFormName(rootFolderName.replace(/[_-]/g, " "));
+      setFormFolderName(rootFolderName);
+      setFormDesc(`Pipeline loaded from folder: ${rootFolderName} (${importedFiles.length} files: ${pyFiles.length} scripts + configs/docs)`);
       setFormCategory(autoCat);
       setFormFormatTemplate(autoFmt);
       setFormParts(scriptParts);
       setActivePartIndex(0);
       setIsModalOpen(true);
-      addToast(`Loaded folder "${folderName}" and scanned format .txt! (Auto-Detected: ${autoCat.toUpperCase()})`, "success");
+      addToast(`Loaded folder "${rootFolderName}" (${importedFiles.length} files)! (Auto-Detected: ${autoCat.toUpperCase()})`, "success");
     });
 
     event.target.value = "";
@@ -647,6 +702,7 @@ export const Renamer = () => {
   const handleOpenAddModal = () => {
     setEditingCodeObj(null);
     setFormName("");
+    setFormFolderName("");
     setFormDesc("");
     setFormCategory("movie");
     setFormIsRenamer(true);
@@ -665,6 +721,7 @@ export const Renamer = () => {
   const handleOpenEditModal = (codeObj) => {
     setEditingCodeObj(codeObj);
     setFormName(codeObj.name || "");
+    setFormFolderName(codeObj.folderName || codeObj.name || "");
     setFormDesc(codeObj.description || "");
     setFormCategory(codeObj.category || "movie");
     setFormIsRenamer(codeObj.isRenamer !== false);
@@ -711,11 +768,12 @@ export const Renamer = () => {
     const newCodeObj = {
       id: editingCodeObj ? editingCodeObj.id : `custom_code_${Date.now()}`,
       name: formName.trim(),
+      folderName: formFolderName.trim() || (formParts.length > 1 ? formName.trim() : ""),
       description: formDesc.trim(),
       category: formCategory,
       isRenamer: formIsRenamer,
       formatTemplate: formFormatTemplate.trim(),
-      badge: formParts.length > 1 ? `${formParts.length}-Step Pipeline` : `${formCategory.toUpperCase()} Script`,
+      badge: formParts.length > 1 ? `${formParts.length} Parts` : `${formCategory.toUpperCase()} Script`,
       parts: formParts
     };
 
@@ -971,9 +1029,16 @@ export const Renamer = () => {
                   <button
                     style={styles.downloadHeaderBtn}
                     onClick={() => handleDownloadAllParts(selectedCode)}
-                    title={selectedCode.parts?.length > 1 ? `Download all ${selectedCode.parts.length} Python scripts` : "Download Python script"}
+                    title={
+                      selectedCode.parts?.length > 1 || selectedCode.folderName
+                        ? `Download folder "${selectedCode.folderName || selectedCode.name}" (${selectedCode.parts.length} files)`
+                        : "Download Python script"
+                    }
                   >
-                    <Download size={14} /> Download Script{selectedCode.parts?.length > 1 ? `s (${selectedCode.parts.length})` : ""}
+                    <Download size={14} />{" "}
+                    {selectedCode.parts?.length > 1 || selectedCode.folderName
+                      ? `Download Folder (${selectedCode.parts?.length || 0} files)`
+                      : "Download Script"}
                   </button>
 
                   <button
@@ -1969,6 +2034,19 @@ export const Renamer = () => {
                 <label htmlFor="formIsRenamerCheck" style={{ color: "#f3f4f6", fontSize: "0.85rem", cursor: "pointer", fontWeight: 600 }}>
                   This script renames media files (Enable Filename Format & Preview Simulation)
                 </label>
+              </div>
+
+              <div style={styles.formGroup}>
+                <label style={styles.inputLabel}>
+                  📁 Dedicated Subfolder Name (for downloads & directory creation):
+                </label>
+                <input
+                  type="text"
+                  value={formFolderName}
+                  onChange={(e) => setFormFolderName(e.target.value)}
+                  placeholder="e.g. Marvel Series Renamer (leave blank to use Preset Title)"
+                  style={styles.textInput}
+                />
               </div>
 
               <div style={styles.formGroup}>

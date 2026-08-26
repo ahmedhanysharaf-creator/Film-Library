@@ -118,26 +118,31 @@ export function generatePowerShellCommands(renamer, targetPath = "", options = {
   const pythonPath = cleanPath || "<TARGET_FOLDER>";
   const pythonStandaloneFiles = parts.map((part, idx) => {
     let code = part.code || "";
-    // Inject UTF-8 output encoding safeguard for Windows stdout if missing
-    if (!code.includes("sys.stdout.reconfigure") && !code.includes("PYTHONIOENCODING")) {
-      const utf8Snippet = `import sys\nif sys.platform == "win32":\n    try:\n        sys.stdout.reconfigure(encoding="utf-8", errors="replace")\n        sys.stderr.reconfigure(encoding="utf-8", errors="replace")\n    except Exception:\n        pass\n\n`;
-      code = utf8Snippet + code;
+    const isPython = (part.name || "").endsWith(".py") || (!part.name && !code.startsWith("{"));
+
+    if (isPython) {
+      // Inject UTF-8 output encoding safeguard for Windows stdout if missing
+      if (!code.includes("sys.stdout.reconfigure") && !code.includes("PYTHONIOENCODING")) {
+        const utf8Snippet = `import sys\nif sys.platform == "win32":\n    try:\n        sys.stdout.reconfigure(encoding="utf-8", errors="replace")\n        sys.stderr.reconfigure(encoding="utf-8", errors="replace")\n    except Exception:\n        pass\n\n`;
+        code = utf8Snippet + code;
+      }
+
+      code = code.replace(/TARGET_DIR\s*=\s*r?["'].*?["']/, `TARGET_DIR = r"${pythonPath}"`);
+      code = code.replace(/\{TARGET_DIR\}/g, pythonPath.replace(/\\/g, "\\\\"));
+
+      if (showName) {
+        code = code.replace(/SHOW_NAME\s*=\s*["'].*?["']/, `SHOW_NAME = "${showName}"`);
+        code = code.replace(/\{SHOW_NAME\}/g, showName);
+      }
+
+      code = code.replace(/DRY_RUN\s*=\s*(True|False)/i, `DRY_RUN = ${dryRun ? "True" : "False"}`);
     }
-
-    code = code.replace(/TARGET_DIR\s*=\s*r?["'].*?["']/, `TARGET_DIR = r"${pythonPath}"`);
-    code = code.replace(/\{TARGET_DIR\}/g, pythonPath.replace(/\\/g, "\\\\"));
-
-    if (showName) {
-      code = code.replace(/SHOW_NAME\s*=\s*["'].*?["']/, `SHOW_NAME = "${showName}"`);
-      code = code.replace(/\{SHOW_NAME\}/g, showName);
-    }
-
-    code = code.replace(/DRY_RUN\s*=\s*(True|False)/i, `DRY_RUN = ${dryRun ? "True" : "False"}`);
 
     const safeFilename = part.name || `${renamer.name || "renamer"}_part${idx + 1}.py`;
     return {
       id: part.id || `part_${idx + 1}`,
       name: safeFilename,
+      relativePath: part.relativePath || safeFilename,
       code
     };
   });
@@ -176,12 +181,12 @@ export function generatePowerShellCommands(renamer, targetPath = "", options = {
   let scriptTarget = "main.py";
   const trimmedScriptDir = scriptsFolder.trim().replace(/[\\/]+$/, "");
 
-  if (parts.length === 1) {
-    const singleName = pythonStandaloneFiles[0].name || "renamer.py";
-    scriptTarget = trimmedScriptDir ? `"${trimmedScriptDir}\\${singleName}"` : `"${singleName}"`;
-  } else {
-    scriptTarget = trimmedScriptDir ? `"${trimmedScriptDir}\\main.py"` : `main.py`;
-  }
+  const mainPart = parts.find((p) => p.name && (p.name.toLowerCase() === "main.py" || p.name.toLowerCase().endsWith("/main.py") || p.name.toLowerCase().endsWith("\\main.py")))
+    || parts.find((p) => (p.name || "").endsWith(".py"))
+    || parts[0];
+
+  const primaryScriptName = mainPart?.name || "main.py";
+  scriptTarget = trimmedScriptDir ? `"${trimmedScriptDir}\\${primaryScriptName}"` : (parts.length === 1 ? `"${primaryScriptName}"` : primaryScriptName);
 
   // Use -X utf8 to prevent Windows PowerShell charmap/cp1252 UnicodeEncodeError
   const powershellShortCommand = `python -X utf8 ${scriptTarget}${folderArg}${modeArg}${executeFlag}${showArg}`.replace(/\s+/g, " ").trim();
