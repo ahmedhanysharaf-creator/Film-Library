@@ -69,6 +69,7 @@ export const Renamer = () => {
   // PowerShell Generator parameters (persisted automatically across all code and preset changes)
   const [targetPath, setTargetPath] = useState(initialInputs.targetPath || "");
   const [scriptsFolder, setScriptsFolder] = useState(initialInputs.scriptsFolder || "");
+  const [folderArgStyle, setFolderArgStyle] = useState(initialInputs.folderArgStyle || "auto");
   const [includeMode, setIncludeMode] = useState(
     initialInputs.includeMode !== undefined ? initialInputs.includeMode : false
   );
@@ -113,6 +114,7 @@ export const Renamer = () => {
         JSON.stringify({
           targetPath,
           scriptsFolder,
+          folderArgStyle,
           customMode,
           includeMode,
           dryRun,
@@ -123,7 +125,7 @@ export const Renamer = () => {
         })
       );
     } catch {}
-  }, [targetPath, scriptsFolder, customMode, includeMode, dryRun, showName, testFilename, testSubFilename, testSubfolderPath]);
+  }, [targetPath, scriptsFolder, folderArgStyle, customMode, includeMode, dryRun, showName, testFilename, testSubFilename, testSubfolderPath]);
 
   // Modal State for Adding/Editing Code
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -211,8 +213,8 @@ export const Renamer = () => {
     ? detectCodeFormat(selectedCode.parts, isSeriesPreset ? "series" : selectedCode.category, selectedCode.name, activeFormatOverride)
     : null;
   const generatedCommands = selectedCode
-    ? generatePowerShellCommands(selectedCode, targetPath, { dryRun, showName, scriptsFolder, customMode, includeMode })
-    : { powershellShortCommand: "", powershellScript: "", pythonStandaloneFiles: [] };
+    ? generatePowerShellCommands(selectedCode, targetPath, { dryRun, showName, scriptsFolder, customMode, includeMode, folderArgStyle })
+    : { powershellShortCommand: "", powershellScript: "", pythonStandaloneFiles: [], detectedCli: { folderStyle: "positional", styleLabel: 'Direct "path"' } };
 
   const effectiveCommand = customCommand !== "" ? customCommand : generatedCommands.powershellShortCommand;
   const isCommandEdited = customCommand !== "" && customCommand !== generatedCommands.powershellShortCommand;
@@ -316,6 +318,7 @@ export const Renamer = () => {
   const handleClearAllInputs = () => {
     setTargetPath("");
     setScriptsFolder("");
+    setFolderArgStyle("auto");
     setCustomMode("");
     setIncludeMode(false);
     setShowName("");
@@ -1297,9 +1300,28 @@ export const Renamer = () => {
 
               {/* Target Media Folder */}
               <div style={styles.inputGroup}>
-                <label style={styles.inputLabel}>
-                  🎬 Target Media Folder (folder containing your video files to rename):
-                </label>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px", flexWrap: "wrap", gap: "8px" }}>
+                  <label style={{ ...styles.inputLabel, margin: 0 }}>
+                    🎬 Target Media Folder (folder containing your video files to rename):
+                  </label>
+                  {generatedCommands.detectedCli && (
+                    <span
+                      style={{
+                        fontSize: "0.74rem",
+                        padding: "2px 8px",
+                        borderRadius: "10px",
+                        backgroundColor: "rgba(59, 130, 246, 0.15)",
+                        color: "#60a5fa",
+                        border: "1px solid rgba(59, 130, 246, 0.3)",
+                        fontWeight: 600
+                      }}
+                      title="Auto-detected how your Python script accepts arguments"
+                    >
+                      Script expects: {generatedCommands.detectedCli.styleLabel}
+                    </span>
+                  )}
+                </div>
+
                 <input
                   type="text"
                   value={targetPath}
@@ -1307,8 +1329,37 @@ export const Renamer = () => {
                   placeholder="e.g. C:\Users\Ahmed\Downloads\English\Marvel Films"
                   style={styles.pathInput}
                 />
+
+                {/* Folder Argument Format Selector */}
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "8px", flexWrap: "wrap" }}>
+                  <span style={{ fontSize: "0.76rem", color: "#9ca3af", fontWeight: 600 }}>Command Argument Style:</span>
+                  {[
+                    { id: "auto", label: `⚡ Auto (${generatedCommands.detectedCli?.styleLabel || 'Direct'})` },
+                    { id: "positional", label: 'Direct: "C:\\path"' },
+                    { id: "named_folder", label: '--folder "C:\\path"' },
+                    { id: "none", label: 'In Current Folder (No path arg)' }
+                  ].map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      style={{
+                        ...styles.quickPathBtn,
+                        backgroundColor: folderArgStyle === opt.id ? "rgba(59, 130, 246, 0.2)" : "#1e1e1e",
+                        color: folderArgStyle === opt.id ? "#60a5fa" : "#a3a3a3",
+                        border: folderArgStyle === opt.id ? "1px solid #3b82f6" : "1px solid #333333",
+                        fontSize: "0.75rem",
+                        padding: "3px 9px",
+                        fontWeight: folderArgStyle === opt.id ? 700 : 500
+                      }}
+                      onClick={() => setFolderArgStyle(opt.id)}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+
                 <div style={styles.quickPathButtons}>
-                  <span style={styles.quickLabel}>Examples / Quick:</span>
+                  <span style={styles.quickLabel}>Examples:</span>
                   {[
                     "D:\\Movies\\Action",
                     "C:\\Media\\Series",

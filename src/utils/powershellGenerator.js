@@ -14,28 +14,112 @@ function categoryToMode(category) {
   return "movies"; // default for movie / subtitle / multi_part / unknown
 }
 
-export function generatePowerShellCommands(renamer, targetPath = "", options = {}) {
-  const { dryRun = true, showName = "", scriptsFolder = "", customMode = "", includeMode = false } = options;
-  const cleanPath = targetPath.trim() || "<TARGET_FOLDER>";
-  const parts = renamer?.parts || [];
+/**
+ * Analyzes Python code parts to determine how the script expects CLI arguments:
+ * - 'named_folder': uses argparse with '--folder' / '-f'
+ * - 'named_dir': uses argparse with '--dir' / '-d'
+ * - 'named_path': uses argparse with '--path' / '-p'
+ * - 'named_target': uses argparse with '--target'
+ * - 'positional': uses sys.argv[1] or argparse positional argument without '--folder'
+ * - 'none': does not accept CLI arguments (uses baked TARGET_DIR or runs in current folder)
+ */
+export function detectScriptCliFormat(parts = []) {
+  if (!parts || parts.length === 0) {
+    return {
+      folderStyle: "positional",
+      styleLabel: 'Direct Path: "path"',
+      supportsMode: false,
+      supportsExecute: false,
+      hasSysArgv: false,
+      hasArgparse: false
+    };
+  }
 
-  // Mode argument is purely optional: only included if includeMode is true or customMode is explicitly provided
-  const hasMode = includeMode || Boolean(customMode && customMode.trim());
-  const mode = customMode.trim() || categoryToMode(renamer?.category);
+  const combinedCode = parts.map((p) => p.code || "").join("\n");
+  const codeLower = combinedCode.toLowerCase();
+
+  const hasArgparse = codeLower.includes("argparse");
+  const hasSysArgv = codeLower.includes("sys.argv");
+
+  const hasFolderFlag = /--folder|-f\b|'--folder'|"--folder"|'-f'|"-f"/.test(combinedCode);
+  const hasDirFlag = /--dir|-d\b|'--dir'|"--dir"|'-d'|"-d"/.test(combinedCode);
+  const hasPathFlag = /--path|-p\b|'--path'|"--path"|'-p'|"-p"/.test(combinedCode);
+  const hasTargetFlag = /--target|'--target'|"--target"/.test(combinedCode);
+
+  const hasModeFlag = /--mode|-m\b|'--mode'|"--mode"/.test(combinedCode);
+  const hasExecuteFlag = /--execute|-e\b|'--execute'|"--execute"/.test(combinedCode);
+  const hasDryRunFlag = /--dry-run|--dryrun|'--dry-run'|"--dry-run"/.test(combinedCode);
+
+  let folderStyle = "positional"; // default to direct path for standalone scripts
+
+  if (hasFolderFlag) {
+    folderStyle = "named_folder";
+  } else if (hasDirFlag) {
+    folderStyle = "named_dir";
+  } else if (hasPathFlag) {
+    folderStyle = "named_path";
+  } else if (hasTargetFlag) {
+    folderStyle = "named_target";
+  } else if (hasSysArgv) {
+    // If the script checks sys.argv directly without named flag checks (e.g. Path(sys.argv[1]))
+    folderStyle = "positional";
+  } else if (hasArgparse) {
+    folderStyle = /add_argument\(\s*['"][^-\s]/.test(combinedCode) ? "positional" : "named_folder";
+  } else {
+    folderStyle = "positional";
+  }
+
+  const styleLabels = {
+    named_folder: '--folder "path"',
+    named_dir: '--dir "path"',
+    named_path: '--path "path"',
+    named_target: '--target "path"',
+    positional: 'Direct Path: "path"',
+    none: "In Current Folder (No arg)"
+  };
+
+  return {
+    folderStyle,
+    styleLabel: styleLabels[folderStyle] || 'Direct Path: "path"',
+    supportsMode: hasModeFlag,
+    supportsExecute: hasExecuteFlag,
+    supportsDryRun: hasDryRunFlag,
+    hasArgparse,
+    hasSysArgv
+  };
+}
+
+export function generatePowerShellCommands(renamer, targetPath = "", options = {}) {
+  const {
+    dryRun = true,
+    showName = "",
+    scriptsFolder = "",
+    customMode = "",
+    includeMode = false,
+    folderArgStyle = "auto"
+  } = options;
+
+  const cleanPath = targetPath.trim();
+  const parts = renamer?.parts || [];
 
   if (parts.length === 0) {
     return {
       powershellShortCommand: "# No code parts available",
       powershellScript: "# No code parts available",
-      pythonStandaloneFiles: []
+      pythonStandaloneFiles: [],
+      detectedCli: { folderStyle: "positional", styleLabel: 'Direct Path: "path"' }
     };
   }
 
+  const detectedCli = detectScriptCliFormat(parts);
+  const activeFolderStyle = folderArgStyle && folderArgStyle !== "auto" ? folderArgStyle : detectedCli.folderStyle;
+
   // 1. Prepare Python Standalone Files with injected path & flags
+  const pythonPath = cleanPath || "<TARGET_FOLDER>";
   const pythonStandaloneFiles = parts.map((part, idx) => {
     let code = part.code || "";
-    code = code.replace(/TARGET_DIR\s*=\s*r?["'].*?["']/, `TARGET_DIR = r"${cleanPath}"`);
-    code = code.replace(/\{TARGET_DIR\}/g, cleanPath.replace(/\\/g, "\\\\"));
+    code = code.replace(/TARGET_DIR\s*=\s*r?["'].*?["']/, `TARGET_DIR = r"${pythonPath}"`);
+    code = code.replace(/\{TARGET_DIR\}/g, pythonPath.replace(/\\/g, "\\\\"));
 
     if (showName) {
       code = code.replace(/SHOW_NAME\s*=\s*["'].*?["']/, `SHOW_NAME = "${showName}"`);
@@ -52,13 +136,35 @@ export function generatePowerShellCommands(renamer, targetPath = "", options = {
     };
   });
 
-  // 2. Build the correct command:
-  //    If scriptsFolder is provided: python "C:\path\to\scripts\main.py" --folder "..." [--mode movies] [--execute]
-  //    If scriptsFolder is empty:    python main.py --folder "..." [--mode movies] [--execute]
+  // 2. Build the folder argument based on chosen / detected style
+  let folderArg = "";
+  const displayPath = cleanPath || (activeFolderStyle !== "none" ? "<TARGET_FOLDER>" : "");
 
-  const folderArg = `--folder "${cleanPath}"`;
+  if (displayPath) {
+    if (activeFolderStyle === "named_folder") {
+      folderArg = ` --folder "${displayPath}"`;
+    } else if (activeFolderStyle === "named_dir") {
+      folderArg = ` --dir "${displayPath}"`;
+    } else if (activeFolderStyle === "named_path") {
+      folderArg = ` --path "${displayPath}"`;
+    } else if (activeFolderStyle === "named_target") {
+      folderArg = ` --target "${displayPath}"`;
+    } else if (activeFolderStyle === "positional") {
+      folderArg = ` "${displayPath}"`;
+    } else if (activeFolderStyle === "none") {
+      folderArg = "";
+    } else {
+      folderArg = ` "${displayPath}"`;
+    }
+  }
+
+  // Mode argument: only included if includeMode is explicitly true or customMode is provided
+  const hasMode = includeMode || Boolean(customMode && customMode.trim());
+  const mode = customMode.trim() || categoryToMode(renamer?.category);
   const modeArg = hasMode && mode ? ` --mode ${mode}` : "";
-  const executeFlag = dryRun ? "" : " --execute";  // omit for dry run, add for live
+
+  // Execute flag: only added if user requested live rename AND (script supports it or not pure sys.argv positional)
+  const executeFlag = dryRun ? "" : (detectedCli.supportsExecute || !detectedCli.hasSysArgv ? " --execute" : "");
   const showArg = showName ? ` --show-name "${showName}"` : "";
 
   let scriptTarget = "main.py";
@@ -71,11 +177,13 @@ export function generatePowerShellCommands(renamer, targetPath = "", options = {
     scriptTarget = trimmedScriptDir ? `"${trimmedScriptDir}\\main.py"` : `main.py`;
   }
 
-  const powershellShortCommand = `python ${scriptTarget} ${folderArg}${modeArg}${executeFlag}${showArg}`;
+  const powershellShortCommand = `python ${scriptTarget}${folderArg}${modeArg}${executeFlag}${showArg}`.replace(/\s+/g, " ").trim();
 
   // 3. Complete clean .ps1 script block
   let ps1File = `# Film Library Renamer - ${renamer.name}\n`;
-  ps1File += `# Target Folder: "${cleanPath}"\n`;
+  if (displayPath) {
+    ps1File += `# Target Folder: "${displayPath}"\n`;
+  }
   if (hasMode && mode) {
     ps1File += `# Mode: ${mode}\n`;
   }
@@ -85,6 +193,7 @@ export function generatePowerShellCommands(renamer, targetPath = "", options = {
   return {
     powershellShortCommand,
     powershellScript: ps1File,
-    pythonStandaloneFiles
+    pythonStandaloneFiles,
+    detectedCli
   };
 }
