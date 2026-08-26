@@ -1301,20 +1301,7 @@ export const Renamer = () => {
                   <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
                     <button
                       type="button"
-                      style={{
-                        padding: "7px 14px",
-                        backgroundColor: "#166534",
-                        color: "#4ade80",
-                        border: "1px solid #22c55e",
-                        borderRadius: "8px",
-                        fontSize: "0.82rem",
-                        fontWeight: 700,
-                        cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "6px",
-                        boxShadow: "0 2px 8px rgba(34, 197, 94, 0.2)"
-                      }}
+                      className="save-preset-settings-btn"
                       onClick={handleSavePresetAlignmentData}
                       title={`Save these test inputs & format specifically for "${selectedCode?.name}" so they persist on refresh without affecting other scripts`}
                     >
