@@ -53,6 +53,7 @@ export const Renamer = () => {
   const headerFileInputRef = useRef(null);
   const modalFileInputRef = useRef(null);
   const pythonFolderInputRef = useRef(null);
+  const commandTemplateRef = useRef(null);
 
   const RENAMER_INPUTS_KEY = "filmlibrary_renamer_inputs_v2";
 
@@ -268,6 +269,34 @@ export const Renamer = () => {
       localStorage.removeItem(getPresetCommandTemplateKey(selectedCode.id));
     } catch {}
     addToast("Reset command template to default.", "info");
+  };
+
+  const handleInsertTokenToCommandTemplate = (tokenToInsert) => {
+    const textarea = commandTemplateRef.current;
+    if (!textarea) {
+      setCommandTemplate((prev) => (prev ? `${prev} ${tokenToInsert}` : tokenToInsert));
+      setCustomCommand("");
+      return;
+    }
+
+    const start = textarea.selectionStart !== undefined ? textarea.selectionStart : (commandTemplate || "").length;
+    const end = textarea.selectionEnd !== undefined ? textarea.selectionEnd : (commandTemplate || "").length;
+    const currentVal = commandTemplate || "";
+
+    const before = currentVal.substring(0, start);
+    const after = currentVal.substring(end);
+
+    const updated = before + tokenToInsert + after;
+    setCommandTemplate(updated);
+    setCustomCommand("");
+
+    setTimeout(() => {
+      if (commandTemplateRef.current) {
+        commandTemplateRef.current.focus();
+        const newPos = start + tokenToInsert.length;
+        commandTemplateRef.current.setSelectionRange(newPos, newPos);
+      }
+    }, 10);
   };
 
   // Form detection real-time preview (based on typed code in formParts & formFormatTemplate)
@@ -1645,6 +1674,7 @@ export const Renamer = () => {
                 </div>
 
                 <textarea
+                  ref={commandTemplateRef}
                   value={commandTemplate}
                   onChange={(e) => {
                     setCommandTemplate(e.target.value);
@@ -1674,9 +1704,12 @@ export const Renamer = () => {
 
                 {/* Token Helper Chips */}
                 <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "8px", flexWrap: "wrap" }}>
-                  <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>Insert Path Variable:</span>
+                  <span style={{ fontSize: "0.75rem", color: "#94a3b8", fontWeight: 600 }}>
+                    Insert / Replace at Selection:
+                  </span>
                   <button
                     type="button"
+                    onMouseDown={(e) => e.preventDefault()}
                     style={{
                       padding: "3px 9px",
                       backgroundColor: "rgba(56, 189, 248, 0.15)",
@@ -1687,16 +1720,48 @@ export const Renamer = () => {
                       cursor: "pointer",
                       fontWeight: 700
                     }}
-                    onClick={() => {
-                      if (!commandTemplate.includes("{PATH}")) {
-                        setCommandTemplate((prev) => (prev ? `${prev} "{PATH}"` : 'python "script.py" "{PATH}"'));
-                      } else {
-                        addToast("Template already contains {PATH}", "info");
-                      }
-                    }}
-                    title="Insert {PATH} placeholder into template"
+                    onClick={() => handleInsertTokenToCommandTemplate('"{PATH}"')}
+                    title='Replace selected text or insert "{PATH}" at cursor'
                   >
-                    + {'{PATH}'} (Target Folder)
+                    + "{'{PATH}'}" (Target Folder)
+                  </button>
+
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    style={{
+                      padding: "3px 8px",
+                      backgroundColor: "rgba(56, 189, 248, 0.08)",
+                      color: "#7dd3fc",
+                      border: "1px solid #0369a1",
+                      borderRadius: "5px",
+                      fontSize: "0.75rem",
+                      cursor: "pointer",
+                      fontWeight: 600
+                    }}
+                    onClick={() => handleInsertTokenToCommandTemplate('{PATH}')}
+                    title="Replace selected text or insert {PATH} (unquoted) at cursor"
+                  >
+                    + {'{PATH}'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    style={{
+                      padding: "3px 8px",
+                      backgroundColor: "rgba(16, 185, 129, 0.1)",
+                      color: "#6ee7b7",
+                      border: "1px solid #059669",
+                      borderRadius: "5px",
+                      fontSize: "0.75rem",
+                      cursor: "pointer",
+                      fontWeight: 600
+                    }}
+                    onClick={() => handleInsertTokenToCommandTemplate('--folder "{PATH}"')}
+                    title='Insert --folder "{PATH}" at cursor'
+                  >
+                    + --folder "{'{PATH}'}"
                   </button>
                 </div>
 
