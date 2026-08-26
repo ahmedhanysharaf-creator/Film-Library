@@ -3108,18 +3108,29 @@ const styles = {
   },
 
   configCard: {
-    backgroundColor: "#141414",
-    padding: "18px",
-    borderRadius: "12px",
-    border: "1px solid #2a2a2a",
+    backgroundColor: "#141416",
+    borderRadius: "14px",
+    border: "1px solid rgba(229, 9, 20, 0.3)",
+    padding: "20px 22px",
     display: "flex",
     flexDirection: "column",
-    gap: "16px"
+    gap: "16px",
+    boxShadow: "0 6px 24px rgba(0, 0, 0, 0.35)"
+  },
+  configHeaderRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "12px",
+    flexWrap: "wrap",
+    borderBottom: "1px solid #26262a",
+    paddingBottom: "12px"
   },
   configSectionTitle: {
-    fontSize: "1rem",
-    fontWeight: 700,
+    fontSize: "1.1rem",
+    fontWeight: 800,
     margin: 0,
+    color: "#ffffff",
     display: "flex",
     alignItems: "center",
     gap: "8px"
