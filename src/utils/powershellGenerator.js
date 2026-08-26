@@ -118,6 +118,12 @@ export function generatePowerShellCommands(renamer, targetPath = "", options = {
   const pythonPath = cleanPath || "<TARGET_FOLDER>";
   const pythonStandaloneFiles = parts.map((part, idx) => {
     let code = part.code || "";
+    // Inject UTF-8 output encoding safeguard for Windows stdout if missing
+    if (!code.includes("sys.stdout.reconfigure") && !code.includes("PYTHONIOENCODING")) {
+      const utf8Snippet = `import sys\nif sys.platform == "win32":\n    try:\n        sys.stdout.reconfigure(encoding="utf-8", errors="replace")\n        sys.stderr.reconfigure(encoding="utf-8", errors="replace")\n    except Exception:\n        pass\n\n`;
+      code = utf8Snippet + code;
+    }
+
     code = code.replace(/TARGET_DIR\s*=\s*r?["'].*?["']/, `TARGET_DIR = r"${pythonPath}"`);
     code = code.replace(/\{TARGET_DIR\}/g, pythonPath.replace(/\\/g, "\\\\"));
 
@@ -177,7 +183,8 @@ export function generatePowerShellCommands(renamer, targetPath = "", options = {
     scriptTarget = trimmedScriptDir ? `"${trimmedScriptDir}\\main.py"` : `main.py`;
   }
 
-  const powershellShortCommand = `python ${scriptTarget}${folderArg}${modeArg}${executeFlag}${showArg}`.replace(/\s+/g, " ").trim();
+  // Use -X utf8 to prevent Windows PowerShell charmap/cp1252 UnicodeEncodeError
+  const powershellShortCommand = `python -X utf8 ${scriptTarget}${folderArg}${modeArg}${executeFlag}${showArg}`.replace(/\s+/g, " ").trim();
 
   // 3. Complete clean .ps1 script block
   let ps1File = `# Film Library Renamer - ${renamer.name}\n`;
