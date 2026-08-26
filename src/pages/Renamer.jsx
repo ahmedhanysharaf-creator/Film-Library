@@ -86,8 +86,6 @@ export const Renamer = () => {
   // Custom Test Filename Sandbox (persisted per preset)
   const [testFilename, setTestFilename] = useState("Gladiator.II.2024.2160p.WEB-DL.mkv");
   const [showRawCode, setShowRawCode] = useState(false);
-  const [showFormatCustomizer, setShowFormatCustomizer] = useState(false);
-  const [customTemplateInput, setCustomTemplateInput] = useState("");
   const [testSubFilename, setTestSubFilename] = useState("Gladiator.II.2024.2160p.Arabic.srt");
   const [testSubfolderPath, setTestSubfolderPath] = useState("Movies/Gladiator.II.2024.2160p.mkv");
 
@@ -1122,16 +1120,6 @@ export const Renamer = () => {
                     {renamePreviewEnabled ? <CheckCircle2 size={13} /> : <FolderSync size={13} />}
                     {renamePreviewEnabled ? "Rename Simulation: Active" : "Rename Simulation: Disabled (Organizer Mode)"}
                   </button>
-
-                  {renamePreviewEnabled && (
-                    <button
-                      type="button"
-                      style={styles.toggleCustomizerBtn}
-                      onClick={() => setShowFormatCustomizer(!showFormatCustomizer)}
-                    >
-                      <Sliders size={13} /> {showFormatCustomizer ? "Close Format Customizer" : "Customize Format"}
-                    </button>
-                  )}
                 </div>
               </div>
 
@@ -1356,89 +1344,6 @@ export const Renamer = () => {
                   </div>
                 </div>
               </div>
-
-              {/* ⚡ Quick Format Switcher & Customizer Drawer */}
-              {showFormatCustomizer && (
-                <div style={styles.customizerDrawer}>
-                  <div style={styles.customizerHeader}>
-                    <Settings2 size={15} color="#e50914" />
-                    <span style={styles.customizerTitle}>
-                      {isSeriesPreset ? "Instant Series Format Presets:" : "Instant Movie Format Presets:"}
-                    </span>
-                  </div>
-                  <div style={styles.presetButtonsGrid}>
-                    {(isSeriesPreset
-                      ? [
-                          { id: "series_std", label: "Show - S01E01 - Res", template: "{show} - S{season:02d}E{episode:02d}{res_str}{ext}", example: "Loki - S01E01 - 1080p.mkv" },
-                          { id: "series_ep_title", label: "Show - S01E01 - Title", template: "{show} - S{season:02d}E{episode:02d} - {ep_title}{ext}", example: "Loki - S01E01 - Glorious Purpose.mkv" },
-                          { id: "series_plex", label: "Plex Series Standard", template: "{show} ({year}) - S{season:02d}E{episode:02d}{ext}", example: "Loki (2021) - S01E01.mkv" },
-                          { id: "series_minimal", label: "Minimal Series", template: "{show} S{season:02d}E{episode:02d}{ext}", example: "Loki S01E01.mkv" }
-                        ]
-                      : COMMON_FORMAT_PRESETS
-                    ).map((p) => {
-                      const isCurrent = detectedFormat?.parsedTemplate?.template === p.template;
-                      return (
-                        <button
-                          key={p.id}
-                          type="button"
-                          style={{
-                            ...styles.formatPresetBtn,
-                            borderColor: isCurrent ? "var(--accent-red)" : "#2e2e32",
-                            backgroundColor: isCurrent ? "rgba(229, 9, 20, 0.15)" : "#131316"
-                          }}
-                          onClick={() => handleApplyFormatPreset(p.template)}
-                        >
-                          <div style={styles.formatPresetBtnTop}>
-                            <span style={{ fontWeight: 700, color: isCurrent ? "#ffffff" : "#e5e5e5" }}>{p.label}</span>
-                            {isCurrent && <span style={styles.activeFormatBadge}>Active</span>}
-                          </div>
-                          <code style={styles.formatPresetTemplate}>{p.template}</code>
-                          <span style={styles.formatPresetExample}>Preview: {p.example || p.movieExample}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* Manual Custom Template Input */}
-                  <div style={styles.manualFormatRow}>
-                    <span style={styles.manualFormatLabel}>Or Type Custom Format Template:</span>
-                    <div style={styles.manualFormatInputGroup}>
-                      <input
-                        type="text"
-                        value={customTemplateInput || detectedFormat?.parsedTemplate?.template || ""}
-                        onChange={(e) => setCustomTemplateInput(e.target.value)}
-                        placeholder={isSeriesPreset ? "{show} - S{season:02d}E{episode:02d}{res_str}{ext}" : "{m_prefix} - ({year}) - {clean_title}{res_str}{ext}"}
-                        style={styles.manualFormatInput}
-                      />
-                      <button
-                        type="button"
-                        style={styles.applyManualFormatBtn}
-                        onClick={() => handleApplyFormatPreset(customTemplateInput || detectedFormat?.parsedTemplate?.template)}
-                      >
-                        Apply Format to Script
-                      </button>
-                    </div>
-                    <div style={styles.tokenInsertRow}>
-                      <span style={{ fontSize: "0.75rem", color: "#a3a3a3", fontWeight: 600 }}>Quick Insert Tokens:</span>
-                      {(isSeriesPreset
-                        ? ["{show}", "{season:02d}", "{episode:02d}", "{ep_title}", "{year}", "{res_str}", "{ext}"]
-                        : ["{m_prefix}", "{year}", "{clean_title}", "{part_str}", "{res_str}", "{ext}"]
-                      ).map((tok) => (
-                        <button
-                          key={tok}
-                          type="button"
-                          style={styles.insertTokenBtn}
-                          onClick={() => setCustomTemplateInput(prev => (prev || detectedFormat?.parsedTemplate?.template || "") + tok)}
-                        >
-                          + {tok}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-
                 </>
               )}
             </div>
