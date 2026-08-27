@@ -265,16 +265,64 @@ export const Renamer = () => {
     ? generatePowerShellCommands(selectedCode, targetPath, { dryRun, showName, scriptsFolder, customMode, includeMode, folderArgStyle })
     : { powershellShortCommand: "", powershellScript: "", pythonStandaloneFiles: [], detectedCli: { folderStyle: "positional", styleLabel: 'Direct "path"' } };
 
-  // Evaluate custom template dynamically by replacing {PATH} with targetPath
-  const evaluateCommandTemplate = (templateStr, pathStr) => {
+  // Evaluate custom template dynamically by replacing {PATH} and injecting active options (--mode, --execute)
+  const evaluateCommandTemplate = (templateStr, pathStr, opts = {}) => {
     if (!templateStr || !templateStr.trim()) return "";
     const cleanPathVal = (pathStr || "").trim() || "<TARGET_FOLDER>";
     let result = templateStr;
+
+    // 1. Replace folder path placeholders
     result = result.replace(/\{PATH\}|\{FOLDER\}|\{TARGET_DIR\}|<TARGET_FOLDER>|<PATH>/gi, cleanPathVal);
-    return result;
+
+    const { customMode = "", includeMode = false, dryRun = true, showName = "" } = opts;
+
+    // 2. Handle --mode argument
+    const hasMode = includeMode || Boolean(customMode && customMode.trim());
+    const modeVal = (customMode || "").trim();
+
+    if (hasMode && modeVal) {
+      if (/--mode\s+["']?[a-zA-Z0-9_-]+["']?/i.test(result)) {
+        result = result.replace(/--mode\s+["']?[a-zA-Z0-9_-]+["']?/i, `--mode ${modeVal}`);
+      } else if (/\{MODE\}/i.test(result)) {
+        result = result.replace(/\{MODE\}/gi, modeVal);
+      } else {
+        result += ` --mode ${modeVal}`;
+      }
+    } else if (!hasMode) {
+      // If user turned off mode, remove existing --mode if in command
+      result = result.replace(/\s*--mode\s+["']?[a-zA-Z0-9_-]+["']?/gi, "");
+      result = result.replace(/\{MODE\}/gi, "");
+    }
+
+    // 3. Handle --execute / --dry-run
+    if (!dryRun) {
+      if (!result.includes("--execute")) {
+        result += " --execute";
+      }
+      result = result.replace(/\s*--dry-run\b|\s*--dryrun\b/gi, "").trim();
+    } else {
+      // dryRun active: remove --execute flag if added
+      result = result.replace(/\s*--execute\b/gi, "").trim();
+    }
+
+    // 4. Handle show name if present
+    if (showName && showName.trim()) {
+      if (/--show-name\s+["']?.*?["']?/i.test(result)) {
+        result = result.replace(/--show-name\s+["']?.*?["']?/i, `--show-name "${showName.trim()}"`);
+      } else if (!result.includes(showName.trim())) {
+        result += ` --show-name "${showName.trim()}"`;
+      }
+    }
+
+    return result.trim();
   };
 
-  const evaluatedCommand = evaluateCommandTemplate(commandTemplate, targetPath);
+  const evaluatedCommand = evaluateCommandTemplate(commandTemplate, targetPath, {
+    customMode,
+    includeMode,
+    dryRun,
+    showName
+  });
   const effectiveCommand = customCommand !== "" ? customCommand : (evaluatedCommand || generatedCommands.powershellShortCommand);
   const isCommandEdited = customCommand !== "" && customCommand !== evaluatedCommand;
 
