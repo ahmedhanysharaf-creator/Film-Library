@@ -1,11 +1,20 @@
-import React, { useState } from "react";
-import { Search, Download, FileText, ExternalLink, RefreshCw, Sparkles, MonitorPlay, Terminal, Globe } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Search, Download, FileText, ExternalLink, RefreshCw, Sparkles, MonitorPlay, Terminal, Globe, Laptop } from "lucide-react";
 import { DownloadSites } from "./DownloadSites";
 import { Renamer } from "./Renamer";
 
 export const ToolsHub = ({ initialToolId = null, onOpenRenamer }) => {
   const [activeToolId, setActiveToolId] = useState(initialToolId);
   const [iframeKey, setIframeKey] = useState(0);
+  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth <= 768);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const tools = [
     {
@@ -26,6 +35,7 @@ export const ToolsHub = ({ initialToolId = null, onOpenRenamer }) => {
       icon: Terminal,
       badge: "PowerShell & Python",
       isInternal: true,
+      desktopOnly: true,
       color: "#f59e0b"
     },
     {
@@ -35,6 +45,7 @@ export const ToolsHub = ({ initialToolId = null, onOpenRenamer }) => {
       description: "Identify movies and series with built-in embedded subtitles locally in your browser using high-performance chunked media inspection.",
       icon: Search,
       badge: "Local Media WASM",
+      desktopOnly: true,
       url: "./tools/subdetect/index.html",
       color: "#e50914"
     },
@@ -89,7 +100,22 @@ export const ToolsHub = ({ initialToolId = null, onOpenRenamer }) => {
       </div>
 
       {/* If a tool is active, display the workspace viewer */}
-      {activeToolId === "downloads" ? (
+      {isMobile && activeTool?.desktopOnly ? (
+        <div style={{ ...styles.toolViewerCard, padding: "40px 20px", textAlign: "center" }} className="glass-panel">
+          <div style={{ display: "inline-flex", padding: "16px", borderRadius: "50%", backgroundColor: "rgba(229, 9, 20, 0.15)", marginBottom: "16px" }}>
+            <Laptop size={42} color="var(--accent-red)" />
+          </div>
+          <h2 style={{ fontSize: "1.3rem", fontWeight: 800, color: "#ffffff", marginBottom: "8px" }}>
+            Laptop / PC Only Feature
+          </h2>
+          <p style={{ color: "#a3a3a3", fontSize: "0.92rem", maxWidth: "440px", margin: "0 auto 20px auto", lineHeight: "1.5" }}>
+            <strong>{activeTool?.name}</strong> is designed for desktop computing environments (Python scripts, PowerShell execution, or local WASM video inspector). Please open Film Library on your laptop or PC to use this workspace.
+          </p>
+          <button style={styles.backBtn} onClick={() => setActiveToolId(null)}>
+            ← Back to Mobile Tools
+          </button>
+        </div>
+      ) : activeToolId === "downloads" ? (
         <DownloadSites />
       ) : activeToolId === "renamer" ? (
         <Renamer />
@@ -141,10 +167,14 @@ export const ToolsHub = ({ initialToolId = null, onOpenRenamer }) => {
       ) : (
         /* Tools Selection Grid */
         <div style={styles.grid}>
-          {tools.map((tool) => {
+          {(isMobile ? tools.filter((t) => !t.desktopOnly) : tools).map((tool) => {
             const IconComponent = tool.icon;
             return (
-              <div key={tool.id} style={styles.card} className="glass-panel hover-card">
+              <div
+                key={tool.id}
+                style={styles.card}
+                className={`glass-panel hover-card ${tool.desktopOnly ? `desktop-only-tool tool-card-${tool.id}` : ""}`}
+              >
                 <div style={styles.cardHeader}>
                   <div
                     style={{

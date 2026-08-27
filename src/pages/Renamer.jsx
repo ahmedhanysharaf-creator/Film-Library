@@ -1846,57 +1846,19 @@ export const Renamer = () => {
                     type="button"
                     onMouseDown={(e) => e.preventDefault()}
                     style={{
-                      padding: "3px 9px",
-                      backgroundColor: "rgba(56, 189, 248, 0.15)",
+                      padding: "3px 10px",
+                      backgroundColor: "rgba(56, 189, 248, 0.12)",
                       color: "#38bdf8",
                       border: "1px solid #0284c7",
                       borderRadius: "5px",
-                      fontSize: "0.75rem",
+                      fontSize: "0.78rem",
                       cursor: "pointer",
                       fontWeight: 700
                     }}
-                    onClick={() => handleInsertTokenToCommandTemplate('"{PATH}"')}
-                    title='Replace selected text or insert "{PATH}" at cursor'
-                  >
-                    + "{'{PATH}'}" (Target Folder)
-                  </button>
-
-                  <button
-                    type="button"
-                    onMouseDown={(e) => e.preventDefault()}
-                    style={{
-                      padding: "3px 8px",
-                      backgroundColor: "rgba(56, 189, 248, 0.08)",
-                      color: "#7dd3fc",
-                      border: "1px solid #0369a1",
-                      borderRadius: "5px",
-                      fontSize: "0.75rem",
-                      cursor: "pointer",
-                      fontWeight: 600
-                    }}
                     onClick={() => handleInsertTokenToCommandTemplate('{PATH}')}
-                    title="Replace selected text or insert {PATH} (unquoted) at cursor"
+                    title="Replace selected text or insert {PATH} at cursor"
                   >
                     + {'{PATH}'}
-                  </button>
-
-                  <button
-                    type="button"
-                    onMouseDown={(e) => e.preventDefault()}
-                    style={{
-                      padding: "3px 8px",
-                      backgroundColor: "rgba(16, 185, 129, 0.1)",
-                      color: "#6ee7b7",
-                      border: "1px solid #059669",
-                      borderRadius: "5px",
-                      fontSize: "0.75rem",
-                      cursor: "pointer",
-                      fontWeight: 600
-                    }}
-                    onClick={() => handleInsertTokenToCommandTemplate('--folder "{PATH}"')}
-                    title='Insert --folder "{PATH}" at cursor'
-                  >
-                    + --folder "{'{PATH}'}"
                   </button>
                 </div>
 

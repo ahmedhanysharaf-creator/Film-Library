@@ -70,7 +70,7 @@ export const Home = ({ setActivePage, onSelectItem, onPlayMedia }) => {
       <div style={styles.mainWrapper}>
         {/* Two Prominent Action Cards */}
         <div style={styles.actionGrid}>
-          <div style={styles.actionCard} onClick={() => setActivePage("add")}>
+          <div style={styles.actionCard} className="home-action-add desktop-only" onClick={() => setActivePage("add")}>
             <div style={{ ...styles.actionIcon, backgroundColor: "rgba(229, 9, 20, 0.2)" }}>
               <FolderPlus size={32} color="var(--accent-red)" />
             </div>

@@ -68,6 +68,7 @@ export const Navbar = ({ activePage, setActivePage, activeUniverse = "all", onSe
 
           <button
             style={getTabStyle("add")}
+            className="navbar-add-tab desktop-only"
             onClick={() => {
               setActivePage("add");
             }}

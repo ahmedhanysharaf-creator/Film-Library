@@ -973,6 +973,16 @@ html, body {
   .detail-modal-year {
     font-size: 1rem !important;
   }
+
+  /* Mobile Phone Exclusions (Code Workspace, SubDetect Pro, Add to Library) */
+  .navbar-add-tab,
+  .home-action-add,
+  .desktop-only,
+  .desktop-only-tool,
+  .tool-card-renamer,
+  .tool-card-subdetect {
+    display: none !important;
+  }
 }
 
 /* Save Preset Settings Alignment Button (Black idle, Green hover & active) */
