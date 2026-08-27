@@ -383,6 +383,27 @@ export const Renamer = () => {
     addToast(`Saved format template: ${normalized}`, "success");
   };
 
+  const handleToggleRenamerMode = async (enabled) => {
+    if (!selectedCode) return;
+    setRenamePreviewEnabled(enabled);
+    const updatedObj = {
+      ...selectedCode,
+      isRenamer: enabled,
+      renamePreviewEnabled: enabled
+    };
+    try {
+      const updatedList = await saveRenamerCode(updatedObj);
+      setCodes(updatedList);
+      if (enabled) {
+        addToast(`⚡ Restored Renamer Code Preset for "${selectedCode.name}"!`, "success");
+      } else {
+        addToast(`📦 Set "${selectedCode.name}" to Non-Renamer / Utility Script Mode!`, "info");
+      }
+    } catch (err) {
+      addToast(`Failed to update preset mode: ${err.message}`, "error");
+    }
+  };
+
   const handleSavePresetAlignmentData = async () => {
     if (!selectedCode) return;
 
@@ -399,6 +420,9 @@ export const Renamer = () => {
     // 2. Persist specifically for this code in localStorage
     try {
       localStorage.setItem(getPresetSandboxKey(selectedCode.id), JSON.stringify(sandboxData));
+      if (commandTemplate) {
+        localStorage.setItem(getPresetCommandTemplateKey(selectedCode.id), commandTemplate);
+      }
     } catch {}
 
     // 3. If any output was manually edited, extract the format template & update python code
@@ -415,6 +439,9 @@ export const Renamer = () => {
 
     const updatedObj = {
       ...selectedCode,
+      isRenamer: renamePreviewEnabled,
+      renamePreviewEnabled: renamePreviewEnabled,
+      commandTemplate: commandTemplate || selectedCode.commandTemplate,
       formatTemplate: newTemplate || selectedCode.formatTemplate,
       sandboxData,
       parts: updatedParts
@@ -1032,16 +1059,36 @@ export const Renamer = () => {
                       </div>
 
                       <span style={styles.presetBadge}>
-                        {hasMultiParts ? `${codeItem.parts.length} Parts` : itemFormat.badge || "Script"}
+                        {codeItem.isRenamer === false
+                          ? "Utility Script"
+                          : hasMultiParts
+                          ? `${codeItem.parts.length} Parts`
+                          : itemFormat.badge || "Script"}
                       </span>
                     </div>
 
                     <p style={styles.presetDesc}>{codeItem.description}</p>
 
                     {/* Format Preview Badge */}
-                    <div style={styles.presetFormatMiniPill} title={`Extracted format string: ${itemFormat.extractedTemplateStr}`}>
-                      <Sparkles size={12} color="#e50914" />
-                      <span>Extracted: {itemFormat.extractedTemplateStr || itemFormat.categoryName}</span>
+                    <div
+                      style={{
+                        ...styles.presetFormatMiniPill,
+                        backgroundColor: codeItem.isRenamer === false ? "rgba(56, 189, 248, 0.1)" : "rgba(245, 158, 11, 0.1)",
+                        color: codeItem.isRenamer === false ? "#38bdf8" : "#f59e0b"
+                      }}
+                      title={codeItem.isRenamer === false ? "Non-Renamer / Folder Organizer script" : `Extracted format string: ${itemFormat.extractedTemplateStr}`}
+                    >
+                      {codeItem.isRenamer === false ? (
+                        <>
+                          <FolderSync size={12} color="#38bdf8" />
+                          <span>Utility / Folder Organizer Mode</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles size={12} color="#e50914" />
+                          <span>Extracted: {itemFormat.extractedTemplateStr || itemFormat.categoryName}</span>
+                        </>
+                      )}
                     </div>
 
                     <div style={styles.presetCardFooter}>
@@ -1185,6 +1232,57 @@ export const Renamer = () => {
                 )}
 
                 <div style={styles.presetTopActions}>
+                  {!renamePreviewEnabled ? (
+                    <button
+                      style={{
+                        ...styles.editHeaderBtn,
+                        backgroundColor: "rgba(16, 185, 129, 0.15)",
+                        color: "#4ade80",
+                        borderColor: "#16a34a"
+                      }}
+                      onClick={() => handleToggleRenamerMode(true)}
+                      title="Restore full renamer simulation & format blueprint"
+                    >
+                      <Sparkles size={14} /> Restore Renamer
+                    </button>
+                  ) : (
+                    <button
+                      style={{
+                        ...styles.editHeaderBtn,
+                        backgroundColor: "rgba(56, 189, 248, 0.1)",
+                        color: "#38bdf8",
+                        borderColor: "#0284c7"
+                      }}
+                      onClick={() => handleToggleRenamerMode(false)}
+                      title="Switch preset to non-renaming utility script mode"
+                    >
+                      <FolderSync size={14} /> Switch to Non-Renamer
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    className="save-preset-settings-btn"
+                    onClick={handleSavePresetAlignmentData}
+                    style={savedSettingsSuccess ? {
+                      backgroundColor: "#166534",
+                      color: "#4ade80",
+                      borderColor: "#22c55e",
+                      boxShadow: "0 0 16px rgba(34, 197, 94, 0.6)"
+                    } : {}}
+                    title="Save this preset mode & settings permanently so it doesn't change on refresh"
+                  >
+                    {savedSettingsSuccess ? (
+                      <>
+                        <Check size={14} color="#4ade80" /> ✓ Saved!
+                      </>
+                    ) : (
+                      <>
+                        <FileCheck size={14} /> 💾 Save Preset
+                      </>
+                    )}
+                  </button>
+
                   <button
                     style={styles.editHeaderBtn}
                     onClick={() => handleOpenEditModal(selectedCode)}
@@ -1257,83 +1355,101 @@ export const Renamer = () => {
             })()}
 
             {/* 🎯 SECTION 1: VISUAL FILENAME FORMAT BLUEPRINT & LIVE PREVIEW 🎯 */}
-            <div style={styles.formatPreviewCard}>
-              <div style={styles.formatPreviewCardHeader}>
-                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                  <Sparkles size={20} color="#e50914" />
-                  <div>
-                    <h3 style={styles.formatPreviewCardTitle}>
-                      {renamePreviewEnabled ? "Renamed Output Format Anatomy & Blueprint" : "Code Configuration & Script Mode"}
-                    </h3>
-                    <span style={styles.formatCardSubtitle}>
-                      {renamePreviewEnabled
-                        ? "Formats Movies (.mkv, .mp4) and Subtitles (.srt, .ass) into standardized media patterns."
-                        : "Filename renaming simulation is optional and currently disabled for this organizer/utility script."}
-                    </span>
-                  </div>
-                </div>
-
-                <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-                  <button
-                    type="button"
-                    style={{
-                      ...styles.toggleCustomizerBtn,
-                      backgroundColor: renamePreviewEnabled ? "rgba(16, 185, 129, 0.15)" : "rgba(56, 189, 248, 0.12)",
-                      color: renamePreviewEnabled ? "#4ade80" : "#38bdf8",
-                      borderColor: renamePreviewEnabled ? "#16a34a" : "#0284c7"
-                    }}
-                    onClick={() => setRenamePreviewEnabled(!renamePreviewEnabled)}
-                    title="Toggle between Rename Format Simulation Mode vs Non-Renaming / Organizer Mode"
-                  >
-                    {renamePreviewEnabled ? <CheckCircle2 size={13} /> : <FolderSync size={13} />}
-                    {renamePreviewEnabled ? "Rename Simulation: Active" : "Rename Simulation: Disabled (Organizer Mode)"}
-                  </button>
-                </div>
-              </div>
-
-              {!renamePreviewEnabled ? (
-                <div style={{
-                  padding: "20px 24px",
-                  backgroundColor: "rgba(15, 23, 42, 0.6)",
-                  borderRadius: "10px",
-                  border: "1px dashed #334155",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: "16px",
-                  margin: "12px 0 6px 0",
-                  flexWrap: "wrap"
-                }}>
+            {!renamePreviewEnabled ? (
+              <div style={styles.formatPreviewCard}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "14px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-                    <FolderSync size={24} color="#38bdf8" />
+                    <div style={{ backgroundColor: "rgba(56, 189, 248, 0.15)", padding: "12px", borderRadius: "10px", border: "1px solid rgba(56, 189, 248, 0.3)" }}>
+                      <FolderSync size={26} color="#38bdf8" />
+                    </div>
                     <div>
-                      <div style={{ fontWeight: 700, color: "#f8fafc", fontSize: "0.95rem" }}>
-                        Non-Renaming / Organizer Script Mode Active
+                      <div style={{ fontWeight: 800, color: "#ffffff", fontSize: "1.05rem" }}>
+                        Non-Renamer / Folder Utility Mode Active
                       </div>
-                      <div style={{ color: "#94a3b8", fontSize: "0.84rem", marginTop: "3px" }}>
-                        This script operates as a folder organizer, metadata collector, or custom utility without renaming files. Rename preview is bypassed.
+                      <div style={{ color: "#94a3b8", fontSize: "0.82rem", marginTop: "3px" }}>
+                        Filename renaming simulation is bypassed for this preset. It executes commands directly on your target media folder.
                       </div>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    style={{
-                      padding: "8px 14px",
-                      backgroundColor: "rgba(56, 189, 248, 0.15)",
-                      color: "#38bdf8",
-                      border: "1px solid #0284c7",
-                      borderRadius: "6px",
-                      fontSize: "0.8rem",
-                      fontWeight: 700,
-                      cursor: "pointer"
-                    }}
-                    onClick={() => setRenamePreviewEnabled(true)}
-                  >
-                    ⚡ Enable Rename Simulation
-                  </button>
+
+                  <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleRenamerMode(true)}
+                      style={{
+                        backgroundColor: "rgba(16, 185, 129, 0.15)",
+                        color: "#4ade80",
+                        border: "1px solid #16a34a",
+                        padding: "7px 14px",
+                        borderRadius: "8px",
+                        fontSize: "0.82rem",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px"
+                      }}
+                      title="Restore full media renamer simulation & format blueprint"
+                    >
+                      <Sparkles size={14} /> 🔄 Restore Renamer Code Preset
+                    </button>
+
+                    <button
+                      type="button"
+                      className="save-preset-settings-btn"
+                      onClick={handleSavePresetAlignmentData}
+                      style={savedSettingsSuccess ? {
+                        backgroundColor: "#166534",
+                        color: "#4ade80",
+                        borderColor: "#22c55e",
+                        boxShadow: "0 0 16px rgba(34, 197, 94, 0.6)"
+                      } : {}}
+                      title="Save this preset mode permanently so it persists on refresh"
+                    >
+                      {savedSettingsSuccess ? (
+                        <>
+                          <Check size={14} color="#4ade80" /> ✓ Saved!
+                        </>
+                      ) : (
+                        <>
+                          <FileCheck size={14} /> 💾 Save Preset Mode
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
-              ) : (
-                <>
+              </div>
+            ) : (
+              <div style={styles.formatPreviewCard}>
+                <div style={styles.formatPreviewCardHeader}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <Sparkles size={20} color="#e50914" />
+                    <div>
+                      <h3 style={styles.formatPreviewCardTitle}>
+                        Renamed Output Format Anatomy & Blueprint
+                      </h3>
+                      <span style={styles.formatCardSubtitle}>
+                        Formats Movies (.mkv, .mp4) and Subtitles (.srt, .ass) into standardized media patterns.
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                    <button
+                      type="button"
+                      style={{
+                        ...styles.toggleCustomizerBtn,
+                        backgroundColor: "rgba(56, 189, 248, 0.12)",
+                        color: "#38bdf8",
+                        borderColor: "#0284c7"
+                      }}
+                      onClick={() => handleToggleRenamerMode(false)}
+                      title="Switch preset to non-renaming organizer/utility script mode"
+                    >
+                      <FolderSync size={13} /> Switch to Non-Renamer
+                    </button>
+                  </div>
+                </div>
 
 
 
@@ -1510,12 +1626,11 @@ export const Renamer = () => {
                         <RotateCcw size={11} /> Reset Outputs
                       </button>
                     )}
+                    </div>
                   </div>
                 </div>
               </div>
-                </>
-              )}
-            </div>
+            )}
 
             {/* 🎯 SECTION 2: TARGET FOLDER & SHORT POWERSHELL COMMAND GENERATOR 🎯 */}
             <div style={styles.configCard}>
