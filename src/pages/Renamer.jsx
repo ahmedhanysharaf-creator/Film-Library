@@ -169,6 +169,8 @@ export const Renamer = () => {
   const [activePartIndex, setActivePartIndex] = useState(0);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editingTitleValue, setEditingTitleValue] = useState("");
+  const [savedSettingsSuccess, setSavedSettingsSuccess] = useState(false);
+  const [savedTemplateSuccess, setSavedTemplateSuccess] = useState(false);
 
   // Load renamer presets on mount
   useEffect(() => {
@@ -287,7 +289,9 @@ export const Renamer = () => {
       const updatedList = await saveRenamerCode(updatedObj);
       setCodes(updatedList);
       setCustomCommand("");
-      addToast(`💾 Saved command template for "${selectedCode.name}"!`, "success");
+      setSavedTemplateSuccess(true);
+      setTimeout(() => setSavedTemplateSuccess(false), 3000);
+      addToast(`✓ Saved template for "${selectedCode.name}"!`, "success");
     } catch (err) {
       addToast(`Saved template locally: ${err.message}`, "info");
     }
@@ -423,7 +427,9 @@ export const Renamer = () => {
         setCustomWorkspaceFormat(newTemplate);
         setCustomTemplateInput(newTemplate);
       }
-      addToast(`✓ Saved alignment settings specifically for "${selectedCode.name}"!`, "success");
+      setSavedSettingsSuccess(true);
+      setTimeout(() => setSavedSettingsSuccess(false), 3000);
+      addToast(`✓ Saved settings for "${selectedCode.name}"!`, "success");
     } catch (err) {
       addToast(`Error saving preset settings: ${err.message}`, "error");
     }
@@ -1465,9 +1471,23 @@ export const Renamer = () => {
                       type="button"
                       className="save-preset-settings-btn"
                       onClick={handleSavePresetAlignmentData}
+                      style={savedSettingsSuccess ? {
+                        backgroundColor: "#166534",
+                        color: "#4ade80",
+                        borderColor: "#22c55e",
+                        boxShadow: "0 0 16px rgba(34, 197, 94, 0.6)"
+                      } : {}}
                       title={`Save these test inputs & format specifically for "${selectedCode?.name}" so they persist on refresh without affecting other scripts`}
                     >
-                      <FileCheck size={15} /> 💾 Save Settings for "{selectedCode?.name}"
+                      {savedSettingsSuccess ? (
+                        <>
+                          <Check size={15} color="#4ade80" /> ✓ Saved!
+                        </>
+                      ) : (
+                        <>
+                          <FileCheck size={15} /> 💾 Save Settings for "{selectedCode?.name}"
+                        </>
+                      )}
                     </button>
 
                     {(manualMovieOutput || manualSubOutput || manualFolderOutput) && (
@@ -1781,9 +1801,23 @@ export const Renamer = () => {
                       type="button"
                       className="save-preset-settings-btn"
                       onClick={handleSaveCommandTemplate}
+                      style={savedTemplateSuccess ? {
+                        backgroundColor: "#166534",
+                        color: "#4ade80",
+                        borderColor: "#22c55e",
+                        boxShadow: "0 0 16px rgba(34, 197, 94, 0.6)"
+                      } : {}}
                       title={`Save this template specifically for "${selectedCode?.name}" so it loads every time`}
                     >
-                      <FileCheck size={13} /> 💾 Save Template for "{selectedCode?.name}"
+                      {savedTemplateSuccess ? (
+                        <>
+                          <Check size={13} color="#4ade80" /> ✓ Saved!
+                        </>
+                      ) : (
+                        <>
+                          <FileCheck size={13} /> 💾 Save Template for "{selectedCode?.name}"
+                        </>
+                      )}
                     </button>
 
                     <button
