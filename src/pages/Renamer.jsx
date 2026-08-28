@@ -495,6 +495,11 @@ export const Renamer = () => {
       parts: updatedParts
     };
 
+    // Always show success feedback (localStorage save already succeeded above)
+    setSavedSettingsSuccess(true);
+    setTimeout(() => setSavedSettingsSuccess(false), 3000);
+    addToast(`✓ Saved settings for "${selectedCode.name}"!`, "success");
+
     try {
       const updatedList = await saveRenamerCode(updatedObj);
       setCodes(updatedList);
@@ -502,11 +507,8 @@ export const Renamer = () => {
         setCustomWorkspaceFormat(newTemplate);
         setCustomTemplateInput(newTemplate);
       }
-      setSavedSettingsSuccess(true);
-      setTimeout(() => setSavedSettingsSuccess(false), 3000);
-      addToast(`✓ Saved settings for "${selectedCode.name}"!`, "success");
     } catch (err) {
-      addToast(`Error saving preset settings: ${err.message}`, "error");
+      console.warn(`Could not persist settings to DB: ${err.message}`);
     }
   };
 
@@ -1182,7 +1184,7 @@ export const Renamer = () => {
             <div style={styles.inspectorHeader}>
               <div style={styles.inspectorTitleGroup}>
                 {isEditingTitle ? (
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1, maxWidth: "520px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1 }}>
                     <input
                       type="text"
                       autoFocus
@@ -1279,7 +1281,7 @@ export const Renamer = () => {
                   </div>
                 )}
 
-                <div style={styles.presetTopActions}>
+                {!isEditingTitle && <div style={styles.presetTopActions}>
                   {!renamePreviewEnabled ? (
                     <button
                       style={{
@@ -1359,7 +1361,7 @@ export const Renamer = () => {
                   >
                     <Trash2 size={14} /> Delete
                   </button>
-                </div>
+                </div>}
               </div>
               <p style={styles.inspectorDesc}>{selectedCode.description}</p>
             </div>
@@ -1442,28 +1444,6 @@ export const Renamer = () => {
                       <Sparkles size={14} /> 🔄 Restore Renamer Code Preset
                     </button>
 
-                    <button
-                      type="button"
-                      className="save-preset-settings-btn"
-                      onClick={handleSavePresetAlignmentData}
-                      style={savedSettingsSuccess ? {
-                        backgroundColor: "#166534",
-                        color: "#4ade80",
-                        borderColor: "#22c55e",
-                        boxShadow: "0 0 16px rgba(34, 197, 94, 0.6)"
-                      } : {}}
-                      title="Save this preset mode permanently so it persists on refresh"
-                    >
-                      {savedSettingsSuccess ? (
-                        <>
-                          <Check size={14} color="#4ade80" /> ✓ Saved!
-                        </>
-                      ) : (
-                        <>
-                          <FileCheck size={14} /> 💾 Save Preset Mode
-                        </>
-                      )}
-                    </button>
                   </div>
                 </div>
               </div>
