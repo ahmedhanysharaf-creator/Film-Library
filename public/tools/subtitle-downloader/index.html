@@ -763,11 +763,22 @@
     url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
   ];
 
+  // Fetch with timeout helper
+  function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
+    const controller = options.signal ? null : new AbortController();
+    const signal = options.signal || controller.signal;
+    const timeoutId = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+    return fetch(url, { ...options, signal })
+      .finally(() => { if (timeoutId) clearTimeout(timeoutId); });
+  }
+
   // Robust fetch through CORS proxies with retry
-  async function proxiedFetch(url, expectJson = false) {
+  async function proxiedFetch(url, expectJson = false, signal = null) {
+    const fetchOpts = signal ? { signal } : {};
+
     // First try direct fetch
     try {
-      const directRes = await fetch(url);
+      const directRes = await fetchWithTimeout(url, fetchOpts);
       if (directRes.ok) {
         if (expectJson) {
           const text = await directRes.text();
@@ -782,14 +793,16 @@
         }
       }
     } catch (e) {
+      if (e.name === 'AbortError') throw e; // Re-throw abort so skip works
       // Direct fetch failed (CORS), proceed to proxies
     }
 
     // Try each CORS proxy in order
     for (let i = 0; i < CORS_PROXIES.length; i++) {
+      if (signal && signal.aborted) throw new DOMException('Aborted', 'AbortError');
       const proxyUrl = CORS_PROXIES[i](url);
       try {
-        const res = await fetch(proxyUrl);
+        const res = await fetchWithTimeout(proxyUrl, fetchOpts);
         if (!res.ok) continue;
 
         if (expectJson) {
@@ -804,6 +817,7 @@
           return { ok: true, response: res };
         }
       } catch (e) {
+        if (e.name === 'AbortError') throw e; // Re-throw abort so skip works
         continue; // This proxy failed, try next
       }
     }
@@ -815,6 +829,7 @@
   let videoFiles = [];
   let isRunning  = false;
   let skipCurrent = false;
+  let currentAbortController = null;
 
   const $ = id => document.getElementById(id);
 
@@ -980,6 +995,9 @@
       const row = addRow(i + 1, file, parsedInfo, 'processing');
 
       try {
+        // Create abort controller for this file
+        currentAbortController = new AbortController();
+
         // Check skip flag
         if (skipCurrent) {
           skipCurrent = false;
@@ -989,7 +1007,7 @@
           continue;
         }
         // 1. Search SubDL with multi-tiered strategy
-        const searchData = await searchSubDL(apiKey, parsedInfo, baseName);
+        const searchData = await searchSubDL(apiKey, parsedInfo, baseName, currentAbortController.signal);
 
         // Check skip flag after search
         if (skipCurrent) {
@@ -1038,7 +1056,7 @@
           : (cleanSubUrl.startsWith('/') ? `https://dl.subdl.com${cleanSubUrl}` : `https://dl.subdl.com/${cleanSubUrl}`);
 
         // 4. Fetch subtitle file via robust proxy
-        const dlResult = await proxiedFetch(downloadUrl, false);
+        const dlResult = await proxiedFetch(downloadUrl, false, currentAbortController.signal);
         if (!dlResult.ok || !dlResult.response) {
           throw new Error('All CORS proxies failed to download subtitle');
         }
@@ -1101,9 +1119,18 @@
         saved++;
         updateRow(row, 'saved', chosenSub.name || chosenSub.release_name || 'Arabic Subtitle');
       } catch (err) {
-        console.error(`[${file.relativePath || file.name}]`, err.message);
-        errors++;
-        updateRow(row, 'error', err.message);
+        if (err.name === 'AbortError' || skipCurrent) {
+          // Skipped by user
+          skipCurrent = false;
+          notFound++;
+          updateRow(row, 'notfound', 'Skipped by user');
+        } else {
+          console.error(`[${file.relativePath || file.name}]`, err.message);
+          errors++;
+          updateRow(row, 'error', err.message);
+        }
+      } finally {
+        currentAbortController = null;
       }
 
       await sleep(delay);
@@ -1132,6 +1159,11 @@
   btnSkip.addEventListener('click', () => {
     if (!isRunning) return;
     skipCurrent = true;
+
+    // Abort the current in-flight network request immediately
+    if (currentAbortController) {
+      currentAbortController.abort();
+    }
 
     // Flash blue effect
     btnSkip.classList.add('flash');
@@ -1276,7 +1308,7 @@
   }
 
   // ── Multi-Query SubDL Search Engine ────────────────────────────────
-  async function searchSubDL(apiKey, parsedInfo, rawBaseName) {
+  async function searchSubDL(apiKey, parsedInfo, rawBaseName, signal = null) {
     const candidateKeys = [apiKey, ...DEFAULT_API_KEYS.filter(k => k !== apiKey)];
     const queries = [];
 
@@ -1337,11 +1369,12 @@
         if (q.episode_number) url += `&episode_number=${encodeURIComponent(q.episode_number)}`;
 
         try {
-          const result = await proxiedFetch(url, true);
+          const result = await proxiedFetch(url, true, signal);
           if (result.ok && result.data && result.data.status && Array.isArray(result.data.subtitles) && result.data.subtitles.length > 0) {
             return result.data;
           }
         } catch (e) {
+          if (e.name === 'AbortError') throw e; // Re-throw abort
           // try next query
         }
       }
