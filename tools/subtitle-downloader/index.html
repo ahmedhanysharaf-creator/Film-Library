@@ -321,6 +321,46 @@
       transition: width 0.3s ease;
     }
 
+    /* SKIP BUTTON */
+    .skip-btn {
+      margin-top: 16px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 28px;
+      background: var(--bg-elevated);
+      color: var(--text-secondary);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.1s ease;
+      user-select: none;
+    }
+    .skip-btn:hover {
+      background: rgba(99, 179, 237, 0.15);
+      color: var(--accent);
+      border-color: var(--border-accent);
+      box-shadow: 0 0 12px rgba(99, 179, 237, 0.12);
+    }
+    .skip-btn:active {
+      transform: scale(0.97);
+    }
+    .skip-btn.flash {
+      background: rgba(99, 179, 237, 0.25);
+      color: var(--accent);
+      border-color: var(--accent);
+      box-shadow: 0 0 16px rgba(99, 179, 237, 0.25);
+    }
+    .skip-btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
     /* SUMMARY BANNER */
     #summary-banner {
       display: none;
@@ -628,6 +668,10 @@
       <div class="progress-track">
         <div class="progress-fill" id="progress-fill"></div>
       </div>
+      <button class="skip-btn" id="btn-skip" disabled>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+        Skip This
+      </button>
     </div>
   </div>
 
@@ -770,6 +814,7 @@
   let dirHandle  = null;
   let videoFiles = [];
   let isRunning  = false;
+  let skipCurrent = false;
 
   const $ = id => document.getElementById(id);
 
@@ -792,6 +837,7 @@
   const sumErrors           = $('sum-errors');
   const apiKeyInput         = $('api-key-input');
   const delayInput          = $('delay-input');
+  const btnSkip             = $('btn-skip');
 
   // Load saved API Key from localStorage if available
   const savedKey = localStorage.getItem('subdl_saved_api_key');
@@ -898,8 +944,10 @@
   btnDownload.addEventListener('click', async () => {
     if (isRunning || videoFiles.length === 0) return;
     isRunning = true;
+    skipCurrent = false;
     btnDownload.disabled     = true;
     btnSelectFolder.disabled = true;
+    btnSkip.disabled         = false;
     if (chkIncludeSubfolders) chkIncludeSubfolders.disabled = true;
 
     const apiKey = apiKeyInput.value.trim() || DEFAULT_API_KEYS[0];
@@ -923,12 +971,34 @@
       const subtitleName = baseName + '.srt';
       const parsedInfo   = parseMediaInfo(file.name, file.relativePath || '');
 
+      // Check if user skipped before we even start processing this file
+      if (skipCurrent) {
+        skipCurrent = false;
+      }
+
       setProgress(i, total, `${file.relativePath || file.name} ➔ ${parsedInfo.extractedName}`);
       const row = addRow(i + 1, file, parsedInfo, 'processing');
 
       try {
+        // Check skip flag
+        if (skipCurrent) {
+          skipCurrent = false;
+          notFound++;
+          updateRow(row, 'notfound', 'Skipped by user');
+          await sleep(100);
+          continue;
+        }
         // 1. Search SubDL with multi-tiered strategy
         const searchData = await searchSubDL(apiKey, parsedInfo, baseName);
+
+        // Check skip flag after search
+        if (skipCurrent) {
+          skipCurrent = false;
+          notFound++;
+          updateRow(row, 'notfound', 'Skipped by user');
+          await sleep(100);
+          continue;
+        }
 
         if (!searchData || !searchData.status || !Array.isArray(searchData.subtitles) || searchData.subtitles.length === 0) {
           notFound++;
@@ -1040,6 +1110,7 @@
     }
 
     // All done
+    btnSkip.disabled = true;
     setProgress(total, total, 'Complete!');
     progressSubtext.textContent = 'All done!';
 
@@ -1052,8 +1123,21 @@
 
     btnDownload.disabled     = false;
     btnSelectFolder.disabled = false;
+    btnSkip.disabled         = true;
     if (chkIncludeSubfolders) chkIncludeSubfolders.disabled = false;
     isRunning = false;
+  });
+
+  // ── Skip Button Handler ──────────────────────────────────────────
+  btnSkip.addEventListener('click', () => {
+    if (!isRunning) return;
+    skipCurrent = true;
+
+    // Flash blue effect
+    btnSkip.classList.add('flash');
+    setTimeout(() => {
+      btnSkip.classList.remove('flash');
+    }, 300);
   });
 
   // ── Smart Media Parser & Query Generator ──────────────────────────
