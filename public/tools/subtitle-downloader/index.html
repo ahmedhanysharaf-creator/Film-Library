@@ -811,8 +811,8 @@
         }
       }
     } catch (e) {
-      if (e.name === 'AbortError') throw e;
-      // Direct fetch failed (CORS), proceed to proxies
+      if (e.name === 'AbortError' && signal && signal.aborted) throw e;
+      // Direct fetch failed (CORS or timeout), proceed to proxies
     }
 
     // Try each CORS proxy in order
@@ -835,8 +835,8 @@
           return { ok: true, response: res };
         }
       } catch (e) {
-        if (e.name === 'AbortError') throw e;
-        continue; // This proxy failed, try next
+        if (e.name === 'AbortError' && signal && signal.aborted) throw e;
+        continue; // This proxy failed or timed out, try next
       }
     }
 
@@ -1399,7 +1399,7 @@
             return result.data;
           }
         } catch (e) {
-          if (e.name === 'AbortError') throw e; // Re-throw abort
+          if (e.name === 'AbortError' && signal && signal.aborted) throw e;
           // try next query
         }
       }
