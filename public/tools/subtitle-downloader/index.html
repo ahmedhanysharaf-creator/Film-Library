@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Subtitle Downloader â€” Movies &amp; Series (Arabic)</title>
+  <title>Subtitle Downloader — Movies &amp; Series (Arabic)</title>
   <meta name="description" content="Automatically download Arabic subtitles for all your movies and TV series in one click using the SubDL API with recursive subfolder scanning." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -607,7 +607,7 @@
   <!-- Folder Selection -->
   <div class="card">
     <div class="card-header">
-      <div class="card-icon blue">ðŸ“</div>
+      <div class="card-icon blue">📁</div>
       <div>
         <div class="card-title">Movie / Series Folder</div>
         <div class="card-sub">Select the root directory containing your video files &amp; subfolders</div>
@@ -630,7 +630,7 @@
         <label class="checkbox-container" for="chk-include-subfolders">
           <input type="checkbox" id="chk-include-subfolders" checked />
           <div class="checkbox-label-block">
-            <div class="checkbox-title">ðŸ“ Search All Subfolders (Recursive Deep Search)</div>
+            <div class="checkbox-title">📁 Search All Subfolders (Recursive Deep Search)</div>
             <div class="subfolder-hint">
               Automatically searches inside all subdirectories (e.g. <code>Marvel Films/Iron Man (2008)/</code> or <code>Series/Loki/Season 1/</code>) and saves each <code>.srt</code> subtitle directly next to its corresponding video.
             </div>
@@ -639,8 +639,8 @@
       </div>
 
       <div class="smart-feature-banner">
-        <span>âœ¨</span>
-        <div><strong>Smart Film &amp; Series Analysis:</strong> Automatically extracts Movie Titles, Release Years, and TV Series Season/Episodes (e.g. <code>Loki.S01E01</code> âž” <code>Loki Season 1 Episode 1</code>).</div>
+        <span>✨</span>
+        <div><strong>Smart Film &amp; Series Analysis:</strong> Automatically extracts Movie Titles, Release Years, and TV Series Season/Episodes (e.g. <code>Loki.S01E01</code> ➔ <code>Loki Season 1 Episode 1</code>).</div>
       </div>
     </div>
   </div>
@@ -654,15 +654,15 @@
   <!-- Progress Card -->
   <div class="card" id="progress-section">
     <div class="card-header">
-      <div class="card-icon blue">âš¡</div>
+      <div class="card-icon blue">⚡</div>
       <div>
         <div class="card-title">Processing</div>
-        <div class="card-sub" id="progress-subtext">Startingâ€¦</div>
+        <div class="card-sub" id="progress-subtext">Starting…</div>
       </div>
     </div>
     <div class="card-body">
       <div class="progress-label">
-        <span class="current-film" id="current-film-label">â€”</span>
+        <span class="current-film" id="current-film-label">—</span>
         <span class="progress-count" id="progress-count-label">0 / 0</span>
       </div>
       <div class="progress-track">
@@ -677,7 +677,7 @@
 
   <!-- Summary Banner -->
   <div id="summary-banner">
-    <div class="summary-done-text">ðŸŽ‰ All done!</div>
+    <div class="summary-done-text">🎉 All done!</div>
     <div class="summary-stat saved">
       <span class="val" id="sum-saved">0</span>
       <span class="summary-label">Saved</span>
@@ -695,10 +695,10 @@
   <!-- Results Table -->
   <div class="card" id="results-section">
     <div class="card-header">
-      <div class="card-icon green">ðŸ“‹</div>
+      <div class="card-icon green">📋</div>
       <div>
         <div class="card-title">Results</div>
-        <div class="card-sub" id="results-sub">Live updatingâ€¦</div>
+        <div class="card-sub" id="results-sub">Live updating…</div>
       </div>
     </div>
     <div class="card-body" style="padding:0;">
@@ -723,7 +723,7 @@
     <summary>
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93A10 10 0 0 0 4.93 4.93C3.1 6.7 2 9.2 2 12s1.1 5.3 2.93 7.07A10 10 0 0 0 19.07 19.07 10 10 0 0 0 21.07 12a10 10 0 0 0-2-7.07z"/></svg>
       Settings
-      <span class="settings-chevron">â–¾</span>
+      <span class="settings-chevron">▾</span>
     </summary>
     <div class="settings-body">
       <div class="field">
@@ -740,7 +740,7 @@
 </main>
 
 <footer>
-  <p>Powered by <a href="https://subdl.com" target="_blank" rel="noopener">SubDL</a> &nbsp;Â·&nbsp; Works in Chrome &amp; Edge &nbsp;Â·&nbsp; No data leaves your browser</p>
+  <p>Powered by <a href="https://subdl.com" target="_blank" rel="noopener">SubDL</a> &nbsp;·&nbsp; Works in Chrome &amp; Edge &nbsp;·&nbsp; No data leaves your browser</p>
 </footer>
 
 <script>
@@ -763,11 +763,10 @@
     url => `https://thingproxy.freeboard.io/fetch/${url}`,
     url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
     url => `https://corsproxy.org/?${encodeURIComponent(url)}`,
-    url => `https://cors-proxy.fringe.zone/${url}`,
   ];
 
   // Fetch with timeout + abort signal support
-  function fetchWithTimeout(url, externalSignal = null, timeoutMs = 20000) {
+  function fetchWithTimeout(url, externalSignal, timeoutMs) {
     const timeoutController = new AbortController();
     const timeoutId = setTimeout(() => timeoutController.abort(), timeoutMs);
 
@@ -792,7 +791,9 @@
   }
 
   // Robust fetch through CORS proxies with retry
-  async function proxiedFetch(url, expectJson = false, signal = null, timeoutMs = 20000) {
+  async function proxiedFetch(url, expectJson, signal, timeoutMs) {
+    if (!timeoutMs) timeoutMs = 20000;
+
     // First try direct fetch
     try {
       const directRes = await fetchWithTimeout(url, signal, timeoutMs);
@@ -886,11 +887,11 @@
 
   // Check browser capability
   if (!('showDirectoryPicker' in window)) {
-    folderName.textContent = 'âš ï¸ File System Access API requires Google Chrome or Microsoft Edge on Desktop.';
+    folderName.textContent = '⚠️ File System Access API requires Google Chrome or Microsoft Edge on Desktop.';
     folderName.style.color = 'var(--warning)';
   }
 
-  // â”€â”€ Recursive Directory Scanner â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Recursive Directory Scanner ──────────────────────────────────
   async function scanDirectory(rootHandle, includeSubfolders = true) {
     const files = [];
     let subfoldersFound = 0;
@@ -925,7 +926,7 @@
   async function refreshFolderScan() {
     if (!dirHandle) return;
     try {
-      folderCount.textContent = 'Scanning files and subfoldersâ€¦';
+      folderCount.textContent = 'Scanning files and subfolders…';
       const includeSub = chkIncludeSubfolders ? chkIncludeSubfolders.checked : true;
       const scanResult = await scanDirectory(dirHandle, includeSub);
       videoFiles = scanResult.files;
@@ -938,9 +939,9 @@
         btnDownload.disabled = true;
       } else {
         if (scanResult.subfoldersFound > 0 && includeSub) {
-          folderCount.textContent = `${videoFiles.length} video file${videoFiles.length !== 1 ? 's' : ''} found across ${scanResult.subfoldersFound} subfolder${scanResult.subfoldersFound !== 1 ? 's' : ''} â€” ready to download`;
+          folderCount.textContent = `${videoFiles.length} video file${videoFiles.length !== 1 ? 's' : ''} found across ${scanResult.subfoldersFound} subfolder${scanResult.subfoldersFound !== 1 ? 's' : ''} — ready to download`;
         } else {
-          folderCount.textContent = `${videoFiles.length} video file${videoFiles.length !== 1 ? 's' : ''} found â€” ready to download`;
+          folderCount.textContent = `${videoFiles.length} video file${videoFiles.length !== 1 ? 's' : ''} found — ready to download`;
         }
         btnDownload.disabled = false;
       }
@@ -949,7 +950,7 @@
     }
   }
 
-  // â”€â”€ Select Folder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Select Folder ─────────────────────────────────────────────────
   btnSelectFolder.addEventListener('click', async () => {
     if (isRunning) return;
     try {
@@ -972,7 +973,7 @@
     });
   }
 
-  // â”€â”€ Download All â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Download All ──────────────────────────────────────────────────
   btnDownload.addEventListener('click', async () => {
     if (isRunning || videoFiles.length === 0) return;
     isRunning = true;
@@ -992,8 +993,8 @@
     summaryBanner.classList.remove('visible');
     progressSection.style.display = 'block';
     resultsSection.style.display  = 'block';
-    setProgress(0, total, 'Startingâ€¦');
-    resultsSub.textContent = 'Live updatingâ€¦';
+    setProgress(0, total, 'Starting…');
+    resultsSub.textContent = 'Live updating…';
 
     for (let i = 0; i < total; i++) {
       const file         = videoFiles[i];
@@ -1008,7 +1009,7 @@
         skipCurrent = false;
       }
 
-      setProgress(i, total, `${file.relativePath || file.name} âž” ${parsedInfo.extractedName}`);
+      setProgress(i, total, `${file.relativePath || file.name} ➔ ${parsedInfo.extractedName}`);
       const row = addRow(i + 1, file, parsedInfo, 'processing');
 
       try {
@@ -1064,7 +1065,7 @@
           continue;
         }
 
-        // 3. Build download URL (try with api_key first for authenticated downloads, then without)
+        // 3. Build download URLs (try with api_key first, then without)
         const rawSubUrl = chosenSub.url;
         const fullDownloadUrl = rawSubUrl.startsWith('http') 
           ? rawSubUrl 
@@ -1076,7 +1077,7 @@
           ? cleanSubUrl 
           : (cleanSubUrl.startsWith('/') ? `https://dl.subdl.com${cleanSubUrl}` : `https://dl.subdl.com/${cleanSubUrl}`);
 
-        // 4. Fetch subtitle file via robust proxy (try full URL first, then stripped)
+        // 4. Fetch subtitle file via robust proxy (try full URL first, then stripped, 30s timeout)
         let dlResult = await proxiedFetch(fullDownloadUrl, false, currentAbortController.signal, 30000);
         if (!dlResult.ok || !dlResult.response) {
           dlResult = await proxiedFetch(strippedDownloadUrl, false, currentAbortController.signal, 30000);
@@ -1169,7 +1170,7 @@
     sumNotFound.textContent = notFound;
     sumErrors.textContent   = errors;
     summaryBanner.classList.add('visible');
-    resultsSub.textContent  = `${saved} saved Â· ${notFound} not found Â· ${errors} errors`;
+    resultsSub.textContent  = `${saved} saved · ${notFound} not found · ${errors} errors`;
     summaryBanner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
     btnDownload.disabled     = false;
@@ -1179,7 +1180,7 @@
     isRunning = false;
   });
 
-  // â”€â”€ Skip Button Handler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Skip Button Handler ──────────────────────────────────────────
   btnSkip.addEventListener('click', () => {
     if (!isRunning) return;
     skipCurrent = true;
@@ -1196,7 +1197,7 @@
     }, 300);
   });
 
-  // â”€â”€ Smart Media Parser & Query Generator â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Smart Media Parser & Query Generator ──────────────────────────
   function cleanPart(str) {
     if (!str) return '';
     return str
@@ -1331,7 +1332,7 @@
     };
   }
 
-  // â”€â”€ Multi-Query SubDL Search Engine â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Multi-Query SubDL Search Engine ────────────────────────────────
   async function searchSubDL(apiKey, parsedInfo, rawBaseName, signal = null) {
     const candidateKeys = [apiKey, ...DEFAULT_API_KEYS.filter(k => k !== apiKey)];
     const queries = [];
@@ -1406,16 +1407,16 @@
     return null;
   }
 
-  // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Helpers ───────────────────────────────────────────────────────
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
   function setProgress(done, total, filmName) {
     const pct = total > 0 ? (done / total) * 100 : 0;
     progressFill.style.width     = pct + '%';
     progressCount.textContent    = `${done} / ${total}`;
-    currentFilmLabel.textContent = filmName || 'â€”';
+    currentFilmLabel.textContent = filmName || '—';
     if (done < total) {
-      progressSubtext.textContent = 'Processingâ€¦';
+      progressSubtext.textContent = 'Processing…';
     }
   }
 
@@ -1431,15 +1432,15 @@
     let mediaBadge = '';
     if (parsedInfo.isTv) {
       mediaBadge = `
-        <span class="badge-tv">ðŸ“º ${escHtml(parsedInfo.showTitle)}</span>
+        <span class="badge-tv">📺 ${escHtml(parsedInfo.showTitle)}</span>
         <span class="badge-ep">S${escHtml(parsedInfo.seasonFormatted)}E${escHtml(parsedInfo.episodeFormatted)}</span>
       `;
     } else {
       const yearBadge = parsedInfo.year 
-        ? `<span class="badge-year">ðŸ“… ${escHtml(parsedInfo.year)}</span>` 
+        ? `<span class="badge-year">📅 ${escHtml(parsedInfo.year)}</span>` 
         : '';
       mediaBadge = `
-        <span class="badge-title">ðŸŽ¬ ${escHtml(parsedInfo.title)}</span>
+        <span class="badge-title">🎬 ${escHtml(parsedInfo.title)}</span>
         ${yearBadge}
       `;
     }
@@ -1448,7 +1449,7 @@
       <td class="col-num">${num}</td>
       <td class="col-name">
         <div class="file-path-info">
-          ${hasSubfolder ? `<span class="badge-subfolder" title="${escHtml(subfolderName)}">ðŸ“ ${escHtml(subfolderName)}</span>` : ''}
+          ${hasSubfolder ? `<span class="badge-subfolder" title="${escHtml(subfolderName)}">📁 ${escHtml(subfolderName)}</span>` : ''}
           <span class="file-basename">${escHtml(file.name)}</span>
         </div>
       </td>
@@ -1470,10 +1471,10 @@
 
   function statusHtml(status, detail = '') {
     switch (status) {
-      case 'processing': return `<span class="status-processing"><span class="spinner"></span> Processingâ€¦</span>`;
-      case 'saved':      return `<span class="status-saved" title="${escHtml(detail)}">âœ… Saved</span>`;
-      case 'notfound':   return `<span class="status-notfound" title="${escHtml(detail)}">â­ï¸ Not Found</span>`;
-      case 'error':      return `<span class="status-error" title="${escHtml(detail)}">âŒ Error${detail ? `: <small style="font-size:11px;opacity:0.85;">${escHtml(detail)}</small>` : ''}</span>`;
+      case 'processing': return `<span class="status-processing"><span class="spinner"></span> Processing…</span>`;
+      case 'saved':      return `<span class="status-saved" title="${escHtml(detail)}">✅ Saved</span>`;
+      case 'notfound':   return `<span class="status-notfound" title="${escHtml(detail)}">⏭️ Not Found</span>`;
+      case 'error':      return `<span class="status-error" title="${escHtml(detail)}">❌ Error${detail ? `: <small style="font-size:11px;opacity:0.85;">${escHtml(detail)}</small>` : ''}</span>`;
       default:           return '';
     }
   }
