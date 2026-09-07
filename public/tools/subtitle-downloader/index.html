@@ -758,7 +758,7 @@
 
   // Multiple CORS proxies for reliability (ordered by reliability for binary downloads)
   const CORS_PROXIES = [
-    url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+    url => `https://cors.eu.org/${url}`,
     url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
     url => `https://thingproxy.freeboard.io/fetch/${url}`,
     url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
@@ -841,6 +841,214 @@
     }
 
     return { ok: false, error: 'All CORS proxies failed to fetch resource' };
+  }
+
+  // Validate downloaded raw buffer (rejects HTML/Cloudflare pages and JSON error responses)
+  function isValidSubtitleBuffer(buf) {
+    if (!buf || buf.byteLength < 20) return false;
+    const u8 = new Uint8Array(buf.slice(0, Math.min(buf.byteLength, 256)));
+    // PK signature (ZIP)
+    if (u8[0] === 0x50 && u8[1] === 0x4B) return true;
+    // RAR signature (Rar!)
+    if (u8[0] === 0x52 && u8[1] === 0x61 && u8[2] === 0x72 && u8[3] === 0x21) return true;
+
+    // Check text preview for HTML error/challenge page or JSON error
+    const preview = new TextDecoder('utf-8', { fatal: false }).decode(u8).trim();
+    if (preview.startsWith('<!DOCTYPE') || preview.startsWith('<html') || preview.startsWith('<div') || preview.includes('challenge-platform') || preview.includes('cf-chl')) {
+      return false;
+    }
+    if (preview.startsWith('{') && (preview.includes('"error"') || preview.includes('"status":false') || preview.includes('"message"'))) {
+      return false;
+    }
+    if (preview.includes('-->') || preview.includes('[Script Info]') || preview.includes('WEBVTT') || /^\d+\s*[\r\n]+\d{2}:\d{2}/.test(preview)) {
+      return true;
+    }
+    return buf.byteLength > 200;
+  }
+
+  // Download raw subtitle buffer from URL with proxy fallbacks & API key bypass
+  async function downloadSubtitleBuffer(subUrl, signal) {
+    if (!subUrl) return null;
+
+    // Stripped URL (without api_key) avoids hitting the 50/day download quota on SubDL!
+    const cleanPath = subUrl.replace(/[\?&]api_key=[^&]+/gi, '').replace(/\?&/, '?').replace(/\?$/, '');
+    const cleanFull = cleanPath.startsWith('http') 
+      ? cleanPath 
+      : (cleanPath.startsWith('/') ? `https://dl.subdl.com${cleanPath}` : `https://dl.subdl.com/${cleanPath}`);
+
+    const rawFull = subUrl.startsWith('http') 
+      ? subUrl 
+      : (subUrl.startsWith('/') ? `https://dl.subdl.com${subUrl}` : `https://dl.subdl.com/${subUrl}`);
+
+    // Try clean URL first (no quota limit), then raw URL with key
+    const targets = cleanFull !== rawFull ? [cleanFull, rawFull] : [cleanFull];
+
+    for (const target of targets) {
+      if (signal && signal.aborted) throw new DOMException('Aborted', 'AbortError');
+
+      // 1. Direct fetch (SubDL CDN provides access-control-allow-origin: *)
+      try {
+        const res = await fetchWithTimeout(target, signal, 15000);
+        if (res.ok) {
+          const buf = await res.arrayBuffer();
+          if (isValidSubtitleBuffer(buf)) return buf;
+        }
+      } catch (e) {
+        if (e.name === 'AbortError' && signal && signal.aborted) throw e;
+      }
+
+      // 2. Reliable CORS proxies
+      for (let i = 0; i < CORS_PROXIES.length; i++) {
+        if (signal && signal.aborted) throw new DOMException('Aborted', 'AbortError');
+        const pUrl = CORS_PROXIES[i](target);
+        try {
+          const res = await fetchWithTimeout(pUrl, signal, 20000);
+          if (res.ok) {
+            const buf = await res.arrayBuffer();
+            if (isValidSubtitleBuffer(buf)) return buf;
+          }
+        } catch (e) {
+          if (e.name === 'AbortError' && signal && signal.aborted) throw e;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  // Decode subtitle text supporting UTF-8, Windows-1256 (Arabic), and UTF-16
+  function decodeSubtitleBytes(uint8Array) {
+    if (!uint8Array || uint8Array.length === 0) return null;
+
+    // UTF-16 LE/BE BOM
+    if (uint8Array.length >= 2) {
+      if (uint8Array[0] === 0xFF && uint8Array[1] === 0xFE) {
+        return new TextDecoder('utf-16le').decode(uint8Array);
+      }
+      if (uint8Array[0] === 0xFE && uint8Array[1] === 0xFF) {
+        return new TextDecoder('utf-16be').decode(uint8Array);
+      }
+    }
+
+    // Try UTF-8 first
+    try {
+      const utf8Text = new TextDecoder('utf-8', { fatal: false }).decode(uint8Array);
+      const replacementCount = (utf8Text.match(/\uFFFD/g) || []).length;
+      
+      // If clean UTF-8 with subtitle cues or Arabic characters, return it
+      if (replacementCount === 0 && (utf8Text.includes('-->') || /[\u0600-\u06FF]/.test(utf8Text))) {
+        return utf8Text;
+      }
+
+      // If replacement characters present or missing Arabic, check Windows-1256
+      try {
+        const cp1256Text = new TextDecoder('windows-1256').decode(uint8Array);
+        if (cp1256Text.includes('-->') || /[\u0600-\u06FF]/.test(cp1256Text)) {
+          if (/[\u0600-\u06FF]/.test(cp1256Text) && !/[\u0600-\u06FF]/.test(utf8Text)) {
+            return cp1256Text;
+          }
+        }
+      } catch {}
+
+      return utf8Text;
+    } catch {
+      try {
+        return new TextDecoder('windows-1256').decode(uint8Array);
+      } catch {
+        return null;
+      }
+    }
+  }
+
+  // Check if string contains subtitle content (timestamp arrows or subtitle script blocks)
+  function isSubtitleContent(text) {
+    if (!text || typeof text !== 'string') return false;
+    const trimmed = text.trim();
+    if (trimmed.length < 10) return false;
+    if (trimmed.startsWith('<!DOCTYPE') || trimmed.startsWith('<html') || trimmed.includes('<body') || trimmed.includes('challenge-platform')) {
+      return false;
+    }
+    if (trimmed.startsWith('{') && (trimmed.includes('"error"') || trimmed.includes('"status":false'))) {
+      return false;
+    }
+    if (trimmed.includes('-->')) return true;
+    if (trimmed.includes('[Script Info]') || trimmed.includes('[Events]')) return true;
+    if (trimmed.startsWith('WEBVTT')) return true;
+    if (/^\d+\s*[\r\n]+\d{2}:\d{2}:\d{2}/.test(trimmed)) return true;
+    return false;
+  }
+
+  // Extract subtitle text from ArrayBuffer (ZIP archive or direct subtitle)
+  async function extractSubtitle(arrayBuffer, parsedInfo) {
+    if (!arrayBuffer || arrayBuffer.byteLength < 20) return null;
+
+    const u8 = new Uint8Array(arrayBuffer);
+    const isZip = u8[0] === 0x50 && u8[1] === 0x4B;
+
+    if (isZip) {
+      try {
+        const zip = await JSZip.loadAsync(arrayBuffer);
+        const entries = Object.entries(zip.files).filter(([_, entry]) => !entry.dir);
+
+        const isSubExt = name => {
+          const l = name.toLowerCase();
+          return l.endsWith('.srt') || l.endsWith('.vtt') || l.endsWith('.ass') || l.endsWith('.sub') || l.endsWith('.txt');
+        };
+
+        // 1. TV show episode-specific match
+        if (parsedInfo && parsedInfo.isTv) {
+          const epTag = `e${parsedInfo.episodeFormatted}`.toLowerCase();
+          const epTagFull = `s${parsedInfo.seasonFormatted}e${parsedInfo.episodeFormatted}`.toLowerCase();
+          for (const [filename, entry] of entries) {
+            const fLower = filename.toLowerCase();
+            if (isSubExt(fLower) && (fLower.includes(epTag) || fLower.includes(epTagFull))) {
+              const bytes = await entry.async('uint8array');
+              const text = decodeSubtitleBytes(bytes);
+              if (isSubtitleContent(text)) return text;
+            }
+          }
+        }
+
+        // 2. Any .srt file
+        for (const [filename, entry] of entries) {
+          if (filename.toLowerCase().endsWith('.srt')) {
+            const bytes = await entry.async('uint8array');
+            const text = decodeSubtitleBytes(bytes);
+            if (isSubtitleContent(text)) return text;
+          }
+        }
+
+        // 3. Any .vtt, .ass, .sub, .txt with subtitle content
+        for (const [filename, entry] of entries) {
+          if (isSubExt(filename)) {
+            const bytes = await entry.async('uint8array');
+            const text = decodeSubtitleBytes(bytes);
+            if (isSubtitleContent(text)) return text;
+          }
+        }
+
+        // 4. Nested zip files
+        for (const [filename, entry] of entries) {
+          if (filename.toLowerCase().endsWith('.zip')) {
+            try {
+              const innerBuf = await entry.async('arraybuffer');
+              const innerText = await extractSubtitle(innerBuf, parsedInfo);
+              if (innerText) return innerText;
+            } catch {}
+          }
+        }
+      } catch (zipErr) {
+        console.warn('JSZip failed to unpack buffer:', zipErr.message);
+      }
+    }
+
+    // Direct text fallback
+    const directText = decodeSubtitleBytes(u8);
+    if (isSubtitleContent(directText)) {
+      return directText;
+    }
+
+    return null;
   }
 
   let dirHandle  = null;
@@ -1043,98 +1251,78 @@
           continue;
         }
 
-        // 2. Select best matching subtitle
-        let chosenSub = null;
+        // 2. Rank candidate subtitles: prioritize .zip over .rar, TV episode matches, etc.
+        let candidateList = [...searchData.subtitles];
         if (parsedInfo.isTv) {
           const epTag = `s${parsedInfo.seasonFormatted}e${parsedInfo.episodeFormatted}`;
-          chosenSub = searchData.subtitles.find(s => {
-            const sName = (s.name || s.release_name || '').toLowerCase();
-            return sName.includes(epTag) && sName.endsWith('.zip');
-          }) || searchData.subtitles.find(s => {
-            const sName = (s.name || s.release_name || '').toLowerCase();
-            return sName.includes(epTag);
-          }) || searchData.subtitles.find(s => (s.url && s.url.includes('.zip')) || (s.name && s.name.toLowerCase().endsWith('.zip'))) || searchData.subtitles[0];
+          const epShort = `e${parsedInfo.episodeFormatted}`;
+          candidateList.sort((a, b) => {
+            const aName = `${a.name || ''} ${a.release_name || ''}`.toLowerCase();
+            const bName = `${b.name || ''} ${b.release_name || ''}`.toLowerCase();
+            const aMatch = aName.includes(epTag) ? 4 : (aName.includes(epShort) ? 2 : 0);
+            const bMatch = bName.includes(epTag) ? 4 : (bName.includes(epShort) ? 2 : 0);
+            const aZip = (a.url || a.name || '').toLowerCase().includes('.zip') ? 1 : 0;
+            const bZip = (b.url || b.name || '').toLowerCase().includes('.zip') ? 1 : 0;
+            return (bMatch + bZip) - (aMatch + aZip);
+          });
         } else {
-          chosenSub = searchData.subtitles.find(s => (s.url && s.url.includes('.zip')) || (s.name && s.name.toLowerCase().endsWith('.zip'))) || searchData.subtitles[0];
+          candidateList.sort((a, b) => {
+            const aZip = (a.url || a.name || '').toLowerCase().includes('.zip') ? 1 : 0;
+            const bZip = (b.url || b.name || '').toLowerCase().includes('.zip') ? 1 : 0;
+            return bZip - aZip;
+          });
         }
 
-        if (!chosenSub || !chosenSub.url) {
+        // 3. Try candidates sequentially (up to 8 candidates) until one unpacks a valid subtitle
+        let srtContent = null;
+        let chosenSub = null;
+        const toTry = candidateList.slice(0, 8);
+
+        for (let cIdx = 0; cIdx < toTry.length; cIdx++) {
+          if (skipCurrent || (currentAbortController && currentAbortController.signal.aborted)) break;
+
+          const candidate = toTry[cIdx];
+          if (!candidate || !candidate.url) continue;
+
+          if (toTry.length > 1) {
+            updateRow(row, 'searching', `Checking subtitle ${cIdx + 1}/${toTry.length}…`);
+          }
+
+          try {
+            const buf = await downloadSubtitleBuffer(candidate.url, currentAbortController.signal);
+            if (buf) {
+              const text = await extractSubtitle(buf, parsedInfo);
+              if (text) {
+                srtContent = text;
+                chosenSub = candidate;
+                break; // Found and extracted successfully!
+              }
+            }
+          } catch (candErr) {
+            if (candErr.name === 'AbortError' && currentAbortController && currentAbortController.signal.aborted) {
+              throw candErr;
+            }
+            console.warn(`Subtitle candidate ${cIdx + 1} failed:`, candErr.message);
+          }
+        }
+
+        // Check if user skipped during download
+        if (skipCurrent || (currentAbortController && currentAbortController.signal.aborted)) {
+          skipCurrent = false;
           notFound++;
-          updateRow(row, 'notfound', 'No subtitle download URL available');
+          updateRow(row, 'notfound', 'Skipped by user');
+          await sleep(100);
+          continue;
+        }
+
+        if (!srtContent || !chosenSub) {
+          notFound++;
+          updateRow(row, 'notfound', 'No valid subtitle track found in available packages');
           await sleep(delay);
           continue;
         }
 
-        // 3. Build download URLs (try with api_key first, then without)
-        const rawSubUrl = chosenSub.url;
-        const fullDownloadUrl = rawSubUrl.startsWith('http') 
-          ? rawSubUrl 
-          : (rawSubUrl.startsWith('/') ? `https://dl.subdl.com${rawSubUrl}` : `https://dl.subdl.com/${rawSubUrl}`);
-
-        let cleanSubUrl = chosenSub.url.replace(/[\?&]api_key=[^&]+/gi, '');
-        cleanSubUrl = cleanSubUrl.replace(/\?&/, '?').replace(/\?$/, '');
-        const strippedDownloadUrl = cleanSubUrl.startsWith('http') 
-          ? cleanSubUrl 
-          : (cleanSubUrl.startsWith('/') ? `https://dl.subdl.com${cleanSubUrl}` : `https://dl.subdl.com/${cleanSubUrl}`);
-
-        // 4. Fetch subtitle file via robust proxy (try full URL first, then stripped, 30s timeout)
-        let dlResult = await proxiedFetch(fullDownloadUrl, false, currentAbortController.signal, 30000);
-        if (!dlResult.ok || !dlResult.response) {
-          dlResult = await proxiedFetch(strippedDownloadUrl, false, currentAbortController.signal, 30000);
-        }
-        if (!dlResult.ok || !dlResult.response) {
-          throw new Error('All CORS proxies failed to download subtitle');
-        }
-
-        const arrayBuffer = await dlResult.response.arrayBuffer();
-        if (arrayBuffer.byteLength < 20) {
-          throw new Error('Downloaded file empty');
-        }
-
-        // 5. Extract .srt content (supports both ZIP archives and direct text subtitle files)
-        let srtContent = null;
-        const header = new Uint8Array(arrayBuffer.slice(0, 4));
-        const isZip = header[0] === 0x50 && header[1] === 0x4B; // PK signature
-
-        if (isZip) {
-          const zip = await JSZip.loadAsync(arrayBuffer);
-
-          if (parsedInfo.isTv) {
-            const epTag = `e${parsedInfo.episodeFormatted}`;
-            for (const [filename, zipEntry] of Object.entries(zip.files)) {
-              if (zipEntry.dir) continue;
-              const fLower = filename.toLowerCase();
-              if ((fLower.endsWith('.srt') || fLower.endsWith('.ass') || fLower.endsWith('.vtt')) && fLower.includes(epTag)) {
-                srtContent = await zipEntry.async('string');
-                break;
-              }
-            }
-          }
-
-          if (!srtContent) {
-            for (const [filename, zipEntry] of Object.entries(zip.files)) {
-              if (zipEntry.dir) continue;
-              const fLower = filename.toLowerCase();
-              if (fLower.endsWith('.srt') || fLower.endsWith('.ass') || fLower.endsWith('.vtt')) {
-                srtContent = await zipEntry.async('string');
-                break;
-              }
-            }
-          }
-        } else {
-          // Direct subtitle text (UTF-8)
-          const textDecoder = new TextDecoder('utf-8');
-          const text = textDecoder.decode(arrayBuffer);
-          if (text.includes('-->') || text.includes('[Script Info]') || text.includes('WEBVTT') || /^\d+\s*[\r\n]+\d{2}:\d{2}/.test(text.trim())) {
-            srtContent = text;
-          }
-        }
-
-        if (!srtContent) {
-          throw new Error('No valid .srt subtitle track found in download package');
-        }
-
-        // 6. Write subtitle file directly into the exact folder next to the video
+        // 4. Write subtitle file directly into the exact folder next to the video
         const targetParent = file.parentHandle || dirHandle;
         const fileHandle = await targetParent.getFileHandle(subtitleName, { create: true });
         const writable   = await fileHandle.createWritable();
