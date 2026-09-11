@@ -1359,7 +1359,7 @@
     sumErrors.textContent   = errors;
     summaryBanner.classList.add('visible');
     resultsSub.textContent  = `${saved} saved · ${notFound} not found · ${errors} errors`;
-    summaryBanner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    // Don't auto-scroll — let the user stay wherever they are on the page
 
     btnDownload.disabled     = false;
     btnSelectFolder.disabled = false;
@@ -1649,7 +1649,7 @@
       <td class="col-status">${statusHtml(status)}</td>
     `;
     resultsTbody.appendChild(tr);
-    tr.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    // Don't auto-scroll — let the user stay wherever they are on the page
     return tr;
   }
 
